@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10.0)
 
-project(gc_polyscope_example)
+project(self_avoiding)
 
 ### Configure output locations
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -65,11 +65,33 @@ add_subdirectory(deps/polyscope)
 # == Build our project stuff
 
 set(SRCS 
-  src/main.cpp
+  src/boundary_derivatives.cpp
+  src/boundary_element.cpp
+  src/boundary_loop.cpp
+  src/lws_app.cpp
+  src/lws_cluster.cpp
+  src/lws_energy.cpp
+  src/lws_flow.cpp
+  src/lws_options.cpp
+  src/mesh_helpers.cpp
+  src/poly_curve.cpp
+  src/sobo_slobo.cpp
+  src/tpe_energy_sc.cpp
+  src/tpe_flow_sc.cpp
+  src/utils.cpp
+  src/vertexderivatives.cpp
+  src/vert_jacobian.cpp
+  src/spatial/block_cluster_tree.cpp
+  src/spatial/spatial_tree.cpp
+  src/spatial/tpe_bvh.cpp
+  src/spatial/tpe_kdtree.cpp
+  src/spatial/tpe_octree.cpp
+  src/spatial/vertex_body.cpp
 	# add any other source files here
 )
 
 # To change the name of your executable, change "gc_project" in the lines below to whatever you want
-add_executable(gc_project "${SRCS}")
-target_include_directories(gc_project PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
-target_link_libraries(gc_project geometry-central polyscope)
+add_executable(lws "${SRCS}")
+target_include_directories(lws PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
+target_link_libraries(lws geometry-central polyscope)
+
