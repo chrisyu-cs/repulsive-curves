@@ -87,6 +87,8 @@ set(SRCS
   src/spatial/tpe_kdtree.cpp
   src/spatial/tpe_octree.cpp
   src/spatial/vertex_body.cpp
+  src/spacecurves/space_curve.cpp
+  src/spacecurves/space_curve_vector_quantity.cpp
 	# add any other source files here
 )
 

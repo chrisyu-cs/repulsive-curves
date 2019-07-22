@@ -291,7 +291,7 @@ namespace LWS {
         }
     }
 
-    int PolyCurveGroup::GlobalIndex(PointOnCurve c) {
+    size_t PolyCurveGroup::GlobalIndex(PointOnCurve c) {
         return c.curve->offset + c.pIndex;
     }
 }

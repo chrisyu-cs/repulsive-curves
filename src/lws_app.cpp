@@ -7,6 +7,7 @@
 #include "lws_app.h"
 #include "polyscope/gl/ground_plane.h"
 #include "utils.h"
+#include "spacecurves/space_curve.h"
 
 #include "spatial/tpe_kdtree.h"
 
@@ -71,7 +72,7 @@ namespace LWS {
     ImGui::Begin("Hull settings", &LWSOptions::showWindow);
 
     if (io.KeysDown[(int)' '] && io.KeysDownDurationPrev[(int)' '] == 0) {
-      cout << "Spacebar" << endl;
+      cout << "space bar" << endl;
     }
     if (ImGui::Button("Test derivatives")) {
       //TestBoundaryQuantities(mesh, geom);
@@ -92,7 +93,9 @@ namespace LWS {
         outputFrame();
       }
 
+      std::cout << "Attempting to take a step" << std::endl;
       bool good_step = tpeSolver->StepSobolevProjLS(true);
+      std::cout << "Took a step" << std::endl;
       UpdateCurvePositions();
       if (!good_step) {
         std::cout << "Stopped because line search could not take a step." << std::endl;
@@ -119,12 +122,16 @@ namespace LWS {
     ImGui::End();
   }
 
-  void LWSApp::centerMeshBarycenter(polyscope::SurfaceMesh* surface) {
-    
-  }
-
   void LWSApp::centerLoopBarycenter(PolyCurveGroup* curves) {
-    
+    Vector3 center = curves->Barycenter();
+    int nVerts = curves->NumVertices();
+    for (int i = 0; i < nVerts; i++) {
+      PointOnCurve p = curves->GetCurvePoint(i);
+      p.SetPosition(p.Position() + Vector3{0, 0.01, 0});
+
+      if (i == 0) std::cout << p.Position() << std::endl;
+    }
+    UpdateCurvePositions();
   }
 
   std::string LWSApp::getCurveName(int i) {
@@ -132,15 +139,26 @@ namespace LWS {
   }
 
   void LWSApp::initSolver() {
-    std::cout << "Initializing solver" << std::endl;
-  }
-
-  void LWSApp::UpdateMeshPositions() {
-    
+    if (!tpeSolver) {
+      // Set up solver
+      tpeSolver = new TPEFlowSolverSC(curves);
+    }
   }
 
   void LWSApp::UpdateCurvePositions() {
-    
+    // Update the positions on the space curve
+    for (size_t i = 0; i < curves->curves.size(); i++)
+    {
+      PolyCurve* polyCurve = curves->curves[i];
+      polyscope::SpaceCurve* curve = polyscope::getSpaceCurve(getCurveName(i));
+      std::vector<glm::vec3> curve_vecs(curves->NumVertices());
+      for (size_t i = 0; i < curve_vecs.size(); i++) {
+        Vector3 v = polyCurve->Position(i);
+        curve_vecs[i] = glm::vec3{v.x, v.y, v.z};
+      }
+      curve->updatePoints(curve_vecs);
+    }
+    polyscope::requestRedraw();
   }
 
   void LWSApp::processFileOBJ(std::string filename) {
@@ -166,6 +184,26 @@ namespace LWS {
       PolyCurve* c = new PolyCurve(positions);
       curves->AddCurve(c);
     }
+
+    surfaceName = polyscope::guessNiceNameFromPath(filename);
+  }
+
+  void LWSApp::DisplayCurves() {
+    std::vector<Vector3> positions;
+
+    size_t nVerts = curves->NumVertices();
+
+    for (size_t c = 0; c < curves->curves.size(); c++) {
+      positions.clear();
+      PolyCurve* curve = curves->curves[c];
+      int cVerts = curve->NumVertices();
+      for (int i = 0; i < cVerts; i++) {
+        positions.push_back(curve->Position(i));
+      }
+      polyscope::registerSpaceCurve(getCurveName(c), positions, true);
+    }
+
+    centerLoopBarycenter(curves);
   }
 }
 
@@ -209,12 +247,18 @@ int main(int argc, char** argv) {
     return 1;
   }
   // Options
-  polyscope::options::autocenterStructures = true;
+  polyscope::options::autocenterStructures = false;
   // polyscope::view::windowWidth = 600;
   // polyscope::view::windowHeight = 800;
+  polyscope::gl::groundPlaneEnabled = false;
 
   LWS::LWSApp* app = new LWS::LWSApp();
   LWS::LWSApp::instance = app;
+
+  // Initialize polyscope
+  polyscope::init();
+  // Add a few gui elements
+  polyscope::state::userCallback = &customWindow;
 
   for (string f : files) {
     processFile(LWS::LWSApp::instance, f);
@@ -224,11 +268,8 @@ int main(int argc, char** argv) {
   std::vector<std::vector<size_t>> faceIndices;
 
   polyscope::SurfaceMesh* m = polyscope::registerSurfaceMesh("empty", vertexPositions, faceIndices);
-
-  // Initialize polyscope
-  polyscope::init();
-  // Add a few gui elements
-  polyscope::state::userCallback = &customWindow;
+  app->DisplayCurves();
+  app->initSolver();
 
   // Show the gui
   polyscope::show();

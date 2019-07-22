@@ -55,6 +55,6 @@ namespace LWS {
         Vector3 Barycenter();
         double TotalLength();
         int NextIndexInCurve(int v);
-        int GlobalIndex(PointOnCurve c);
+        size_t GlobalIndex(PointOnCurve c);
     };
 }

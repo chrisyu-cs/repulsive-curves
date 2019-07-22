@@ -28,11 +28,10 @@ namespace LWS {
         void customWindow();
         void initSolver();
         void processFileOBJ(std::string filename);
+        void DisplayCurves();
 
         private:
-        void centerMeshBarycenter(polyscope::SurfaceMesh* surface);
         void centerLoopBarycenter(PolyCurveGroup* curves);
-        void UpdateMeshPositions();
         void UpdateCurvePositions();
         void outputFrame();
         void plotBHError(double alpha, double beta);
