@@ -223,7 +223,7 @@ namespace LWS {
             if (ratio < theta) {
                 Vector3 tangent = body.tangent;
                 // std::cout << "Using cell as body" << std::endl;
-                tangent.normalize();
+                tangent = tangent.normalize();
                 // This cell is far enough away that we can treat it as a single body
                 TangentMassPoint j{tangent, body.mass, body.position, PointOnCurve{0, 0}, PointOnCurve{0, 0}};
                 // Add contribution to energy at i from body j
@@ -279,7 +279,7 @@ namespace LWS {
             if (ratio < theta) {
                 Vector3 tangent = body.tangent;
                 // std::cout << "Using cell as body" << std::endl;
-                tangent.normalize();
+                tangent = tangent.normalize();
                 // This cell is far enough away that we can treat it as a single body
                 TangentMassPoint j{tangent, body.mass, body.position, PointOnCurve{0, 0}, PointOnCurve{0, 0}};
 

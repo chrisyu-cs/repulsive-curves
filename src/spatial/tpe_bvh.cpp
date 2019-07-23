@@ -1,4 +1,5 @@
 #include "spatial/tpe_bvh.h"
+#include <algorithm>
 
 namespace LWS {
 
@@ -281,7 +282,7 @@ namespace LWS {
             centerOfMass /= totalMass;
             averageTangent /= totalMass;
 
-            averageTangent.normalize();
+            averageTangent = averageTangent.normalize();
         }
     }
 
@@ -296,7 +297,7 @@ namespace LWS {
         Vector3 offset = (maxCoords.position - minCoords.position) / 2;
 
         Vector3 toCenter = (centerOfMass - point);
-        toCenter.normalize();
+        toCenter = toCenter.normalize();
 
         Vector3 corners[8] = {
             Vector3{center.x - offset.x, center.y - offset.y, center.z - offset.z},
@@ -377,7 +378,7 @@ namespace LWS {
 
     double BVHNode3D::bodyEnergyEvaluation(PointOnCurve &i_pt, double alpha, double beta) {
         Vector3 tangent = averageTangent;
-        tangent.normalize();
+        tangent = tangent.normalize();
         return TPESC::tpe_pair_pts(i_pt.Position(), centerOfMass, tangent, i_pt.DualLength(), totalMass, alpha, beta);
     }
 
@@ -418,7 +419,7 @@ namespace LWS {
             // With an edge, we have to pass in a TangentMassPoint instead
             else if (body.type() == BodyType::Edge) {
                 Vector3 tangent = body.pt.tangent;
-                tangent.normalize();
+                tangent = tangent.normalize();
 
                 PointOnCurve j1 = curves->GetCurvePoint(body.vertIndex1);
                 PointOnCurve j2 = curves->GetCurvePoint(body.vertIndex2);
@@ -442,7 +443,7 @@ namespace LWS {
         else {
             if (shouldUseCell(i_pt.Position())) {
                 Vector3 tangent = averageTangent;
-                tangent.normalize();
+                tangent = tangent.normalize();
                 // This cell is far enough away that we can treat it as a single body
                 TangentMassPoint j{tangent, totalMass, centerOfMass, PointOnCurve{0, 0}, PointOnCurve{0, 0}};
 
@@ -485,7 +486,7 @@ namespace LWS {
         else {
             if (shouldUseCell(i_pt.Position())) {
                 Vector3 tangent = averageTangent;
-                tangent.normalize();
+                tangent = tangent.normalize();
                 // This cell is far enough away that we can treat it as a single body
                 TangentMassPoint j{tangent, totalMass, centerOfMass, PointOnCurve{0, 0}, PointOnCurve{0, 0}};
 

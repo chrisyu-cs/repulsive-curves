@@ -26,14 +26,6 @@ namespace LWS {
       return Vector3{value, 2 * value * (1 - value), 1 - value};
   }
 
-  double LWSApp::LWSVertexEnergy(VertexPositionGeometry* geom, Vertex vert) {
-    return LWSApp::instance->lwsFunc->VertexEnergy(geom, vert);
-  }
-
-  Vector3 LWSApp::LWSVertexGradient(VertexPositionGeometry* geom, Vertex base, Vertex other) {
-    return LWSApp::instance->lwsFunc->VertexGradient(geom, base, other);
-  }
-
   void LWSApp::outputFrame() {
     char buffer[5];
     std::snprintf(buffer, sizeof(buffer), "%04d", LWSOptions::frameNum);
@@ -42,7 +34,6 @@ namespace LWS {
     polyscope::screenshot(fname, false);
     std::cout << "Wrote screenshot to " << fname << std::endl;
   }
-
 
   void LWSApp::plotBHError(double alpha, double beta) {
     BVHNode3D* bvh = CreateBVHFromCurve(curves);
@@ -93,9 +84,7 @@ namespace LWS {
         outputFrame();
       }
 
-      std::cout << "Attempting to take a step" << std::endl;
       bool good_step = tpeSolver->StepSobolevProjLS(true);
-      std::cout << "Took a step" << std::endl;
       UpdateCurvePositions();
       if (!good_step) {
         std::cout << "Stopped because line search could not take a step." << std::endl;
@@ -124,13 +113,13 @@ namespace LWS {
 
   void LWSApp::centerLoopBarycenter(PolyCurveGroup* curves) {
     Vector3 center = curves->Barycenter();
-    int nVerts = curves->NumVertices();
-    for (int i = 0; i < nVerts; i++) {
-      PointOnCurve p = curves->GetCurvePoint(i);
-      p.SetPosition(p.Position() + Vector3{0, 0.01, 0});
 
-      if (i == 0) std::cout << p.Position() << std::endl;
+    for (PolyCurve* loop : curves->curves) {
+      int nVerts = loop->NumVertices();
+      for (int i = 0; i < nVerts; i++)
+      loop->positions[i] = loop->positions[i] - center;
     }
+
     UpdateCurvePositions();
   }
 
@@ -175,14 +164,21 @@ namespace LWS {
 
     std::vector<Vector3> positions;
 
-    for (Face f : mesh->faces()) {
+    for (BoundaryLoop b : mesh->boundaryLoops()) {
       positions.clear();
-      for (Vertex v : f.adjacentVertices()) {
-        positions.push_back(geom->vertexPositions[v]);
-      }
+      Halfedge he = b.halfedge().next();
+      Halfedge start = b.halfedge().next();
 
-      PolyCurve* c = new PolyCurve(positions);
-      curves->AddCurve(c);
+      do {
+        Vector3 v = geom->vertexPositions[he.vertex()];
+        positions.push_back(v);
+        he = he.next();
+      }
+      while (he != start);
+
+      PolyCurve* pc = new PolyCurve(positions);
+      curves->AddCurve(pc);
+      std::cout << "Added boundary curve of length " << pc->NumVertices() << std::endl;
     }
 
     surfaceName = polyscope::guessNiceNameFromPath(filename);

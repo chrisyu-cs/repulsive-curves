@@ -1,7 +1,5 @@
 #pragma once
 
-#include "lws_flow.h"
-#include "boundary_loop.h"
 #include "tpe_energy_sc.h"
 #include "sobo_slobo.h"
 #include "mesh_helpers.h"

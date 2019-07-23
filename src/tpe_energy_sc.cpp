@@ -82,7 +82,7 @@ namespace LWS {
         Vector3 T_i = i.Tangent();
         // Normalized displacement direction
         Vector3 unit_disp = disp;
-        unit_disp.normalize();
+        unit_disp = unit_disp.normalize();
 
         // Evaluate projection onto normal plane, v - <v,T> * T
         Vector3 normal_proj = disp - dot(disp, T_i) * T_i;
@@ -111,7 +111,7 @@ namespace LWS {
         Vector3 T_i = i.tangent;
         // Normalized displacement direction
         Vector3 unit_disp = disp;
-        unit_disp.normalize();
+        unit_disp = unit_disp.normalize();
 
         // Evaluate projection onto normal plane, v - <v,T> * T
         Vector3 normal_proj = disp - dot(disp, T_i) * T_i;
@@ -143,7 +143,7 @@ namespace LWS {
         Vector3 T_i = i.Tangent();
         // Normalized displacement direction
         Vector3 unit_disp = disp;
-        unit_disp.normalize();
+        unit_disp = unit_disp.normalize();
 
         // Evaluate projection onto normal plane, v - <v,T> * T
         Vector3 normal_proj = disp - dot(disp, T_i) * T_i;
@@ -186,7 +186,6 @@ namespace LWS {
         Vector3 grad_ly = length_wrt_vert(y, wrt);
         // Evaluate the product rule for dx*dy
         Vector3 prod_rule = grad_lx * l_y + l_x * grad_ly;
-
         // Evaluate the product rule for k dx dy
         return grad_Kf * l_x * l_y + Kf * prod_rule;
     }
@@ -210,11 +209,11 @@ namespace LWS {
         else if (x.type() == TPEPointType::Edge) {
             if (wrt == x.curvePt) {
                 grad_lx = (x.curvePt.Position() - x.curvePt2.Position());
-                grad_lx.normalize();
+                grad_lx = grad_lx.normalize();
             }
             else if (wrt == x.curvePt2) {
                 grad_lx = (x.curvePt2.Position() - x.curvePt.Position());
-                grad_lx.normalize();
+                grad_lx = grad_lx.normalize();
             }
         }
         // d/dy of area(y)
@@ -245,11 +244,11 @@ namespace LWS {
         else if (y.type() == TPEPointType::Edge) {
             if (wrt == y.curvePt) {
                 grad_ly = (y.curvePt.Position() - y.curvePt2.Position());
-                grad_ly.normalize();
+                grad_ly = grad_ly.normalize();
             }
             else if (wrt == y.curvePt2) {
                 grad_ly = (y.curvePt2.Position() - y.curvePt.Position());
-                grad_ly.normalize();
+                grad_ly = grad_ly.normalize();
             }
         }
 
@@ -517,14 +516,14 @@ namespace LWS {
         Vector3 f_j = nextVert.Position();
 
         Vector3 prevTangent = f_i - f_h;
-        prevTangent.normalize();
+        prevTangent = prevTangent.normalize();
         Vector3 nextTangent = f_j - f_i;
-        nextTangent.normalize();
+        nextTangent = nextTangent.normalize();
 
         Vector3 sumTangents = prevTangent + nextTangent;
         double normSum = norm(sumTangents);
         Vector3 vertTangent = sumTangents;
-        vertTangent.normalize();
+        vertTangent = vertTangent.normalize();
 
         VertJacobian derivSumTs = edge_tangent_wrt_vert(prevVert, wrtVert)
             + edge_tangent_wrt_vert(tangentVert, wrtVert);
@@ -546,9 +545,9 @@ namespace LWS {
 
             // Gradient is half the sum of unit vectors along both outgoing edges
             Vector3 forward = next - center;
-            forward.normalize();
+            forward = forward.normalize();
             Vector3 reverse = prev - center;
-            reverse.normalize();
+            reverse = reverse.normalize();
 
             return -0.5 * (forward + reverse);
         }
@@ -556,12 +555,12 @@ namespace LWS {
         else {
             if (lengthVert.Next() == wrt) {
                 Vector3 forward = lengthVert.Next().Position() - lengthVert.Position();
-                forward.normalize();
+                forward = forward.normalize();
                 return forward / 2;
             }
             else if (lengthVert.Prev() == wrt) {
                 Vector3 back = lengthVert.Prev().Position() - lengthVert.Position();
-                back.normalize();
+                back = back.normalize();
                 return back / 2;
             }
             else return Vector3{0, 0, 0};

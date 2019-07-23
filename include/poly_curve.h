@@ -1,9 +1,10 @@
 #pragma once
 
-#include "boundary_derivatives.h"
+#include "geometrycentral/utilities/vector3.h"
 
 namespace LWS {
     class PolyCurve;
+    using namespace geometrycentral;
 
     struct PointOnCurve {
         int pIndex;
@@ -14,6 +15,8 @@ namespace LWS {
         void SetPosition(Vector3 pos);
         Vector3 Tangent();
         double DualLength();
+
+        int GlobalIndex();
 
         PointOnCurve Next();
         PointOnCurve Prev();
@@ -55,6 +58,6 @@ namespace LWS {
         Vector3 Barycenter();
         double TotalLength();
         int NextIndexInCurve(int v);
-        size_t GlobalIndex(PointOnCurve c);
+        int GlobalIndex(PointOnCurve c);
     };
 }

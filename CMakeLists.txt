@@ -65,13 +65,7 @@ add_subdirectory(deps/polyscope)
 # == Build our project stuff
 
 set(SRCS 
-  src/boundary_derivatives.cpp
-  src/boundary_element.cpp
-  src/boundary_loop.cpp
   src/lws_app.cpp
-  src/lws_cluster.cpp
-  src/lws_energy.cpp
-  src/lws_flow.cpp
   src/lws_options.cpp
   src/mesh_helpers.cpp
   src/poly_curve.cpp

@@ -16,7 +16,7 @@ namespace LWS {
         ls_step_threshold = 1e-15;
         backproj_threshold = 1e-3;
 
-        useEdgeLengthConstraint = false;
+        useEdgeLengthConstraint = true;
 
         for (int i = 0; i < g->NumVertices(); i++) {
             PointOnCurve p = g->GetCurvePoint(i);
@@ -309,6 +309,7 @@ namespace LWS {
             // Copy the projected gradients back into the vector
             for (int i = 0; i < nVerts; i++) {
                 gradients[i] = Vector3{ss_grad_x(i), ss_grad_y(i), ss_grad_z(i)};
+                //std::cout << "Project gradient " << i << " = " << gradients[i] << std::endl;
             }
 
             return 1;
@@ -407,7 +408,7 @@ namespace LWS {
             PointOnCurve pt2 = pt1.Next();
             // This is the gradient of edge length wrt pt1; the gradient wrt pt2 is just negative of this.
             Vector3 grad1 = pt1.Position() - pt2.Position();
-            grad1.normalize();
+            grad1 = grad1.normalize();
 
             int j1 = curves->GlobalIndex(pt1);
             int j2 = curves->GlobalIndex(pt2);
@@ -548,6 +549,7 @@ namespace LWS {
             double factor_start = Utils::currentTimeMilliseconds();
             // Factorize it
             lu.compute(A);
+
             // Solve for the Sobolev gradient
             ProjectSoboSloboGradient(lu, gradients);
             double factor_end = Utils::currentTimeMilliseconds();
@@ -634,7 +636,7 @@ namespace LWS {
             FillGradientVectorDirect(vertGradients);
         }
         
-        std::cout << "====== Timing ======" << std::endl;
+        std::cout << "\n====== Timing ======" << std::endl;
         double grad_end = Utils::currentTimeMilliseconds();
 
         std::cout << "  Assemble gradient: " << (grad_end - grad_start) << " ms" << std::endl;

@@ -195,7 +195,7 @@ namespace LWS {
     bool KDTreeNode3D::shouldUseCell(Vector3 vertPos) {
         Vector3 toCenter = centerOfMass - vertPos;
         double d = norm(centerOfMass - vertPos);
-        toCenter.normalize();
+        toCenter = toCenter.normalize();
 
         // Compute max spread in the perpendicular direction
 
@@ -221,7 +221,7 @@ namespace LWS {
             if (shouldUseCell(i_pt.Position())) {
                 Vector3 tangent = body.pt.tangent;
                 // std::cout << "Using cell as body" << std::endl;
-                tangent.normalize();
+                tangent = tangent.normalize();
                 // This cell is far enough away that we can treat it as a single body
                 result += TPESC::tpe_pair_pts(i_pt.Position(), body.pt.position, tangent, i_pt.DualLength(), body.mass, alpha, beta);
             }
@@ -274,7 +274,7 @@ namespace LWS {
         else {
             if (shouldUseCell(i_pt.Position())) {
                 Vector3 tangent = body.pt.tangent;
-                tangent.normalize();
+                tangent = tangent.normalize();
                 // This cell is far enough away that we can treat it as a single body
                 TangentMassPoint j{tangent, body.mass, body.pt.position, PointOnCurve{0, 0}, PointOnCurve{0, 0}};
 

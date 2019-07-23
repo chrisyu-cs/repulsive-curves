@@ -1,10 +1,11 @@
 #pragma once
 
-#include "boundary_derivatives.h"
-#include "boundary_loop.h"
+#include "geometrycentral/utilities/vector3.h"
 
 namespace LWS {
     
+    using namespace geometrycentral;
+
     struct VertJacobian {
         Vector3 directional_x;
         Vector3 directional_y;

@@ -1,6 +1,8 @@
-#pragma once
+#pragma once 
 
 #include "tpe_energy_sc.h"
+#include <Eigen/Core>
+#include <Eigen/Dense>
 
 namespace LWS {
     struct EdgePositionPair {
@@ -25,10 +27,6 @@ namespace LWS {
 
         static void IntegrateLocalMatrix(EdgePositionPair e1, EdgePositionPair e2,
             double alpha, double beta, double out[4][4]);
-        
-        // Fills the global Sobolev-Slobodeckij Gram matrix.
-        static void FillGlobalMatrix(LWSBoundaryLoop* loop, double alpha,
-            double beta, Eigen::MatrixXd &A);
         
         // Fills the global Sobolev-Slobodeckij Gram matrix.
         static void FillGlobalMatrix(PolyCurve* loop, double alpha,

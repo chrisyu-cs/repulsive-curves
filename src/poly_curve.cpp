@@ -87,13 +87,13 @@ namespace LWS {
         Vector3 up{0, 1, 0};
 
         Vector3 n1 = cross(up, e1);
-        n1.normalize();
+        n1 = n1.normalize();
         Vector3 n2 = cross(up, e2);
-        n2.normalize();
+        n2 = n2.normalize();
 
         // Return the angle bisector normal
         Vector3 normal = n1 + n2;
-        normal.normalize();
+        normal = normal.normalize();
         return normal;
     }
 
@@ -113,13 +113,13 @@ namespace LWS {
         Vector3 up{0, 1, 0};
 
         Vector3 n1 = cross(up, e1);
-        n1.normalize();
+        n1 = n1.normalize();
         Vector3 n2 = cross(up, e2);
-        n2.normalize();
+        n2 = n2.normalize();
 
         // Weight normals by length
         Vector3 normal = (w1 * n1 + w2 * n2) / (w1 + w2);
-        normal.normalize();
+        normal = normal.normalize();
         return normal;
     }
 
@@ -129,7 +129,7 @@ namespace LWS {
         Vector3 edgeVec = Position(next) - Position(index);
         Vector3 up{0, 1, 0};
         Vector3 normal = cross(up, edgeVec);
-        normal.normalize();
+        normal = normal.normalize();
         return normal;
     }
 
@@ -140,11 +140,11 @@ namespace LWS {
 
         Vector3 prevT = center - prev;
         Vector3 nextT = next - center;
-        prevT.normalize();
-        nextT.normalize();
+        prevT = prevT.normalize();
+        nextT = nextT.normalize();
 
         Vector3 tangent = prevT + nextT;
-        tangent.normalize();
+        tangent = tangent.normalize();
         return tangent;
     }
 
@@ -192,8 +192,8 @@ namespace LWS {
         Vector3 prevEdge = Position(i) - Position(prev);
         Vector3 nextEdge = Position(i) - Position(next);
         // Magnitudes are both 1, since length changes at 1 unit / unit.
-        prevEdge.normalize();
-        nextEdge.normalize();
+        prevEdge = prevEdge.normalize();
+        nextEdge = nextEdge.normalize();
 
         return prevEdge + nextEdge;
     }
@@ -291,7 +291,11 @@ namespace LWS {
         }
     }
 
-    size_t PolyCurveGroup::GlobalIndex(PointOnCurve c) {
+    int PolyCurveGroup::GlobalIndex(PointOnCurve c) {
         return c.curve->offset + c.pIndex;
+    }
+
+    int PointOnCurve::GlobalIndex() {
+        return curve->offset + pIndex;
     }
 }

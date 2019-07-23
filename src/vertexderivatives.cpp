@@ -67,7 +67,7 @@ namespace LWS {
                     Vector3 oppVec = heVector(geom, he);
                     Vector3 faceNormal = geom->faceNormal(he.face());
                     Vector3 perp = cross(faceNormal, oppVec);
-                    perp.normalize();
+                    perp = perp.normalize();
                     // The gradient is in that direction, and its magnitude is the opposing length
                     gradient += norm(oppVec) * perp;
                 }
@@ -102,7 +102,7 @@ namespace LWS {
                 surface::Halfedge opp1 = adjacentHE.next().next();
                 Vector3 oppVec1 = heVector(geom, opp1);
                 Vector3 perp1 = cross(geom->faceNormal(f1), oppVec1);
-                perp1.normalize();
+                perp1 = perp1.normalize();
 
                 gradient += norm(oppVec1) * perp1;
             }
@@ -111,7 +111,7 @@ namespace LWS {
                 surface::Halfedge opp2 = adjacentHE.twin().next();
                 Vector3 oppVec2 = heVector(geom, opp2);
                 Vector3 perp2 = cross(geom->faceNormal(f2), oppVec2);
-                perp2.normalize();
+                perp2 = perp2.normalize();
 
                 gradient += norm(oppVec2) * perp2;
             }
@@ -221,7 +221,7 @@ namespace LWS {
                 // First term is (grad length) * dihedral angle.
                 // Gradient of length is just the edge vector away from the neighbor.
                 Vector3 lengthGrad = centerPos - neighborPos;
-                lengthGrad.normalize();
+                lengthGrad = lengthGrad.normalize();
                 double dihedral = DihedralAngle(geom, he.edge());
 
                 // Second term is length * (grad dihedral angle)
@@ -268,7 +268,7 @@ namespace LWS {
 
             // Differentiate dihedral angle for middle edge
             Vector3 lengthGrad = geom->vertexPositions[other] - geom->vertexPositions[base];
-            lengthGrad.normalize();
+            lengthGrad = lengthGrad.normalize();
             double dihedral = DihedralAngle(geom, adjacentHE.edge());
             double length = geom->edgeLength(adjacentHE.edge());
             Vector3 dihedralGrad = GradientDihedralAngle(geom, adjacentHE.edge(), other);
@@ -305,7 +305,7 @@ namespace LWS {
                 // Move in the direction perpendicular to the edge (base, i), in the
                 // direction that will widen the angle.
                 Vector3 gradTheta_i = -cross(N_ij, e_i);
-                gradTheta_i.normalize();
+                gradTheta_i = gradTheta_i.normalize();
                 gradTheta_i /= l_i;
 
                 // Take gradient of angle j
@@ -314,7 +314,7 @@ namespace LWS {
                 double l_j = norm(e_j);
                 // Same principle as derivative of angle i
                 Vector3 gradTheta_j = cross(N_ij, e_j);
-                gradTheta_j.normalize();
+                gradTheta_j = gradTheta_j.normalize();
                 gradTheta_j /= l_j;
 
                 // Gradient of angle ij is the negative of the other two, since the

@@ -138,34 +138,6 @@ namespace LWS {
         } 
     }
 
-    void SobolevCurves::FillGlobalMatrix(LWSBoundaryLoop* loop, double alpha, double beta, Eigen::MatrixXd &A) {
-        double out[4][4];
-        int nVerts = loop->NumVertices();
-
-        for (int i = 0; i < nVerts - 1; i++) {
-            int i_next = loop->NextVertex(i);
-            Vector3 p_i = loop->Position(i);
-            Vector3 p_i_next = loop->Position(i_next);
-            EdgePositionPair e1{p_i, p_i_next};
-
-            for (int j = i_next; j < nVerts; j++) {
-                int j_next = loop->NextVertex(j);
-                Vector3 p_j = loop->Position(j);
-                Vector3 p_j_next = loop->Position(j_next);
-                EdgePositionPair e2{p_j, p_j_next};
-
-                IntegrateLocalMatrix(e1, e2, alpha, beta, out);
-                
-                int indices[] = {i, i_next, j, j_next};
-                for (int r = 0; r < 4; r++) {
-                    for (int c = 0; c < 4; c++) {
-                        A(indices[r], indices[c]) += out[r][c];
-                    }
-                }
-            }
-        }
-    }
-
     void SobolevCurves::FillGlobalMatrix(PolyCurve* loop, double alpha, double beta, Eigen::MatrixXd &A) {
         double out[4][4];
         int nVerts = loop->NumVertices();
@@ -198,6 +170,8 @@ namespace LWS {
         double out[4][4];
         int nVerts = curves->NumVertices();
 
+        int numTerms = 0;
+
         for (int i = 0; i < nVerts; i++) {
             PointOnCurve pc_i = curves->GetCurvePoint(i);
             
@@ -213,6 +187,7 @@ namespace LWS {
                 Vector3 p_j_next = pc_j.Next().Position();
                 EdgePositionPair e2{p_j, p_j_next};
 
+                numTerms++;
                 IntegrateLocalMatrix(e1, e2, alpha, beta, out);
 
                 int indices[] = {i, curves->NextIndexInCurve(i), j, curves->NextIndexInCurve(j)};

@@ -9,11 +9,8 @@
 #include "geometrycentral/surface/polygon_soup_mesh.h"
 
 #include "vertexderivatives.h"
-#include "boundary_derivatives.h"
 #include "lws_options.h"
-#include "lws_flow.h"
 #include "mesh_helpers.h"
-#include "lws_cluster.h"
 #include "tpe_energy_sc.h"
 #include "tpe_flow_sc.h"
 #include "Eigen/SparseLU"
@@ -41,11 +38,7 @@ namespace LWS {
         std::unique_ptr<surface::VertexPositionGeometry> geom;
         std::string surfaceName;
 
-        GradientSolver* solver;
-        LWSEnergyFunction* lwsFunc;
-        LWSClustering* clustering;
         PolyCurveGroup* curves;
-        
         TPEFlowSolverSC* tpeSolver;
     };
 }

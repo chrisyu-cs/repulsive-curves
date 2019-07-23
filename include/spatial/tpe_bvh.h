@@ -2,6 +2,7 @@
 
 #include "spatial_tree.h"
 #include "../tpe_energy_sc.h"
+#include "geometrycentral/utilities/vector2.h"
 
 namespace LWS {
 
