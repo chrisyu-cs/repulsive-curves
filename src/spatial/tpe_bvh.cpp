@@ -123,6 +123,7 @@ namespace LWS {
             isLeaf = true;
             isEmpty = true;
             totalMass = 0;
+            numElements = 0;
         }
         // If there's only one point, then we don't need to do anything
         // except set the fields from that one point
@@ -135,6 +136,7 @@ namespace LWS {
             averageTangent = body.pt.tangent;
             minCoords = body.pt;
             maxCoords = body.pt;
+            numElements = 1;
         }
         else {
             // Reserve space for splitting the points into lesser and greater
@@ -249,10 +251,12 @@ namespace LWS {
     void BVHNode3D::recomputeCentersOfMass(PolyCurveGroup* curves) {
         if (isEmpty) {
             totalMass = 0;
+            numElements = 0;
         }
         // For a leaf, just set centers and bounds from the one body
         else if (isLeaf) {
             setLeafData(curves);
+            numElements = 1;
         }
         else {
             // Recursively compute bounds for all children
@@ -283,7 +287,16 @@ namespace LWS {
             averageTangent /= totalMass;
 
             averageTangent = averageTangent.normalize();
+
+            numElements = 0;
+            for (size_t i = 0; i < children.size(); i++) {
+                numElements += children[i]->numElements;
+            }
         }
+    }
+
+    int BVHNode3D::NumElements() {
+        return numElements;
     }
 
     inline double BVHNode3D::nodeRadius() {

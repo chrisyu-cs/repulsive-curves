@@ -12,11 +12,12 @@ namespace LWS {
 
     class BlockClusterTree {
         public:
-        BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, int level, double a, double b);
+        BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, double sepCoeff, double a, double b);
         // Loop over all currently inadmissible cluster pairs
         // and subdivide them to their children.
         void splitInadmissibleNodes();
         static bool isPairAdmissible(ClusterPair pair, double coeff);
+        static bool isPairSmallEnough(ClusterPair pair);
 
         void PrintData();
 
@@ -29,9 +30,11 @@ namespace LWS {
         void AfApproxProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result);
 
         private:
-        double alpha, beta;
+        double alpha, beta, separationCoeff;
         PolyCurveGroup* curves;
+        BVHNode3D* tree_root;
         std::vector<ClusterPair> admissiblePairs;
-        std::vector<ClusterPair> inadmissiblePairs;
+        std::vector<ClusterPair> unresolvedPairs;
+        std::vector<ClusterPair> imadmissiblePairs;
     };
 }

@@ -337,54 +337,52 @@ namespace LWS {
     void TPEFlowSolverSC::CompareMatrixVectorProduct() {
         int nVerts = curves->NumVertices();
 
-        Eigen::MatrixXd A;
-        A.setZero(nVerts, nVerts);
-
-        SobolevCurves::FillGlobalMatrix(curves, alpha, beta, A);
-
-        std::vector<double> v(nVerts);
-        std::vector<Vector3> v_hat(nVerts);
-        std::vector<double> v2(nVerts);
-        for (int i = 0; i < nVerts; i++) {
-            v[i] = (i == 255) ? 1 : 0;//(i == 254 || i == 256) ? 0.25 : 0;
-            //v[i] = (abs(i - 255) < 5) ? exp(-abs(i - 256)) : 0;
-        }
-
-        SobolevCurves::ApplyDf(curves, v, v_hat);
-        SobolevCurves::ApplyDfTranspose(curves, v_hat, v2);
-
-        for (int i = 0; i < nVerts; i++) {
-            std::cout << "v[" << i << "] = " << v[i]
-                //<< ", v_hat[" << i << "] = " << v_hat[i]
-                << ", v2[" << i << "] = " << v2[i] << std::endl;
-        }
-
-        /*
-
-        BVHNode3D *edgeTree = CreateEdgeBVHFromCurve(curves);
-        BlockClusterTree* blockTree = new BlockClusterTree(curves, edgeTree, 10, alpha, beta);
-
-        blockTree->PrintData();
-
         Eigen::VectorXd x(nVerts);
         std::vector<double> xVec(nVerts);
         for (int i = 0; i < nVerts; i++) {
-            x(i) = (i == 0) ? 1 : 0;
+            x(i) = randomReal(-1, 1);
             xVec[i] = x(i);
         }
 
         std::vector<double> mv_result(nVerts);
 
+        long startMult = Utils::currentTimeMilliseconds();
+
+        Eigen::MatrixXd A;
+        A.setZero(nVerts, nVerts);
+        SobolevCurves::FillGlobalMatrix(curves, alpha, beta, A);
         Eigen::VectorXd matrix_result = A * x;
+
+        long endMult = Utils::currentTimeMilliseconds();
+
+        long startMV = Utils::currentTimeMilliseconds();
+
+        BVHNode3D *edgeTree = CreateEdgeBVHFromCurve(curves);
+        BlockClusterTree* blockTree = new BlockClusterTree(curves, edgeTree, 0.25, alpha, beta);
+        blockTree->PrintData();
         blockTree->MultiplyVector(xVec, mv_result);
+        
+        long endMV = Utils::currentTimeMilliseconds();
+
+        double sumDiffs = 0;
+        double sumMatrix = 0;
 
         for (int i = 0; i < nVerts; i++) {
             std::cout << matrix_result(i) << " vs " << mv_result[i] << std::endl;
+            sumMatrix += matrix_result(i) * matrix_result(i);
+            double diff = matrix_result(i) - mv_result[i];
+            sumDiffs += diff * diff;
         }
-        */
 
-        //delete blockTree;
-        //delete edgeTree;
+        sumDiffs = sqrt(sumDiffs);
+        sumMatrix = sqrt(sumMatrix);
+
+        std::cout << "Time to multiply matrix: " << (endMult - startMult) << " ms" << std::endl;
+        std::cout << "Time to use block tree:  " << (endMV - startMV) << " ms" << std::endl;
+        std::cout << "Error: " << (100 * sumDiffs / sumMatrix) << " percent" << std::endl;
+
+        delete blockTree;
+        delete edgeTree;
     }
 
     void TPEFlowSolverSC::ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B) {

@@ -38,7 +38,8 @@ namespace LWS {
         
         //double denominator = pow(r2, (beta - alpha) / 2);
         // This exponent comes from http://brickisland.net/winegarden/2018/12/10/sobolev-slobodeckij-spaces/
-        double pow_s = 1. - 1. / alpha;
+        // double pow_s = 1. - 1. / alpha;
+        double pow_s = (beta - alpha);
         double denominator = pow(r, pow_s);
 
         for (int i = 0; i < 4; i++) {
@@ -179,7 +180,7 @@ namespace LWS {
             Vector3 p_i_next = pc_i.Next().Position();
             EdgePositionPair e1{p_i, p_i_next};
 
-            for (int j = 0; j < nVerts; j++) {
+            for (int j = i + 1; j < nVerts; j++) {
                 PointOnCurve pc_j = curves->GetCurvePoint(j);
                 if (i == j) continue;
 

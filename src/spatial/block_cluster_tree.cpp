@@ -4,15 +4,17 @@
 
 namespace LWS {
 
-    BlockClusterTree::BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, int level, double a, double b) {
+    BlockClusterTree::BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, double sepCoeff, double a, double b) {
         curves = cg;
         alpha = a;
         beta = b;
+        separationCoeff = sepCoeff;
 
+        tree_root = tree;
         ClusterPair pair{tree, tree};
-        inadmissiblePairs.push_back(pair);
+        unresolvedPairs.push_back(pair);
 
-        for (int i = 0; i < level; i++) {
+        while (unresolvedPairs.size() > 0) {
             splitInadmissibleNodes();
         }
     }
@@ -20,10 +22,13 @@ namespace LWS {
     void BlockClusterTree::splitInadmissibleNodes() {
         std::vector<ClusterPair> nextPairs;
 
-        for (ClusterPair pair : inadmissiblePairs) {
-            if (isPairAdmissible(pair, 1)) {
+        for (ClusterPair pair : unresolvedPairs) {
+            if (isPairAdmissible(pair, separationCoeff)) {
                 // If the pair is admissible, mark it as such and leave it
                 admissiblePairs.push_back(pair);
+            }
+            else if (isPairSmallEnough(pair)) {
+                imadmissiblePairs.push_back(pair);
             }
             else {
                 // Otherwise, subdivide it into child pairs
@@ -36,11 +41,17 @@ namespace LWS {
             }
         }
         // Replace the inadmissible pairs by the next set
-        inadmissiblePairs.clear();
-        inadmissiblePairs = nextPairs;
+        unresolvedPairs.clear();
+        unresolvedPairs = nextPairs;
     }
 
-    bool BlockClusterTree::isPairAdmissible(ClusterPair pair, double coeff) {
+    bool BlockClusterTree::isPairSmallEnough(ClusterPair pair) {
+        int s1 = pair.cluster1->NumElements();
+        int s2 = pair.cluster2->NumElements();
+        return (s1 <= 1) || (s2 <= 1) || (s1 + s2 <= 8);
+    }
+
+    bool BlockClusterTree::isPairAdmissible(ClusterPair pair, double theta) {
         if (pair.cluster1 == pair.cluster2) return false;
 
         Vector3 max1 = pair.cluster1->maxBound().position;
@@ -66,12 +77,12 @@ namespace LWS {
         double diam2 = dot(diag2, centerLine);
         double boxDistance = centerDistance - (diam1 / 2) - (diam2 / 2);
 
-        return fmin(diam1, diam2) <= coeff * boxDistance;
+        return fmax(diam1, diam2) <= theta * boxDistance;
     }
 
     void BlockClusterTree::PrintData() {
         std::cout << admissiblePairs.size() << " admissible pairs" << std::endl;
-        std::cout << inadmissiblePairs.size() << " inadmissible pairs" << std::endl;
+        std::cout << imadmissiblePairs.size() << " inadmissible pairs" << std::endl;
     }
 
     void BlockClusterTree::MultiplyVector(std::vector<double> &v, std::vector<double> &b) {
@@ -80,7 +91,9 @@ namespace LWS {
 
         std::vector<Vector3> b_hat(v.size());
 
-        for (ClusterPair pair : inadmissiblePairs) {
+        ClusterPair top{tree_root, tree_root};
+
+        for (ClusterPair pair : imadmissiblePairs) {
             AfFullProduct_hat(pair, v_hat, b_hat);
         }
         for (ClusterPair pair : admissiblePairs) {
@@ -136,7 +149,7 @@ namespace LWS {
         std::vector<VertexBody6D> children2;
         pair.cluster2->accumulateChildren(children2);
         
-        double pow_s = 1. - 1. / alpha;
+        double pow_s = beta - alpha;
 
         std::vector<double> a_times_one(children1.size());
         std::vector<Vector3> a_times_v(children1.size());
@@ -147,8 +160,9 @@ namespace LWS {
             for (size_t j = 0; j < children2.size(); j++) {
                 VertexBody6D e2 = children2[j];
                 
+                double mass = 1;
                 double af_ij = (e1.vertIndex1 == e2.vertIndex1) ? 0 :
-                    (e1.mass * e2.mass) / pow(norm(e1.pt.position - e2.pt.position), pow_s);
+                    mass / pow(norm(e1.pt.position - e2.pt.position), pow_s);
 
                 // We dot this row of Af(i, j) with the all-ones vector, which means we
                 // just add up all entries of that row.
@@ -170,7 +184,7 @@ namespace LWS {
         std::vector<VertexBody6D> children2;
         pair.cluster2->accumulateChildren(children2);
         
-        double pow_s = 1. - 1. / alpha;
+        double pow_s = beta - alpha;
 
         std::vector<double> wf_i(children1.size());
         std::vector<double> wf_j(children2.size());
@@ -197,7 +211,8 @@ namespace LWS {
 
         // Add in the results
         for (size_t i = 0; i < children1.size(); i++) {
-            result[children1[i].vertIndex1] += wf_i[i] * a_wf_1 * v_hat[children1[i].vertIndex1] - wf_i[i] * a_wf_J;
+            // TODO: why is it off by a factor of 2?
+            result[children1[i].vertIndex1] += (wf_i[i] * a_wf_1 * v_hat[children1[i].vertIndex1] - wf_i[i] * a_wf_J);
         }
     }
 }

@@ -32,6 +32,7 @@ namespace LWS {
         virtual void accumulateVertexEnergy(double &result, PointOnCurve &i_pt, PolyCurveGroup* curves, double alpha, double beta);
         virtual void accumulateTPEGradient(std::vector<Vector3> &gradients, PointOnCurve &i_pt, 
             PolyCurveGroup* curves, double alpha, double beta);
+        int NumElements();
         
         virtual double bodyEnergyEvaluation(PointOnCurve &i_pt, double alpha, double beta);
         virtual Vector3 bodyForceEvaluation(PointOnCurve &i_pt, double alpha, double beta);
@@ -47,6 +48,7 @@ namespace LWS {
         void accumulateChildren(std::vector<VertexBody6D> &result);
 
         private:
+        int numElements;
         bool shouldUseCell(Vector3 vertPos);
         double AxisSplittingPlane(std::vector<VertexBody6D> &points, int axis);
         inline double nodeRadius();
