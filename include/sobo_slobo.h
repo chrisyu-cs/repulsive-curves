@@ -35,10 +35,6 @@ namespace LWS {
         // Fills the global Sobolev-Slobodeckij Gram matrix.
         static void FillGlobalMatrix(PolyCurveGroup* loop, double alpha,
             double beta, Eigen::MatrixXd &A);
-
-        // Approximate the global Sobolev-Slobodeckij Gram matrix using a spatial tree.
-        static void ApproximateGlobalMatrix(PolyCurveGroup* loop, double alpha,
-            double beta, Eigen::MatrixXd &A);
         
         // Computes the inner product of the two given vectors, under the metric
         // whose Gram matrix is given.
@@ -51,10 +47,20 @@ namespace LWS {
         // Compute the projection of A onto the orthogonal complement of B under the given metric.
         static void SobolevOrthoProjection(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J);
 
+        // Assemble the Df differential operator as a matrix
+        static void DfMatrix(PolyCurveGroup* loop, std::vector<double> &as, Eigen::MatrixXd &out);
+
+        // Assemble the dense Sobolev Gram matrix on edges.
+        static void FillAfMatrix(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A);
+
         // Map a scalar-valued function on vertices to a gradient-valued function on edges
         static void ApplyDf(PolyCurveGroup* loop, std::vector<double> &as, std::vector<Vector3> &out);
         // Multiply by the transpose of the above Df (taking edge values back to vertices)
         static void ApplyDfTranspose(PolyCurveGroup* loop, std::vector<Vector3> &es, std::vector<double> &out);
+
+        static void MultiplyComponents(Eigen::MatrixXd &A, std::vector<Vector3> &x, std::vector<Vector3> &out);
+
+        static void ApplyGramMatrix(PolyCurveGroup* loop, std::vector<double> &as, std::vector<double> &out);
 
         static double SobolevDotIterative(PolyCurveGroup* loop, std::vector<Vector3> &as, std::vector<Vector3> &bs);
     };

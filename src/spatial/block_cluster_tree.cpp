@@ -97,49 +97,10 @@ namespace LWS {
             AfFullProduct_hat(pair, v_hat, b_hat);
         }
         for (ClusterPair pair : admissiblePairs) {
-            AfApproxProduct_hat(pair, v_hat, b_hat);
+            AfFullProduct_hat(pair, v_hat, b_hat);
         }
 
         SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
-    }
-
-    void BlockClusterTree::AfFullProduct_verts(ClusterPair pair, std::vector<double> &v, std::vector<double> &result)
-    {
-        std::vector<VertexBody6D> children1;
-        pair.cluster1->accumulateChildren(children1);
-        std::vector<VertexBody6D> children2;
-        pair.cluster2->accumulateChildren(children2);
-        double pow_s = 1. - 1. / alpha;
-        
-        // Multiply the vertex values by the local matrices for each pair of edges 
-        for (size_t i = 0; i < children1.size(); i++) {
-            VertexBody6D e1 = children1[i];
-
-            for (size_t j = 0; j < children2.size(); j++) {
-                VertexBody6D e2 = children2[j];
-                // The local matrix is defined by the outer product ll^T here
-                double l_vec[4] = {1.0 / e1.mass, -1.0 / e1.mass, -1.0 / e2.mass, 1.0 / e2.mass};
-                int indices[4] = {e1.vertIndex1, e1.vertIndex2, e2.vertIndex1, e2.vertIndex2};
-
-                double lTv = 0;
-                // Compute ll^T v = l * (l^T v)
-                for (int k = 0; k < 4; k++) {
-                    lTv += l_vec[k] * v[indices[k]];
-                }
-                for (int k = 0; k < 4; k++) {
-                    result[indices[k]] += l_vec[k] * lTv;
-                }
-            }
-        }
-    }
-
-    void BlockClusterTree::AfApproxProduct_verts(ClusterPair pair, std::vector<double> &v, std::vector<double> &result)
-    {
-        std::vector<VertexBody6D> children1;
-        pair.cluster1->accumulateChildren(children1);
-        std::vector<VertexBody6D> children2;
-        pair.cluster2->accumulateChildren(children2);
-        double pow_s = 1. - 1. / alpha;
     }
 
     void BlockClusterTree::AfFullProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result)
@@ -149,7 +110,7 @@ namespace LWS {
         std::vector<VertexBody6D> children2;
         pair.cluster2->accumulateChildren(children2);
         
-        double pow_s = beta - alpha;
+        double pow_s = (beta - alpha);
 
         std::vector<double> a_times_one(children1.size());
         std::vector<Vector3> a_times_v(children1.size());

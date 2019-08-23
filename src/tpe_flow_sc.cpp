@@ -123,7 +123,7 @@ namespace LWS {
         }
     }
 
-    bool TPEFlowSolverSC::StepBoundaryNaive(double h) {
+    bool TPEFlowSolverSC::StepNaive(double h) {
         // Takes a fixed time step h using the L2 gradient
         int nVerts = curves->NumVertices();
         std::vector<Vector3> gradients(nVerts);
@@ -250,7 +250,7 @@ namespace LWS {
         return 0;
     }
 
-    bool TPEFlowSolverSC::StepBoundaryLS() {
+    bool TPEFlowSolverSC::StepLS() {
         int nVerts = curves->NumVertices();
         std::vector<Vector3> gradients(nVerts);
         FillGradientVectorDirect(gradients);
@@ -340,7 +340,8 @@ namespace LWS {
         Eigen::VectorXd x(nVerts);
         std::vector<double> xVec(nVerts);
         for (int i = 0; i < nVerts; i++) {
-            x(i) = randomReal(-1, 1);
+            double sinx = sin(((double)i / nVerts) * (2 * M_PI));
+            x(i) = sinx;
             xVec[i] = x(i);
         }
 
@@ -610,7 +611,7 @@ namespace LWS {
         return dir_dot;
     }
 
-    bool TPEFlowSolverSC::StepSobolevProjLS(bool useBH) {
+    bool TPEFlowSolverSC::StepSobolevLS(bool useBH) {
         long start = Utils::currentTimeMilliseconds();
 
         size_t nVerts = curves->NumVertices();
@@ -625,9 +626,6 @@ namespace LWS {
         // Barnes-Hut for gradient accumulation
         if (useBH) {
             tree_root = CreateBVHFromCurve(curves);
-            // tree_root = CreateEdgeBVHFromCurve(curves);
-            // tree_root = CreateKDTreeFromCurve(curves);
-
             FillGradientVectorBH(tree_root, vertGradients);
         }
         else {
@@ -656,7 +654,6 @@ namespace LWS {
         // Correct for drift with backprojection
         double bp_start = Utils::currentTimeMilliseconds();
         step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
-        // BackprojectConstraints(lu);
         double bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
 
@@ -670,5 +667,43 @@ namespace LWS {
         std::cout << "Time = " << (end - start) << " ms" << std::endl;
 
         return step_size > 0;
+    }
+
+    double TPEFlowSolverSC::ProjectGradientIterative(std::vector<Vector3> &gradients, BlockClusterTree* &blockTree) {
+        // If we're not using the per-edge length constraints, use total length instead
+        if (!useEdgeLengthConstraint) {
+
+        }
+
+        else {
+            
+        }
+        return 0;
+    }
+
+    bool TPEFlowSolverSC::StepSobolevLSIterative() {
+        size_t nVerts = curves->NumVertices();
+
+        vertGradients.reserve(nVerts + 1);
+        vertConstraints.reserve(nVerts + 1);
+        int nRows = matrixNumRows();
+
+        SpatialTree *tree_root = 0;
+
+        // Assemble the L2 gradient
+        tree_root = CreateBVHFromCurve(curves);
+        FillGradientVectorBH(tree_root, vertGradients);
+
+        // Make a block cluster tree
+        BVHNode3D *edgeTree = CreateEdgeBVHFromCurve(curves);
+        BlockClusterTree* blockTree = new BlockClusterTree(curves, edgeTree, 0.25, alpha, beta);
+
+        // Use tree to compute the Sobolev gradient
+
+
+
+        delete edgeTree;
+        delete blockTree;
+        return false;
     }
 }

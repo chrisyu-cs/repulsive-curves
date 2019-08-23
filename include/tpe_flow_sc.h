@@ -27,14 +27,16 @@ namespace LWS {
         void FillGradientVectorBH(SpatialTree *root, std::vector<Vector3> &gradients);
 
         void FillConstraintVector(std::vector<Vector3> &gradients);
-        bool StepBoundaryNaive(double h);
-        bool StepBoundaryLS();
-        bool StepSobolevProjLS(bool useBH);
+        bool StepNaive(double h);
+        bool StepLS();
+        bool StepSobolevLS(bool useBH);
+        bool StepSobolevLSIterative();
 
         double ComputeAndProjectGradient(std::vector<Vector3> &gradients);
         double ComputeAndProjectGradient(std::vector<Vector3> &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
         double ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, std::vector<Vector3> &gradients);
-        
+        double ProjectGradientIterative(std::vector<Vector3> &gradients, BlockClusterTree* &blockTree);
+
         // Fill a Sobolev-Slobodeckij inner product matrix with a barycenter constraint
         void SoboSloboMatrix(Eigen::MatrixXd &A);
         void FillVertLengthConstraintMatrix(Eigen::MatrixXd &A, int baseIndex);

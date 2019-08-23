@@ -42,4 +42,11 @@ namespace LWS {
         return sum;
     }
 
+    void std_vector_add(std::vector<double> &x, std::vector<double> &y, std::vector<double> &result) {
+        int s = x.size();
+        for (int i = 0; i < s; i++) {
+            result[i] = x[i] + y[i];
+        }
+    }
+
 }

@@ -133,8 +133,8 @@ namespace LWS {
                 // Add to result matrix, weighted by quadrature weight
                 AddToFirst(out, temp_out, weight);
                 // Compute contribution to local matrix from each quadrature point
-                KfMatrix(e1, e2, points[x], points[y], alpha, beta, temp_out);
-                AddToFirst(out, temp_out, weight);
+                // KfMatrix(e1, e2, points[x], points[y], alpha, beta, temp_out);
+                // AddToFirst(out, temp_out, weight);
             }
         } 
     }
@@ -201,10 +201,6 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::ApproximateGlobalMatrix(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
-        std::cout << "  (TODO: Approximate global matrix)" << std::endl;
-    }
-
     double SobolevCurves::SobolevDot(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J) {
         Eigen::VectorXd A, B;
         A.setZero(as.size());
@@ -247,6 +243,44 @@ namespace LWS {
         // Take the projection, and divide out the norm of b
         for (size_t i = 0; i < as.size(); i++) {
             as[i] -= (d1 / d2) * bs[i];
+        }
+    }
+
+    void SobolevCurves::DfMatrix(PolyCurveGroup* loop, std::vector<double> &as, Eigen::MatrixXd &out) {
+        for (PolyCurve *c : loop->curves) {
+            int nVerts = c->NumVertices();
+            for (int i = 0; i < nVerts; i++) {
+                PointOnCurve p1 = loop->GetCurvePoint(i);
+                int i1 = loop->GlobalIndex(p1);
+                PointOnCurve p2 = p1.Next();
+                int i2 = loop->GlobalIndex(p2);
+
+                // Positive weight on the second vertex, negative on the first
+                double d12 = as[i2] - as[i1];
+                Vector3 e12 = (p2.Position() - p1.Position());
+                double length = norm(e12);
+
+                double weight = d12 / (length * length);
+                out(i1, i2) = weight;
+                out(i1, i1) = -weight;
+            }
+        }
+    }
+
+    void SobolevCurves::FillAfMatrix(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
+        int nVerts = loop->NumVertices();
+        double pow_s = (beta - alpha);
+
+        for (int i = 0; i < nVerts; i++) {
+            PointOnCurve p_i = loop->GetCurvePoint(i);
+            Vector3 mid_i = (p_i.Position() + p_i.Next().Position()) / 2;
+            for (int j = 0; j < nVerts; j++) {
+                PointOnCurve p_j = loop->GetCurvePoint(j);
+                if (p_i == p_j) continue;
+                Vector3 mid_j = (p_j.Position() + p_j.Next().Position()) / 2;
+
+                A(i, j) = (p_i.DualLength() * p_j.DualLength()) / pow(norm(mid_i - mid_j), pow_s);
+            }
         }
     }
 
@@ -298,6 +332,64 @@ namespace LWS {
                 double result = w_prev * dot(v_prev, es[i_prev]) + w_next * dot(v_next, es[i_next]);
                 out[i_next] += result;
             }
+        }
+    }
+
+    void SobolevCurves::ApplyGramMatrix(PolyCurveGroup* loop, std::vector<double> &as, std::vector<double> &out) {
+        int n = as.size();
+        std::vector<Vector3> Df_v(n);
+
+        ApplyDf(loop, as, Df_v);
+
+        Eigen::MatrixXd Af;
+        Af.setZero(n, n);
+
+        FillAfMatrix(loop, 3, 6, Af);
+
+        std::vector<Vector3> Af_Df_v(n);
+        MultiplyComponents(Af, Df_v, Af_Df_v);
+
+        Eigen::VectorXd ones;
+        ones.setOnes(n);
+        Eigen::VectorXd Af_1 = Af * ones;
+
+        for (int i = 0; i < n; i++) {
+            Df_v[i] = Af_1(i) * Df_v[i] - Af_Df_v[i];
+        }
+
+        ApplyDfTranspose(loop, Df_v, out);
+    }
+
+    void SobolevCurves::MultiplyComponents(Eigen::MatrixXd &A, std::vector<Vector3> &x, std::vector<Vector3> &out) {
+        int n = x.size();
+        Eigen::VectorXd xVec;
+        xVec.setZero(n);
+
+        // First multiply x coordinates
+        for (int i = 0; i < n; i++) {
+            xVec(i) = x[i].x;
+        }
+        Eigen::VectorXd res = A * xVec;
+        for (int i = 0; i < n; i++) {
+            out[i].x = res(i);
+        }
+
+        // Multiply y coordinates
+        for (int i = 0; i < n; i++) {
+            xVec(i) = x[i].y;
+        }
+        Eigen::VectorXd res = A * xVec;
+        for (int i = 0; i < n; i++) {
+            out[i].y = res(i);
+        }
+
+        // Multiply z coordinates
+        for (int i = 0; i < n; i++) {
+            xVec(i) = x[i].z;
+        }
+        Eigen::VectorXd res = A * xVec;
+        for (int i = 0; i < n; i++) {
+            out[i].z = res(i);
         }
     }
 }

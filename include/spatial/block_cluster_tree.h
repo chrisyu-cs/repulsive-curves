@@ -21,10 +21,8 @@ namespace LWS {
 
         void PrintData();
 
+        // Multiplies A * v and stores it in b.
         void MultiplyVector(std::vector<double> &v, std::vector<double> &b);
-
-        void AfFullProduct_verts(ClusterPair pair, std::vector<double> &v, std::vector<double> &result);
-        void AfApproxProduct_verts(ClusterPair pair, std::vector<double> &v, std::vector<double> &result);
 
         void AfFullProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result);
         void AfApproxProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result);

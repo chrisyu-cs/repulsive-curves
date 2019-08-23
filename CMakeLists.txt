@@ -75,6 +75,7 @@ set(SRCS
   src/utils.cpp
   src/vertexderivatives.cpp
   src/vert_jacobian.cpp
+  src/iterative/cg.cpp
   src/spatial/block_cluster_tree.cpp
   src/spatial/spatial_tree.cpp
   src/spatial/tpe_bvh.cpp
