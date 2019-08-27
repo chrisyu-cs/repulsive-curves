@@ -27,10 +27,9 @@ namespace LWS {
 
         static void IntegrateLocalMatrix(EdgePositionPair e1, EdgePositionPair e2,
             double alpha, double beta, double out[4][4]);
-        
-        // Fills the global Sobolev-Slobodeckij Gram matrix.
-        static void FillGlobalMatrix(PolyCurve* loop, double alpha,
-            double beta, Eigen::MatrixXd &A);
+
+        static void AddEdgePairContribution(PolyCurveGroup* loop, double alpha, double beta,
+            PointOnCurve p1, PointOnCurve p2, Eigen::MatrixXd &A);
         
         // Fills the global Sobolev-Slobodeckij Gram matrix.
         static void FillGlobalMatrix(PolyCurveGroup* loop, double alpha,
@@ -48,10 +47,13 @@ namespace LWS {
         static void SobolevOrthoProjection(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J);
 
         // Assemble the Df differential operator as a matrix
-        static void DfMatrix(PolyCurveGroup* loop, std::vector<double> &as, Eigen::MatrixXd &out);
+        static void DfMatrix(PolyCurveGroup* loop, Eigen::MatrixXd &out);
 
         // Assemble the dense Sobolev Gram matrix on edges.
         static void FillAfMatrix(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A);
+
+        static void FillGlobalMatrixSlow(PolyCurveGroup* loop, double alpha,
+            double beta, Eigen::MatrixXd &A);
 
         // Map a scalar-valued function on vertices to a gradient-valued function on edges
         static void ApplyDf(PolyCurveGroup* loop, std::vector<double> &as, std::vector<Vector3> &out);
@@ -60,7 +62,7 @@ namespace LWS {
 
         static void MultiplyComponents(Eigen::MatrixXd &A, std::vector<Vector3> &x, std::vector<Vector3> &out);
 
-        static void ApplyGramMatrix(PolyCurveGroup* loop, std::vector<double> &as, std::vector<double> &out);
+        static void ApplyGramMatrix(PolyCurveGroup* loop, std::vector<double> &as, double alpha, double beta, std::vector<double> &out);
 
         static double SobolevDotIterative(PolyCurveGroup* loop, std::vector<Vector3> &as, std::vector<Vector3> &bs);
     };

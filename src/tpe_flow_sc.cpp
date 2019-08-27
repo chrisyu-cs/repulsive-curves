@@ -341,49 +341,62 @@ namespace LWS {
         std::vector<double> xVec(nVerts);
         for (int i = 0; i < nVerts; i++) {
             double sinx = sin(((double)i / nVerts) * (2 * M_PI));
-            x(i) = sinx;
+            x(i) = sinx + 0.1;
             xVec[i] = x(i);
         }
 
-        std::vector<double> mv_result(nVerts);
+        std::vector<double> mv_result_tree(nVerts);
 
         long startMult = Utils::currentTimeMilliseconds();
 
         Eigen::MatrixXd A;
         A.setZero(nVerts, nVerts);
         SobolevCurves::FillGlobalMatrix(curves, alpha, beta, A);
-        Eigen::VectorXd matrix_result = A * x;
+
+        Eigen::MatrixXd A_slow;
+        A_slow.setZero(nVerts, nVerts);
+        SobolevCurves::FillGlobalMatrixSlow(curves, alpha, beta, A_slow);
+
+        Eigen::VectorXd matrix_result = A_slow * x;
+        
+        std::cout << "A:\n" << A << "\n" << std::endl;
+        std::cout << "A slow:\n" << A_slow << "\n" << std::endl;
 
         long endMult = Utils::currentTimeMilliseconds();
 
-        long startMV = Utils::currentTimeMilliseconds();
+        Eigen::MatrixXd diff = A - A_slow;
+        double slow_norm = A_slow.norm();
+        double A_norm = A.norm();
+        double diff_norm = diff.norm();
 
-        BVHNode3D *edgeTree = CreateEdgeBVHFromCurve(curves);
-        BlockClusterTree* blockTree = new BlockClusterTree(curves, edgeTree, 0.25, alpha, beta);
-        blockTree->PrintData();
-        blockTree->MultiplyVector(xVec, mv_result);
-        
-        long endMV = Utils::currentTimeMilliseconds();
+        std::cout << "(A, slow, diff) = " << A_norm << ", " << slow_norm << ", " << diff_norm << std::endl;
+        std::cout << "Relative error to A = " << (diff_norm / A_norm * 100) << " percent" << std::endl;
+        std::cout << "Relative error to G = " << (diff_norm / slow_norm * 100) << " percent\n" << std::endl;
+
+        std::cout << "Time to multiply matrix: " << (endMult - startMult) << " ms" << std::endl;
+
+        BVHNode3D* bvh = CreateEdgeBVHFromCurve(curves);
+        BlockClusterTree* tree = new BlockClusterTree(curves, bvh, 0.25, alpha, beta);
+
+        tree->MultiplyVector(xVec, mv_result_tree);
 
         double sumDiffs = 0;
         double sumMatrix = 0;
 
         for (int i = 0; i < nVerts; i++) {
-            std::cout << matrix_result(i) << " vs " << mv_result[i] << std::endl;
+            std::cout << matrix_result(i) << " vs " << mv_result_tree[i] << std::endl;
             sumMatrix += matrix_result(i) * matrix_result(i);
-            double diff = matrix_result(i) - mv_result[i];
+            double diff = matrix_result(i) - mv_result_tree[i];
             sumDiffs += diff * diff;
         }
-
-        sumDiffs = sqrt(sumDiffs);
         sumMatrix = sqrt(sumMatrix);
+        sumDiffs = sqrt(sumDiffs);
 
-        std::cout << "Time to multiply matrix: " << (endMult - startMult) << " ms" << std::endl;
-        std::cout << "Time to use block tree:  " << (endMV - startMV) << " ms" << std::endl;
-        std::cout << "Error: " << (100 * sumDiffs / sumMatrix) << " percent" << std::endl;
+        std::cout << "Error, MV vs G: " << (100 * sumDiffs / sumMatrix) << " percent\n" << std::endl;
 
-        delete blockTree;
-        delete edgeTree;
+        delete tree;
+        delete bvh;
+
     }
 
     void TPEFlowSolverSC::ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B) {

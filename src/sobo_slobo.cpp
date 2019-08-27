@@ -139,30 +139,47 @@ namespace LWS {
         } 
     }
 
-    void SobolevCurves::FillGlobalMatrix(PolyCurve* loop, double alpha, double beta, Eigen::MatrixXd &A) {
-        double out[4][4];
-        int nVerts = loop->NumVertices();
+    Vector3 HatGradientOnEdge(PointOnCurve edgeStart, PointOnCurve vertex) {
+        PointOnCurve edgeEnd = edgeStart.Next();
 
-        for (int i = 0; i < nVerts - 1; i++) {
-            int i_next = loop->NextVertex(i);
-            Vector3 p_i = loop->Position(i);
-            Vector3 p_i_next = loop->Position(i_next);
-            EdgePositionPair e1{p_i, p_i_next};
+        if (vertex == edgeStart) {
+            Vector3 towardsVertex = edgeStart.Position() - edgeEnd.Position();
+            double length = norm(towardsVertex);
+            // 1 over length times normalized edge vector towards the vertex
+            return towardsVertex / (length * length);
+        }
+        else if (vertex == edgeEnd) {
+            Vector3 towardsVertex = edgeEnd.Position() - edgeStart.Position();
+            double length = norm(towardsVertex);
+            return towardsVertex / (length * length);
+        }
+        else {
+            return Vector3{0, 0, 0};
+        }
+    }
 
-            for (int j = i_next; j < nVerts; j++) {
-                int j_next = loop->NextVertex(j);
-                Vector3 p_j = loop->Position(j);
-                Vector3 p_j_next = loop->Position(j_next);
-                EdgePositionPair e2{p_j, p_j_next};
+    void SobolevCurves::AddEdgePairContribution(PolyCurveGroup* loop, double alpha, double beta,
+    PointOnCurve s, PointOnCurve t, Eigen::MatrixXd &A) {
+        PointOnCurve endpoints[4] = {s, s.Next(), t, t.Next()};
 
-                IntegrateLocalMatrix(e1, e2, alpha, beta, out);
-                
-                int indices[] = {i, i_next, j, j_next};
-                for (int r = 0; r < 4; r++) {
-                    for (int c = 0; c < 4; c++) {
-                        A(indices[r], indices[c]) += out[r][c];
-                    }
-                }
+        double len1 = norm(s.Position() - s.Next().Position());
+        double len2 = norm(t.Position() - t.Next().Position());
+        Vector3 mid1 = (s.Position() + s.Next().Position()) / 2;
+        Vector3 mid2 = (t.Position() + t.Next().Position()) / 2;
+        double denom = pow(norm(mid1 - mid2), beta - alpha);
+
+        for (PointOnCurve u : endpoints) {
+            for (PointOnCurve v : endpoints) {
+                Vector3 u_hat_s = HatGradientOnEdge(s, u);
+                Vector3 u_hat_t = HatGradientOnEdge(t, u);
+                Vector3 v_hat_s = HatGradientOnEdge(s, v);
+                Vector3 v_hat_t = HatGradientOnEdge(t, v);
+
+                double numer = dot(u_hat_s - u_hat_t, v_hat_s - v_hat_t);
+                int index_u = loop->GlobalIndex(u);
+                int index_v = loop->GlobalIndex(v);
+
+                A(index_u, index_v) += (numer / denom) * len1 * len2;
             }
         }
     }
@@ -180,13 +197,18 @@ namespace LWS {
             Vector3 p_i_next = pc_i.Next().Position();
             EdgePositionPair e1{p_i, p_i_next};
 
-            for (int j = i + 1; j < nVerts; j++) {
+            for (int j = 0; j < nVerts; j++) {
                 PointOnCurve pc_j = curves->GetCurvePoint(j);
-                if (i == j) continue;
+                // if (pc_i == pc_j) continue;
+                if (pc_i == pc_j || pc_i.Next() == pc_j || pc_i == pc_j.Next() || pc_i.Next() == pc_j.Next()) continue;
 
                 Vector3 p_j = pc_j.Position();
                 Vector3 p_j_next = pc_j.Next().Position();
                 EdgePositionPair e2{p_j, p_j_next};
+
+                AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
+
+                /*
 
                 numTerms++;
                 IntegrateLocalMatrix(e1, e2, alpha, beta, out);
@@ -197,6 +219,7 @@ namespace LWS {
                         A(indices[r], indices[c]) += out[r][c];
                     }
                 }
+                */
             }
         }
     }
@@ -246,24 +269,28 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::DfMatrix(PolyCurveGroup* loop, std::vector<double> &as, Eigen::MatrixXd &out) {
-        for (PolyCurve *c : loop->curves) {
-            int nVerts = c->NumVertices();
-            for (int i = 0; i < nVerts; i++) {
-                PointOnCurve p1 = loop->GetCurvePoint(i);
-                int i1 = loop->GlobalIndex(p1);
-                PointOnCurve p2 = p1.Next();
-                int i2 = loop->GlobalIndex(p2);
+    void SobolevCurves::DfMatrix(PolyCurveGroup* loop, Eigen::MatrixXd &out) {
+        int nVerts = loop->NumVertices();
+        out.setZero(nVerts * 3, nVerts);
+        
+        for (int i = 0; i < nVerts; i++) {
+            PointOnCurve p1 = loop->GetCurvePoint(i);
+            int i1 = loop->GlobalIndex(p1);
+            PointOnCurve p2 = p1.Next();
+            int i2 = loop->GlobalIndex(p2);
 
-                // Positive weight on the second vertex, negative on the first
-                double d12 = as[i2] - as[i1];
-                Vector3 e12 = (p2.Position() - p1.Position());
-                double length = norm(e12);
+            // Positive weight on the second vertex, negative on the first
+            Vector3 e12 = (p2.Position() - p1.Position());
+            double length = norm(e12);
 
-                double weight = d12 / (length * length);
-                out(i1, i2) = weight;
-                out(i1, i1) = -weight;
-            }
+            Vector3 weight = e12 / (length * length);
+            out(3 * i1, i1) = -weight.x;
+            out(3 * i1 + 1, i1) = -weight.y;
+            out(3 * i1 + 2, i1) = -weight.z;
+
+            out(3 * i1, i2) = weight.x;
+            out(3 * i1 + 1, i2) = weight.y;
+            out(3 * i1 + 2, i2) = weight.z;
         }
     }
 
@@ -276,12 +303,66 @@ namespace LWS {
             Vector3 mid_i = (p_i.Position() + p_i.Next().Position()) / 2;
             for (int j = 0; j < nVerts; j++) {
                 PointOnCurve p_j = loop->GetCurvePoint(j);
-                if (p_i == p_j) continue;
+                if (p_i == p_j || p_i.Next() == p_j || p_i == p_j.Next() || p_i.Next() == p_j.Next()) continue;
                 Vector3 mid_j = (p_j.Position() + p_j.Next().Position()) / 2;
 
                 A(i, j) = (p_i.DualLength() * p_j.DualLength()) / pow(norm(mid_i - mid_j), pow_s);
             }
         }
+    }
+
+    void SobolevCurves::FillGlobalMatrixSlow(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
+
+        int nVerts = loop->NumVertices();
+
+        std::vector<double> u(nVerts);
+        std::vector<double> v(nVerts);
+        std::vector<Vector3> u_hat(nVerts);
+        std::vector<Vector3> v_hat(nVerts);
+
+        for (int i = 0; i < nVerts; i++) {
+            for (int j = 0; j < nVerts; j++) {
+                // Compute u_hat and v_hat
+                for (int u_i = 0; u_i < nVerts; u_i++) {
+                    u[u_i] = (i == u_i) ? 1 : 0;
+                }
+                for (int v_j = 0; v_j < nVerts; v_j++) {
+                    v[v_j] = (j == v_j) ? 1 : 0;
+                }
+                ApplyDf(loop, u, u_hat);
+                ApplyDf(loop, v, v_hat);
+
+                std::cout << "Did ( " << i << ", " << j << ")\r";
+
+                // Loop over all faces
+                for (int s = 0; s < nVerts; s++) {
+                    for (int t = 0; t < nVerts; t++) {
+                        PointOnCurve s1 = loop->GetCurvePoint(s);
+                        PointOnCurve s2 = loop->GetCurvePoint(s).Next();
+                        PointOnCurve t1 = loop->GetCurvePoint(t);
+                        PointOnCurve t2 = loop->GetCurvePoint(t).Next();
+
+                        // if (s == t) continue;
+                        if (s1 == t1 || s1 == t2 || s2 == t1 || s2 == t2) {
+                            continue;
+                        }
+
+                        Vector3 c_s = (s1.Position() + s2.Position()) / 2;
+                        Vector3 c_t = (t1.Position() + t2.Position()) / 2;
+
+                        double mass_s = norm(s1.Position() - s2.Position());
+                        double mass_t = norm(t1.Position() - t2.Position());
+
+                        double numer = dot(u_hat[s] - u_hat[t], v_hat[s] - v_hat[t]);
+                        double denom = pow(norm(c_s - c_t), beta - alpha);
+
+                        A(i, j) += (numer / denom) * mass_s * mass_t;
+                    }
+                }
+            }
+        }
+
+        std::cout << std::endl;
     }
 
     void SobolevCurves::ApplyDf(PolyCurveGroup* loop, std::vector<double> &as, std::vector<Vector3> &out) {
@@ -321,12 +402,13 @@ namespace LWS {
                 // Compute the two weights
                 Vector3 v_prev = (p1.Position() - prev.Position());
                 double len_prev = norm(v_prev);
-                double w_prev = len_prev;
+                double w_prev = 1.0 / len_prev;
                 v_prev /= len_prev;
+                
                 // However, the "forward" edge had a negative weight, so it is also negative here
                 Vector3 v_next = (next.Position() - p1.Position());
                 double len_next = norm(v_next);
-                double w_next = -len_next;
+                double w_next = -1.0 / len_next;
                 v_next /= len_next;
 
                 double result = w_prev * dot(v_prev, es[i_prev]) + w_next * dot(v_next, es[i_next]);
@@ -335,7 +417,7 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::ApplyGramMatrix(PolyCurveGroup* loop, std::vector<double> &as, std::vector<double> &out) {
+    void SobolevCurves::ApplyGramMatrix(PolyCurveGroup* loop, std::vector<double> &as, double alpha, double beta, std::vector<double> &out) {
         int n = as.size();
         std::vector<Vector3> Df_v(n);
 
@@ -344,7 +426,7 @@ namespace LWS {
         Eigen::MatrixXd Af;
         Af.setZero(n, n);
 
-        FillAfMatrix(loop, 3, 6, Af);
+        FillAfMatrix(loop, alpha, beta, Af);
 
         std::vector<Vector3> Af_Df_v(n);
         MultiplyComponents(Af, Df_v, Af_Df_v);
@@ -378,7 +460,7 @@ namespace LWS {
         for (int i = 0; i < n; i++) {
             xVec(i) = x[i].y;
         }
-        Eigen::VectorXd res = A * xVec;
+        res = A * xVec;
         for (int i = 0; i < n; i++) {
             out[i].y = res(i);
         }
@@ -387,7 +469,7 @@ namespace LWS {
         for (int i = 0; i < n; i++) {
             xVec(i) = x[i].z;
         }
-        Eigen::VectorXd res = A * xVec;
+        res = A * xVec;
         for (int i = 0; i < n; i++) {
             out[i].z = res(i);
         }

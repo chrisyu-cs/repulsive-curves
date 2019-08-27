@@ -120,10 +120,20 @@ namespace LWS {
 
             for (size_t j = 0; j < children2.size(); j++) {
                 VertexBody6D e2 = children2[j];
+
+                PointOnCurve p1 = curves->GetCurvePoint(e1.vertIndex1);
+                PointOnCurve p2 = curves->GetCurvePoint(e2.vertIndex1);
+
+                bool isNeighbors = (p1 == p2 || p1.Next() == p2 || p1 == p2.Next() || p1.Next() == p2.Next());
                 
-                double mass = 1;
-                double af_ij = (e1.vertIndex1 == e2.vertIndex1) ? 0 :
-                    mass / pow(norm(e1.pt.position - e2.pt.position), pow_s);
+                Vector3 mid1 = (p1.Position() + p1.Next().Position()) / 2;
+                Vector3 mid2 = (p2.Position() + p2.Next().Position()) / 2;
+
+                double l1 = norm(p1.Position() - p1.Next().Position());
+                double l2 = norm(p2.Position() - p2.Next().Position());
+
+                double af_ij = (isNeighbors) ? 0 :
+                    (l1 * l2) / pow(norm(mid1 - mid2), pow_s);
 
                 // We dot this row of Af(i, j) with the all-ones vector, which means we
                 // just add up all entries of that row.
