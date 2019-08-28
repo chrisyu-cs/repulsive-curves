@@ -160,8 +160,8 @@ namespace LWS {
 
     void SobolevCurves::AddEdgePairContribution(PolyCurveGroup* loop, double alpha, double beta,
     PointOnCurve s, PointOnCurve t, Eigen::MatrixXd &A) {
-        PointOnCurve endpoints[4] = {s, s.Next(), t, t.Next()};
 
+        PointOnCurve endpoints[4] = {s, s.Next(), t, t.Next()};
         double len1 = norm(s.Position() - s.Next().Position());
         double len2 = norm(t.Position() - t.Next().Position());
         Vector3 mid1 = (s.Position() + s.Next().Position()) / 2;
@@ -184,6 +184,53 @@ namespace LWS {
         }
     }
 
+    double HatMidpoint(PointOnCurve edgeStart, PointOnCurve vertex) {
+        PointOnCurve edgeEnd = edgeStart.Next();
+
+        if (vertex == edgeStart) {
+            return 0.5;
+        }
+        else if (vertex == edgeEnd) {
+            return 0.5;
+        }
+        else {
+            return 0;
+        }
+    }
+
+    void SobolevCurves::AddEdgePairContributionLow(PolyCurveGroup* loop, double alpha, double beta,
+    PointOnCurve s, PointOnCurve t, Eigen::MatrixXd &A) {
+
+        PointOnCurve endpoints[4] = {s, s.Next(), t, t.Next()};
+
+        double len1 = norm(s.Position() - s.Next().Position());
+        double len2 = norm(t.Position() - t.Next().Position());
+        Vector3 mid_s = (s.Position() + s.Next().Position()) / 2;
+        Vector3 mid_t = (t.Position() + t.Next().Position()) / 2;
+        double denom = pow(norm(mid_s - mid_t), 2);
+
+        Vector3 tangent_s = (s.Next().Position() - s.Position()).normalize();
+
+        double kf_st = TPESC::tpe_Kf_pts(mid_s, mid_t, tangent_s, alpha, beta);
+
+        for (PointOnCurve u : endpoints) {
+            Vector3 tangent_u = (u.Next().Position() - u.Position()).normalize();
+            
+            for (PointOnCurve v : endpoints) {
+                double u_s = HatMidpoint(s, u);
+                double u_t = HatMidpoint(t, u);
+                double v_s = HatMidpoint(s, v);
+                double v_t = HatMidpoint(t, v);
+
+                double numer = (u_s - u_t) * (v_s - v_t);
+                int index_u = loop->GlobalIndex(u);
+                int index_v = loop->GlobalIndex(v);
+
+                A(index_u, index_v) += (numer / denom) * kf_st * len1 * len2;
+            }
+        }
+    }
+
     void SobolevCurves::FillGlobalMatrix(PolyCurveGroup* curves, double alpha, double beta, Eigen::MatrixXd &A) {
         double out[4][4];
         int nVerts = curves->NumVertices();
@@ -193,20 +240,13 @@ namespace LWS {
         for (int i = 0; i < nVerts; i++) {
             PointOnCurve pc_i = curves->GetCurvePoint(i);
             
-            Vector3 p_i = pc_i.Position();
-            Vector3 p_i_next = pc_i.Next().Position();
-            EdgePositionPair e1{p_i, p_i_next};
-
             for (int j = 0; j < nVerts; j++) {
                 PointOnCurve pc_j = curves->GetCurvePoint(j);
                 // if (pc_i == pc_j) continue;
                 if (pc_i == pc_j || pc_i.Next() == pc_j || pc_i == pc_j.Next() || pc_i.Next() == pc_j.Next()) continue;
 
-                Vector3 p_j = pc_j.Position();
-                Vector3 p_j_next = pc_j.Next().Position();
-                EdgePositionPair e2{p_j, p_j_next};
-
                 AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
+                AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
 
                 /*
 

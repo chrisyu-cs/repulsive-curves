@@ -30,6 +30,9 @@ namespace LWS {
 
         static void AddEdgePairContribution(PolyCurveGroup* loop, double alpha, double beta,
             PointOnCurve p1, PointOnCurve p2, Eigen::MatrixXd &A);
+
+        static void AddEdgePairContributionLow(PolyCurveGroup* loop, double alpha, double beta,
+            PointOnCurve p1, PointOnCurve p2, Eigen::MatrixXd &A);
         
         // Fills the global Sobolev-Slobodeckij Gram matrix.
         static void FillGlobalMatrix(PolyCurveGroup* loop, double alpha,
