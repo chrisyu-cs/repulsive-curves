@@ -246,20 +246,7 @@ namespace LWS {
                 if (pc_i == pc_j || pc_i.Next() == pc_j || pc_i == pc_j.Next() || pc_i.Next() == pc_j.Next()) continue;
 
                 AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
-                AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
-
-                /*
-
-                numTerms++;
-                IntegrateLocalMatrix(e1, e2, alpha, beta, out);
-
-                int indices[] = {i, curves->NextIndexInCurve(i), j, curves->NextIndexInCurve(j)};
-                for (int r = 0; r < 4; r++) {
-                    for (int c = 0; c < 4; c++) {
-                        A(indices[r], indices[c]) += out[r][c];
-                    }
-                }
-                */
+                // AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
             }
         }
     }
@@ -293,6 +280,37 @@ namespace LWS {
         return dot_x + dot_y + dot_z;
     }
 
+    double SobolevCurves::SobolevDotMV(std::vector<Vector3> &as, std::vector<Vector3> &bs, BlockClusterTree* tree) {
+        std::vector<double> a(as.size());
+        std::vector<double> b(bs.size());
+
+        // X component
+        for (size_t i = 0; i < as.size(); i++) {
+            a[i] = as[i].x;
+            b[i] = bs[i].x;
+        }
+        tree->MultiplyVector(b, b);
+        double dot_x = std_vector_dot(a, b);
+
+        // Y component
+        for (size_t i = 0; i < as.size(); i++) {
+            a[i] = as[i].y;
+            b[i] = bs[i].y;
+        }
+        tree->MultiplyVector(b, b);
+        double dot_y = std_vector_dot(a, b);
+
+        // Z component
+        for (size_t i = 0; i < as.size(); i++) {
+            a[i] = as[i].z;
+            b[i] = bs[i].z;
+        }
+        tree->MultiplyVector(b, b);
+        double dot_z = std_vector_dot(a, b);
+
+        return dot_x + dot_y + dot_z;
+    }
+
     void SobolevCurves::SobolevNormalize(std::vector<Vector3> &as, Eigen::MatrixXd &J) {
         double sobo_norm = sqrt(SobolevDot(as, as, J));
         for (size_t i = 0; i < as.size(); i++) {
@@ -303,6 +321,15 @@ namespace LWS {
     void SobolevCurves::SobolevOrthoProjection(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J) {
         double d1 = SobolevDot(as, bs, J);
         double d2 = SobolevDot(bs, bs, J);
+        // Take the projection, and divide out the norm of b
+        for (size_t i = 0; i < as.size(); i++) {
+            as[i] -= (d1 / d2) * bs[i];
+        }
+    }
+
+    void SobolevCurves::SobolevOrthoProjectionMV(std::vector<Vector3> &as, std::vector<Vector3> &bs, BlockClusterTree *tree) {
+        double d1 = SobolevDotMV(as, bs, tree);
+        double d2 = SobolevDotMV(bs, bs, tree);
         // Take the projection, and divide out the norm of b
         for (size_t i = 0; i < as.size(); i++) {
             as[i] -= (d1 / d2) * bs[i];

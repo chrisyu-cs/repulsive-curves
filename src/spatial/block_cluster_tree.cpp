@@ -85,13 +85,23 @@ namespace LWS {
         std::cout << imadmissiblePairs.size() << " inadmissible pairs" << std::endl;
     }
 
+    void BlockClusterTree::Multiply(std::vector<double> &v, std::vector<double> &b) {
+        if (mode == BlockTreeMode::MatrixOnly) {
+            MultiplyVector(v, b);
+        }
+        else if (mode == BlockTreeMode::Barycenter) {
+            MultiplyWithBarycenter(v, b);
+        }
+        else if (mode == BlockTreeMode::EdgeConstraint) {
+            // TODO
+        }
+    }
+
     void BlockClusterTree::MultiplyVector(std::vector<double> &v, std::vector<double> &b) {
-        std::vector<Vector3> v_hat(v.size());
+        std::vector<Vector3> v_hat(curves->NumVertices());
         SobolevCurves::ApplyDf(curves, v, v_hat);
 
-        std::vector<Vector3> b_hat(v.size());
-
-        ClusterPair top{tree_root, tree_root};
+        std::vector<Vector3> b_hat(v_hat.size());
 
         for (ClusterPair pair : imadmissiblePairs) {
             AfFullProduct_hat(pair, v_hat, b_hat);
@@ -101,6 +111,38 @@ namespace LWS {
         }
 
         SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
+    }
+
+    void BlockClusterTree::MultiplyWithBarycenter(std::vector<double> &v, std::vector<double> &b) {
+        int nVerts = curves->NumVertices();
+        std::vector<Vector3> v_hat(nVerts);
+        SobolevCurves::ApplyDf(curves, v, v_hat);
+
+        std::vector<Vector3> b_hat(v_hat.size());
+
+        for (ClusterPair pair : imadmissiblePairs) {
+            AfFullProduct_hat(pair, v_hat, b_hat);
+        }
+        for (ClusterPair pair : admissiblePairs) {
+            AfApproxProduct_hat(pair, v_hat, b_hat);
+        }
+
+        SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
+
+        double totalLength = curves->TotalLength();
+
+        // Multiply the last row and column of the matrix
+        for (int i = 0; i < nVerts; i++) {
+            double weight = curves->GetCurvePoint(i).DualLength() / totalLength;
+            // Add last column sum
+            b[i] += v[nVerts] * weight;
+            // Add last row sum
+            b[nVerts] += v[i] * weight;
+        }
+    }
+
+    void BlockClusterTree::SetBlockTreeMode(BlockTreeMode m) {
+        mode = m;
     }
 
     void BlockClusterTree::AfFullProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result)
@@ -144,7 +186,7 @@ namespace LWS {
             }
 
             // We've computed everything from row i now, so add to the results vector
-            result[e1.vertIndex1] += a_times_one[i] * v_hat[e1.vertIndex1] - a_times_v[i];
+            result[e1.vertIndex1] += 2 * (a_times_one[i] * v_hat[e1.vertIndex1] - a_times_v[i]);
         }
     }
     
@@ -182,8 +224,7 @@ namespace LWS {
 
         // Add in the results
         for (size_t i = 0; i < children1.size(); i++) {
-            // TODO: why is it off by a factor of 2?
-            result[children1[i].vertIndex1] += (wf_i[i] * a_wf_1 * v_hat[children1[i].vertIndex1] - wf_i[i] * a_wf_J);
+            result[children1[i].vertIndex1] += 2 * (wf_i[i] * a_wf_1 * v_hat[children1[i].vertIndex1] - wf_i[i] * a_wf_J);
         }
     }
 }

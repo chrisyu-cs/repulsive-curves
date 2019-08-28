@@ -1,5 +1,6 @@
 #include "tpe_flow_sc.h"
 #include "utils.h"
+#include "iterative/cg.h"
 
 namespace LWS {
 
@@ -16,7 +17,7 @@ namespace LWS {
         ls_step_threshold = 1e-15;
         backproj_threshold = 1e-3;
 
-        useEdgeLengthConstraint = true;
+        useEdgeLengthConstraint = false;
 
         for (int i = 0; i < g->NumVertices(); i++) {
             PointOnCurve p = g->GetCurvePoint(i);
@@ -336,63 +337,71 @@ namespace LWS {
 
     void TPEFlowSolverSC::CompareMatrixVectorProduct() {
         int nVerts = curves->NumVertices();
+        int vecLen = nVerts + 1;
 
-        Eigen::VectorXd x(nVerts);
-        std::vector<double> xVec(nVerts);
+        Eigen::VectorXd x(vecLen);
+        std::vector<double> xVec(vecLen);
+
         for (int i = 0; i < nVerts; i++) {
             double sinx = sin(((double)i / nVerts) * (2 * M_PI));
             x(i) = sinx + 0.1;
             xVec[i] = x(i);
         }
 
-        std::vector<double> mv_result_tree(nVerts);
-
-        long startMult = Utils::currentTimeMilliseconds();
+        std::vector<double> mult_tree(vecLen);
 
         Eigen::MatrixXd A;
-        A.setZero(nVerts, nVerts);
-        SobolevCurves::FillGlobalMatrix(curves, alpha, beta, A);
-
-        Eigen::MatrixXd A_slow;
-        A_slow.setZero(nVerts, nVerts);
-        SobolevCurves::FillGlobalMatrixSlow(curves, alpha, beta, A_slow);
-
-        Eigen::VectorXd matrix_result = A_slow * x;
-        
-        std::cout << "A:\n" << A << "\n" << std::endl;
-        std::cout << "A slow:\n" << A_slow << "\n" << std::endl;
-
-        long endMult = Utils::currentTimeMilliseconds();
-
-        Eigen::MatrixXd diff = A - A_slow;
-        double slow_norm = A_slow.norm();
-        double A_norm = A.norm();
-        double diff_norm = diff.norm();
-
-        std::cout << "(A, slow, diff) = " << A_norm << ", " << slow_norm << ", " << diff_norm << std::endl;
-        std::cout << "Relative error to A = " << (diff_norm / A_norm * 100) << " percent" << std::endl;
-        std::cout << "Relative error to G = " << (diff_norm / slow_norm * 100) << " percent\n" << std::endl;
-
-        std::cout << "Time to multiply matrix: " << (endMult - startMult) << " ms" << std::endl;
+        A.setZero(vecLen, vecLen);
+        SoboSloboMatrix(A);
 
         BVHNode3D* bvh = CreateEdgeBVHFromCurve(curves);
-        BlockClusterTree* tree = new BlockClusterTree(curves, bvh, 0.25, alpha, beta);
+        BlockClusterTree* tree = new BlockClusterTree(curves, bvh, 0.0, alpha, beta);
 
-        tree->MultiplyVector(xVec, mv_result_tree);
+        Eigen::VectorXd dense_mult = A * x;
+        std::vector<double> tree_mult(xVec.size());
+        tree->SetBlockTreeMode(BlockTreeMode::Barycenter);
+        tree->Multiply(xVec, tree_mult);
 
-        double sumDiffs = 0;
-        double sumMatrix = 0;
+        double error = 0;
+        double dense_norm = 0;
 
-        for (int i = 0; i < nVerts; i++) {
-            std::cout << matrix_result(i) << " vs " << mv_result_tree[i] << std::endl;
-            sumMatrix += matrix_result(i) * matrix_result(i);
-            double diff = matrix_result(i) - mv_result_tree[i];
-            sumDiffs += diff * diff;
+        for (int i = 0; i < vecLen; i++) {
+            // std::cout << "(mult) " << dense_mult(i) << ", " << tree_mult[i] << std::endl;
+            dense_norm += dense_mult(i) * dense_mult(i);
+            error += (dense_mult(i) - tree_mult[i]) * (dense_mult(i) - tree_mult[i]);
         }
-        sumMatrix = sqrt(sumMatrix);
-        sumDiffs = sqrt(sumDiffs);
+        error = sqrt(error);
+        dense_norm = sqrt(dense_norm);
 
-        std::cout << "Error, MV vs G: " << (100 * sumDiffs / sumMatrix) << " percent\n" << std::endl;
+        std::cout << "multiply error = " << 100 * (error / dense_norm) << " percent" << std::endl;
+
+        /*
+        double solveStart = Utils::currentTimeMilliseconds();
+        Eigen::PartialPivLU<Eigen::MatrixXd> lu;
+        lu.compute(A);
+        Eigen::VectorXd solve_sol = lu.solve(x);
+        double solveEnd = Utils::currentTimeMilliseconds();
+
+        double cgStart = Utils::currentTimeMilliseconds();
+        tree->SetBlockTreeMode(BlockTreeMode::Barycenter);
+        std::vector<double> solve_tree(vecLen);
+        for (int i = 0; i < vecLen; i++) {
+            solve_tree[i] = xVec[i];
+        }
+
+        ConjugateGradient::CGSolve(tree, solve_tree, xVec);
+        double cgEnd = Utils::currentTimeMilliseconds();
+
+        std::cout << "Iterative solution " << std::endl;
+
+        for (int i = 0; i < vecLen; i++) {
+            std::cout << "(solve) " << solve_sol(i) << ", " << solve_tree[i] << std::endl;
+        }
+
+        std::cout << "Solve time: " << (solveEnd - solveStart) << " ms" << std::endl;
+        std::cout << "CG time: " << (cgEnd - cgStart) << " ms " << std::endl;
+
+        */
 
         delete tree;
         delete bvh;
@@ -683,15 +692,51 @@ namespace LWS {
     }
 
     double TPEFlowSolverSC::ProjectGradientIterative(std::vector<Vector3> &gradients, BlockClusterTree* &blockTree) {
+
+        for (size_t i = 0; i < gradients.size(); i++) {
+            l2gradients[i] = gradients[i];
+        }
+
         // If we're not using the per-edge length constraints, use total length instead
         if (!useEdgeLengthConstraint) {
+            // First solve Ax = b, where b is the gradients
+            blockTree->SetBlockTreeMode(BlockTreeMode::Barycenter);
+            std::vector<Vector3> sobolevGradients(gradients.size());
+            // TODO: better initial guess?
+            ConjugateGradient::CGSolveComponents(blockTree, sobolevGradients, gradients);
+            // Now compute gradient of total length constraint
+            FillConstraintVector(vertConstraints);
+            // Solve Ax = l, where l is length gradient
+            std::vector<Vector3> sobolevLengthGrads(vertConstraints.size());
+            ConjugateGradient::CGSolveComponents(blockTree, sobolevLengthGrads, vertConstraints);
+            blockTree->SetBlockTreeMode(BlockTreeMode::MatrixOnly);
+            // Project out component of Sobolev length gradient from Sobolev energy gradient
+            SobolevCurves::SobolevOrthoProjectionMV(sobolevGradients, sobolevLengthGrads, blockTree);
 
+            for (size_t i = 0; i < gradients.size(); i++) {
+                gradients[i] = sobolevGradients[i];
+            }
         }
-
         else {
-            
+            // TODO
+            return 0;
         }
-        return 0;
+
+        double dot_acc = 0;
+        double norm_l2 = 0;
+        double norm_w2 = 0;
+
+        for (size_t i = 0; i < gradients.size(); i++) {
+            dot_acc += dot(l2gradients[i], gradients[i]);
+            norm_l2 += norm2(l2gradients[i]);
+            norm_w2 += norm2(gradients[i]);
+        }
+
+        double dir_dot = dot_acc / (sqrt(norm_l2) * sqrt(norm_w2));
+        std::cout << "  Directional dot product = " << dir_dot << std::endl;
+        std::cout << "  Sobolev gradient norm = " << dot_acc << std::endl;
+
+        return dir_dot;
     }
 
     bool TPEFlowSolverSC::StepSobolevLSIterative() {
@@ -712,8 +757,16 @@ namespace LWS {
         BlockClusterTree* blockTree = new BlockClusterTree(curves, edgeTree, 0.25, alpha, beta);
 
         // Use tree to compute the Sobolev gradient
+        double dot_acc = ProjectGradientIterative(vertGradients, blockTree);
 
+        // Take a line search step using this gradient
+        double ls_start = Utils::currentTimeMilliseconds();
+        double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
+        double ls_end = Utils::currentTimeMilliseconds();
+        std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
+        // Correct for drift with backprojection
+        
 
         delete edgeTree;
         delete blockTree;

@@ -3,6 +3,8 @@
 #include "tpe_energy_sc.h"
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include "spatial/block_cluster_tree.h"
+#include "utils.h"
 
 namespace LWS {
     struct EdgePositionPair {
@@ -42,12 +44,18 @@ namespace LWS {
         // whose Gram matrix is given.
         static double SobolevDot(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J);
 
+        static double SobolevDotMV(std::vector<Vector3> &as, std::vector<Vector3> &bs, BlockClusterTree* tree);
+
         // Normalizes the given vector so that it has norm 1 under the metric
         // whose Gram matrix is given.
         static void SobolevNormalize(std::vector<Vector3> &as, Eigen::MatrixXd &J);
 
         // Compute the projection of A onto the orthogonal complement of B under the given metric.
         static void SobolevOrthoProjection(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J);
+
+        // Compute the projection of A onto the orthogonal complement of B,
+        // using the block cluster tree instead of a matrix.
+        static void SobolevOrthoProjectionMV(std::vector<Vector3> &as, std::vector<Vector3> &bs, BlockClusterTree *tree);
 
         // Assemble the Df differential operator as a matrix
         static void DfMatrix(PolyCurveGroup* loop, Eigen::MatrixXd &out);

@@ -84,7 +84,7 @@ namespace LWS {
         outputFrame();
       }
 
-      bool good_step = tpeSolver->StepSobolevLS(true);
+      bool good_step = tpeSolver->StepSobolevLS(false);
       UpdateCurvePositions();
       if (!good_step) {
         std::cout << "Stopped because line search could not take a step." << std::endl;
