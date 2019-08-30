@@ -5,7 +5,7 @@
 #include "mesh_helpers.h"
 #include "poly_curve.h"
 #include "spatial/tpe_bvh.h"
-#include "spatial/block_cluster_tree.h"
+#include "product/block_cluster_tree.h"
 
 namespace LWS {
 

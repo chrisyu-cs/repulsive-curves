@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../spatial/block_cluster_tree.h"
+#include "../product/block_cluster_tree.h"
 
 namespace LWS {
 

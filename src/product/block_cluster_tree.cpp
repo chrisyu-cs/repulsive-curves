@@ -1,4 +1,4 @@
-#include "spatial/block_cluster_tree.h"
+#include "product/block_cluster_tree.h"
 #include "utils.h"
 #include "sobo_slobo.h"
 
@@ -23,12 +23,21 @@ namespace LWS {
         std::vector<ClusterPair> nextPairs;
 
         for (ClusterPair pair : unresolvedPairs) {
-            if (isPairAdmissible(pair, separationCoeff)) {
+            if (pair.cluster1->NumElements() == 0 || pair.cluster2->NumElements() == 0) {
+                // Drop pairs where one of the sides has 0 vertices
+                continue;
+            }
+            else if (pair.cluster1->NumElements() == 1 && pair.cluster2->NumElements() == 1) {
+                // If this is two singleton vertices, put in the inadmissible list
+                // so they get multiplied accurately
+                inadmissiblePairs.push_back(pair);
+            }
+            else if (isPairAdmissible(pair, separationCoeff)) {
                 // If the pair is admissible, mark it as such and leave it
                 admissiblePairs.push_back(pair);
             }
             else if (isPairSmallEnough(pair)) {
-                imadmissiblePairs.push_back(pair);
+                inadmissiblePairs.push_back(pair);
             }
             else {
                 // Otherwise, subdivide it into child pairs
@@ -54,38 +63,24 @@ namespace LWS {
     bool BlockClusterTree::isPairAdmissible(ClusterPair pair, double theta) {
         if (pair.cluster1 == pair.cluster2) return false;
 
-        Vector3 max1 = pair.cluster1->maxBound().position;
-        Vector3 max2 = pair.cluster2->maxBound().position;
-        Vector3 min1 = pair.cluster1->minBound().position;
-        Vector3 min2 = pair.cluster2->minBound().position;
+        Vector2 c1spread = pair.cluster1->viewspaceBounds(pair.cluster2->centerOfMass);
+        Vector2 c2spread = pair.cluster2->viewspaceBounds(pair.cluster1->centerOfMass);
 
-        // Compute diagonals for the cells
-        Vector3 diag1 = max1 - min1;
-        Vector3 diag2 = max2 - min2;
+        double maxRadial = fmax(c1spread.x, c2spread.x);
+        double maxLinear = fmax(c1spread.y, c2spread.y);
 
-        // Compute centers of the bounding boxes
-        Vector3 center1 = (max1 + min1) / 2;
-        Vector3 center2 = (max2 + min2) / 2;
+        double distance = norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass);
 
-        // Compute lines between centers of boxes
-        Vector3 centerLine = center2 - center1;
-        double centerDistance = norm(centerLine);
-        centerLine /= centerDistance;
-
-        // Compute the distance between the edges of boxes
-        double diam1 = dot(diag1, centerLine);
-        double diam2 = dot(diag2, centerLine);
-        double boxDistance = centerDistance - (diam1 / 2) - (diam2 / 2);
-
-        return fmax(diam1, diam2) <= theta * boxDistance;
+        bool isAdm = fmax(maxRadial, maxLinear) < theta * distance;
+        return isAdm;
     }
 
     void BlockClusterTree::PrintData() {
         std::cout << admissiblePairs.size() << " admissible pairs" << std::endl;
-        std::cout << imadmissiblePairs.size() << " inadmissible pairs" << std::endl;
+        std::cout << inadmissiblePairs.size() << " inadmissible pairs" << std::endl;
     }
 
-    void BlockClusterTree::Multiply(std::vector<double> &v, std::vector<double> &b) {
+    void BlockClusterTree::Multiply(std::vector<double> &v, std::vector<double> &b) const {
         if (mode == BlockTreeMode::MatrixOnly) {
             MultiplyVector(v, b);
         }
@@ -97,30 +92,30 @@ namespace LWS {
         }
     }
 
-    void BlockClusterTree::MultiplyVector(std::vector<double> &v, std::vector<double> &b) {
+    void BlockClusterTree::MultiplyVector(std::vector<double> &v, std::vector<double> &b) const {
         std::vector<Vector3> v_hat(curves->NumVertices());
         SobolevCurves::ApplyDf(curves, v, v_hat);
 
         std::vector<Vector3> b_hat(v_hat.size());
 
-        for (ClusterPair pair : imadmissiblePairs) {
+        for (ClusterPair pair : inadmissiblePairs) {
             AfFullProduct_hat(pair, v_hat, b_hat);
         }
         for (ClusterPair pair : admissiblePairs) {
-            AfFullProduct_hat(pair, v_hat, b_hat);
+            AfApproxProduct_hat(pair, v_hat, b_hat);
         }
 
         SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
     }
 
-    void BlockClusterTree::MultiplyWithBarycenter(std::vector<double> &v, std::vector<double> &b) {
+    void BlockClusterTree::MultiplyWithBarycenter(std::vector<double> &v, std::vector<double> &b) const {
         int nVerts = curves->NumVertices();
         std::vector<Vector3> v_hat(nVerts);
         SobolevCurves::ApplyDf(curves, v, v_hat);
 
         std::vector<Vector3> b_hat(v_hat.size());
 
-        for (ClusterPair pair : imadmissiblePairs) {
+        for (ClusterPair pair : inadmissiblePairs) {
             AfFullProduct_hat(pair, v_hat, b_hat);
         }
         for (ClusterPair pair : admissiblePairs) {
@@ -145,7 +140,7 @@ namespace LWS {
         mode = m;
     }
 
-    void BlockClusterTree::AfFullProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result)
+    void BlockClusterTree::AfFullProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result) const
     {
         std::vector<VertexBody6D> children1;
         pair.cluster1->accumulateChildren(children1);
@@ -190,7 +185,7 @@ namespace LWS {
         }
     }
     
-    void BlockClusterTree::AfApproxProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result)
+    void BlockClusterTree::AfApproxProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result) const
     {
         std::vector<VertexBody6D> children1;
         pair.cluster1->accumulateChildren(children1);
@@ -226,5 +221,107 @@ namespace LWS {
         for (size_t i = 0; i < children1.size(); i++) {
             result[children1[i].vertIndex1] += 2 * (wf_i[i] * a_wf_1 * v_hat[children1[i].vertIndex1] - wf_i[i] * a_wf_J);
         }
+    }
+
+    void BlockClusterTree::CompareBlocks() {
+        Eigen::MatrixXd fullBlock;
+        Eigen::MatrixXd approxBlock;
+
+        double totalError = 0;
+        double totalNorm = 0;
+
+        for (ClusterPair pair : inadmissiblePairs) {
+            // Inadmissible blocks are computed exactly, so no error contribution
+            fullBlock = AfFullBlock(pair);
+
+            double normFull = fullBlock.norm();
+            totalNorm += normFull * normFull;
+        }
+        for (ClusterPair pair : admissiblePairs) {
+            fullBlock = AfFullBlock(pair);
+            approxBlock = AfApproxBlock(pair);
+
+            double normFull = fullBlock.norm();
+            double normDiff = (fullBlock - approxBlock).norm();
+            double relative = 100 * normDiff / normFull;
+
+            if (relative > 50) {
+                std::cout << "(" << pair.cluster1->NumElements() << ", " << pair.cluster2->NumElements() << ")" << std::endl;
+                std::cout << "Full:\n" << fullBlock << std::endl;
+                std::cout << "Approx:\n" << approxBlock << std::endl;
+                std::cout << "Error: " << normDiff << " (" << relative << " percent)" << std::endl;
+            }
+
+            totalNorm += normFull * normFull;
+            totalError += normDiff * normDiff;
+        }
+
+        totalError = sqrt(totalError);
+        totalNorm = sqrt(totalNorm);
+        double totalRelative = 100 * totalError / totalNorm;
+
+        std::cout << "Total error = " << totalError << " (" << totalRelative << " percent; total norm = " << totalNorm << ")" << std::endl;
+    }
+
+    Eigen::MatrixXd BlockClusterTree::AfFullBlock(ClusterPair pair) {
+        std::vector<VertexBody6D> children1;
+        pair.cluster1->accumulateChildren(children1);
+        std::vector<VertexBody6D> children2;
+        pair.cluster2->accumulateChildren(children2);
+        
+        double pow_s = beta - alpha;
+        Eigen::MatrixXd block;
+        block.setZero(children1.size(), children2.size());
+
+        for (size_t i = 0; i < children1.size(); i++) {
+            for (size_t j = 0; j < children2.size(); j++) {
+                PointOnCurve p1 = curves->GetCurvePoint(children1[i].vertIndex1);
+                PointOnCurve p2 = curves->GetCurvePoint(children2[j].vertIndex1);
+
+                bool isNeighbors = (p1 == p2 || p1.Next() == p2 || p1 == p2.Next() || p1.Next() == p2.Next());
+
+                double w_i = children1[i].mass;
+                double w_j = children2[j].mass;
+
+                Vector3 c_i = children1[i].pt.position;
+                Vector3 c_j = children2[j].pt.position;
+
+                block(i, j) = (isNeighbors) ? 0 : -w_i * w_j / pow(norm(c_i - c_j), pow_s);
+            }
+        }
+
+        return block;
+    }
+
+    Eigen::MatrixXd BlockClusterTree::AfApproxBlock(ClusterPair pair) {
+        std::vector<VertexBody6D> children1;
+        pair.cluster1->accumulateChildren(children1);
+        std::vector<VertexBody6D> children2;
+        pair.cluster2->accumulateChildren(children2);
+        
+        double pow_s = beta - alpha;
+
+        std::vector<double> wf_i(children1.size());
+        std::vector<double> wf_j(children2.size());
+
+        for (size_t i = 0; i < children1.size(); i++) {
+            wf_i[i] = children1[i].mass;
+        }
+
+        for (size_t j = 0; j < children2.size(); j++) {
+            wf_j[j] = children2[j].mass;
+        }
+        double a_IJ = 1.0 / pow(norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass), pow_s);
+
+        Eigen::MatrixXd block;
+        block.setZero(children1.size(), children2.size());
+
+        for (size_t i = 0; i < children1.size(); i++) {
+            for (size_t j = 0; j < children2.size(); j++) {
+                block(i, j) = -wf_i[i] * a_IJ * wf_j[j];
+            }
+        }
+
+        return block;
     }
 }

@@ -76,7 +76,9 @@ set(SRCS
   src/vertexderivatives.cpp
   src/vert_jacobian.cpp
   src/iterative/cg.cpp
-  src/spatial/block_cluster_tree.cpp
+  src/iterative/bicgstab.cpp
+  src/product/block_cluster_tree.cpp
+  src/product/dense_matrix.cpp
   src/spatial/spatial_tree.cpp
   src/spatial/tpe_bvh.cpp
   src/spatial/tpe_kdtree.cpp

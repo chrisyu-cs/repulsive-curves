@@ -574,6 +574,10 @@ namespace LWS {
         return maxCoords;
     }
 
+    Vector3 BVHNode3D::BoxCenter() {
+        return (minCoords.position + maxCoords.position) / 2;
+    }
+
     void BVHNode3D::accumulateChildren(std::vector<VertexBody6D> &result) {
         if (isEmpty) {
             return;

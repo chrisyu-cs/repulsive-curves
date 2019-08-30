@@ -43,16 +43,17 @@ namespace LWS {
 
         PosTan minBound();
         PosTan maxBound();
+        Vector3 BoxCenter();
         std::vector<BVHNode3D*> children;
 
         void accumulateChildren(std::vector<VertexBody6D> &result);
+        Vector2 viewspaceBounds(Vector3 point);
 
         private:
         int numElements;
         bool shouldUseCell(Vector3 vertPos);
         double AxisSplittingPlane(std::vector<VertexBody6D> &points, int axis);
         inline double nodeRadius();
-        Vector2 viewspaceBounds(Vector3 point);
         void setLeafData(PolyCurveGroup* curves);
 
         int splitAxis;

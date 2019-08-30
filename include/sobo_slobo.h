@@ -3,7 +3,7 @@
 #include "tpe_energy_sc.h"
 #include <Eigen/Core>
 #include <Eigen/Dense>
-#include "spatial/block_cluster_tree.h"
+#include "product/block_cluster_tree.h"
 #include "utils.h"
 
 namespace LWS {

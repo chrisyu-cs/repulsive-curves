@@ -1,6 +1,8 @@
 #include "tpe_flow_sc.h"
 #include "utils.h"
 #include "iterative/cg.h"
+#include "iterative/bicgstab.h"
+#include "product/dense_matrix.h"
 
 namespace LWS {
 
@@ -339,69 +341,52 @@ namespace LWS {
         int nVerts = curves->NumVertices();
         int vecLen = nVerts + 1;
 
-        Eigen::VectorXd x(vecLen);
+        Eigen::VectorXd x;
+        x.setZero(vecLen);
         std::vector<double> xVec(vecLen);
 
-        for (int i = 0; i < nVerts; i++) {
-            double sinx = sin(((double)i / nVerts) * (2 * M_PI));
+        for (int i = 0; i < vecLen; i++) {
+            double sinx = sin(((double)i / vecLen) * (2 * M_PI));
             x(i) = sinx + 0.1;
             xVec[i] = x(i);
         }
 
-        std::vector<double> mult_tree(vecLen);
-
+        long matrixStart = Utils::currentTimeMilliseconds();
         Eigen::MatrixXd A;
         A.setZero(vecLen, vecLen);
         SoboSloboMatrix(A);
-
-        BVHNode3D* bvh = CreateEdgeBVHFromCurve(curves);
-        BlockClusterTree* tree = new BlockClusterTree(curves, bvh, 0.0, alpha, beta);
-
+        long matrixEnd = Utils::currentTimeMilliseconds();
+        std::cout << "Matrix assembly: " << (matrixEnd - matrixStart) << " ms" << std::endl;
         Eigen::VectorXd dense_mult = A * x;
-        std::vector<double> tree_mult(xVec.size());
+        long matrixMultEnd = Utils::currentTimeMilliseconds();
+        std::cout << "Matrix multiplication: " << (matrixMultEnd - matrixEnd) << " ms" << std::endl;
+
+        long treeStart = Utils::currentTimeMilliseconds();
+        BVHNode3D* bvh = CreateEdgeBVHFromCurve(curves);
+        BlockClusterTree* tree = new BlockClusterTree(curves, bvh, 0.25, alpha, beta);
+        std::vector<double> tree_mult_v(vecLen);
+        long treeEnd = Utils::currentTimeMilliseconds();
+        std::cout << "Tree assembly: " << (treeEnd - treeStart) << " ms" << std::endl;
+
+        // tree->CompareBlocks();
         tree->SetBlockTreeMode(BlockTreeMode::Barycenter);
-        tree->Multiply(xVec, tree_mult);
+        tree->Multiply(xVec, tree_mult_v);
+        long treeMultEnd = Utils::currentTimeMilliseconds();
+        std::cout << "Tree multiplication: " << (treeMultEnd - treeEnd) << " ms" << std::endl;
 
-        double error = 0;
-        double dense_norm = 0;
-
+        Eigen::VectorXd tree_mult;
+        tree_mult.setZero(vecLen);
         for (int i = 0; i < vecLen; i++) {
-            // std::cout << "(mult) " << dense_mult(i) << ", " << tree_mult[i] << std::endl;
-            dense_norm += dense_mult(i) * dense_mult(i);
-            error += (dense_mult(i) - tree_mult[i]) * (dense_mult(i) - tree_mult[i]);
-        }
-        error = sqrt(error);
-        dense_norm = sqrt(dense_norm);
-
-        std::cout << "multiply error = " << 100 * (error / dense_norm) << " percent" << std::endl;
-
-        /*
-        double solveStart = Utils::currentTimeMilliseconds();
-        Eigen::PartialPivLU<Eigen::MatrixXd> lu;
-        lu.compute(A);
-        Eigen::VectorXd solve_sol = lu.solve(x);
-        double solveEnd = Utils::currentTimeMilliseconds();
-
-        double cgStart = Utils::currentTimeMilliseconds();
-        tree->SetBlockTreeMode(BlockTreeMode::Barycenter);
-        std::vector<double> solve_tree(vecLen);
-        for (int i = 0; i < vecLen; i++) {
-            solve_tree[i] = xVec[i];
+            tree_mult(i) = tree_mult_v[i];
         }
 
-        ConjugateGradient::CGSolve(tree, solve_tree, xVec);
-        double cgEnd = Utils::currentTimeMilliseconds();
+        Eigen::VectorXd diff = dense_mult - tree_mult;
+        double norm_diff = diff.norm();
+        double norm_full = dense_mult.norm();
+        double relative = 100 * norm_diff / norm_full;
 
-        std::cout << "Iterative solution " << std::endl;
-
-        for (int i = 0; i < vecLen; i++) {
-            std::cout << "(solve) " << solve_sol(i) << ", " << solve_tree[i] << std::endl;
-        }
-
-        std::cout << "Solve time: " << (solveEnd - solveStart) << " ms" << std::endl;
-        std::cout << "CG time: " << (cgEnd - cgStart) << " ms " << std::endl;
-
-        */
+        std::cout << "Norm dense multiply = " << norm_full << "; norm tree multiply = " << tree_mult.norm() << std::endl;
+        std::cout << "Multiply error = " << relative << " percent" << std::endl;
 
         delete tree;
         delete bvh;
