@@ -3,6 +3,8 @@
 #include "vertex_body.h"
 #include "../poly_curve.h"
 
+#include "Eigen/Core"
+
 namespace LWS {
     class SpatialTree {
         public:
@@ -17,7 +19,7 @@ namespace LWS {
             PolyCurveGroup* curves, double alpha, double beta) = 0;
 
         // Compute the total TPE gradient at a single vertex and its neighbors
-        virtual void accumulateTPEGradient(std::vector<Vector3> &gradients, PointOnCurve &i_pt,
+        virtual void accumulateTPEGradient(Eigen::MatrixXd &gradients, PointOnCurve &i_pt,
             PolyCurveGroup* curves, double alpha, double beta) = 0;
     };
 }

@@ -251,48 +251,29 @@ namespace LWS {
         }
     }
 
-    double SobolevCurves::SobolevDot(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J) {
-        Eigen::VectorXd A, B;
-        A.setZero(as.size());
-        B.setZero(bs.size());
-
-        // X component
-        for (size_t i = 0; i < as.size(); i++) {
-            A(i) = as[i].x;
-            B(i) = bs[i].x;
-        }
-        double dot_x = A.transpose() * J * B;
-
-        // Y component
-        for (size_t i = 0; i < as.size(); i++) {
-            A(i) = as[i].y;
-            B(i) = bs[i].y;
-        }
-        double dot_y = A.transpose() * J * B;
-
-        // Z component
-        for (size_t i = 0; i < as.size(); i++) {
-            A(i) = as[i].z;
-            B(i) = bs[i].z;
-        }
-        double dot_z = A.transpose() * J * B;
+    double SobolevCurves::SobolevDot(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J) {
+        double dot_x = as.col(0).transpose() * J * bs.col(0);
+        double dot_y = as.col(1).transpose() * J * bs.col(1);
+        double dot_z = as.col(2).transpose() * J * bs.col(2);
 
         return dot_x + dot_y + dot_z;
     }
 
-    void SobolevCurves::SobolevNormalize(std::vector<Vector3> &as, Eigen::MatrixXd &J) {
+    void SobolevCurves::SobolevNormalize(Eigen::MatrixXd &as, Eigen::MatrixXd &J) {
         double sobo_norm = sqrt(SobolevDot(as, as, J));
-        for (size_t i = 0; i < as.size(); i++) {
-            as[i] /= sobo_norm;
+        for (int i = 0; i < as.rows(); i++) {
+            as(i, 0) /= sobo_norm;
+            as(i, 1) /= sobo_norm;
+            as(i, 2) /= sobo_norm;
         }
     }
 
-    void SobolevCurves::SobolevOrthoProjection(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J) {
+    void SobolevCurves::SobolevOrthoProjection(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J) {
         double d1 = SobolevDot(as, bs, J);
         double d2 = SobolevDot(bs, bs, J);
         // Take the projection, and divide out the norm of b
-        for (size_t i = 0; i < as.size(); i++) {
-            as[i] -= (d1 / d2) * bs[i];
+        for (int i = 0; i < as.rows(); i++) {
+            AddToRow(as, i, -(d1 / d2) * SelectRow(bs, i));
         }
     }
 
@@ -339,7 +320,7 @@ namespace LWS {
     }
 
     void SobolevCurves::ApplyGramMatrix(PolyCurveGroup* loop, Eigen::VectorXd &as, double alpha, double beta, Eigen::VectorXd &out) {
-        int n = as.size();
+        int n = as.rows();
         Eigen::MatrixXd Df_v(n, 3);
         Df_v.setZero();
 

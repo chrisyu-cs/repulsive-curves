@@ -395,7 +395,7 @@ namespace LWS {
         return TPESC::tpe_pair_pts(i_pt.Position(), centerOfMass, tangent, i_pt.DualLength(), totalMass, alpha, beta);
     }
 
-    void BVHNode3D::accumulateTPEGradient(std::vector<Vector3> &gradients, PointOnCurve &i_pt,
+    void BVHNode3D::accumulateTPEGradient(Eigen::MatrixXd &gradients, PointOnCurve &i_pt,
     PolyCurveGroup* curves, double alpha, double beta) {
         if (isEmpty) {
             return;
@@ -415,18 +415,18 @@ namespace LWS {
                 PointOnCurve j_next = j.Next();
 
                 // Differentiate both terms for previous, middle, and next
-                gradients[curves->GlobalIndex(i_prev)] += TPESC::tpe_grad(i_pt, j, alpha, beta, i_prev);
-                gradients[curves->GlobalIndex(i_pt)]   += TPESC::tpe_grad(i_pt, j, alpha, beta, i_pt);
-                gradients[curves->GlobalIndex(i_next)] += TPESC::tpe_grad(i_pt, j, alpha, beta, i_next);
+                AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(i_pt, j, alpha, beta, i_prev));
+                AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(i_pt, j, alpha, beta, i_pt));
+                AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(i_pt, j, alpha, beta, i_next));
                 // Avoid double-counting on the reverse terms with these checks
                 if (i_prev != j_prev && i_prev != j && i_prev != j_next) {
-                    gradients[curves->GlobalIndex(i_prev)] += TPESC::tpe_grad(j, i_pt, alpha, beta, i_prev);
+                    AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(j, i_pt, alpha, beta, i_prev));
                 }
                 if (i_pt != j_prev && i_pt != j && i_pt != j_next) {
-                    gradients[curves->GlobalIndex(i_pt)]   += TPESC::tpe_grad(j, i_pt, alpha, beta, i_pt);
+                    AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(j, i_pt, alpha, beta, i_pt));
                 }
                 if (i_next != j_prev && i_next != j && i_next != j_next) {
-                    gradients[curves->GlobalIndex(i_next)] += TPESC::tpe_grad(j, i_pt, alpha, beta, i_next);
+                    AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(j, i_pt, alpha, beta, i_next));
                 }
             }
             // With an edge, we have to pass in a TangentMassPoint instead
@@ -443,13 +443,13 @@ namespace LWS {
                 TangentMassPoint jm{tangent, body.mass, body.pt.position, j1, j2};
 
                 if (i_pt != j1 && i_pt != j2) {
-                    gradients[curves->GlobalIndex(i_prev)] += TPESC::tpe_grad(i_pt, jm, alpha, beta, i_prev);
-                    gradients[curves->GlobalIndex(i_pt)]   += TPESC::tpe_grad(i_pt, jm, alpha, beta, i_pt);
-                    gradients[curves->GlobalIndex(i_next)] += TPESC::tpe_grad(i_pt, jm, alpha, beta, i_next);
+                    AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(i_pt, jm, alpha, beta, i_prev));
+                    AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(i_pt, jm, alpha, beta, i_pt));
+                    AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(i_pt, jm, alpha, beta, i_next));
 
-                    gradients[curves->GlobalIndex(i_prev)] += TPESC::tpe_grad(jm, i_pt, alpha, beta, i_prev);
-                    gradients[curves->GlobalIndex(i_pt)]   += TPESC::tpe_grad(jm, i_pt, alpha, beta, i_pt);
-                    gradients[curves->GlobalIndex(i_next)] += TPESC::tpe_grad(jm, i_pt, alpha, beta, i_next);
+                    AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(jm, i_pt, alpha, beta, i_prev));
+                    AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(jm, i_pt, alpha, beta, i_pt));
+                    AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(jm, i_pt, alpha, beta, i_next));
                 }
             }
         }
@@ -464,12 +464,12 @@ namespace LWS {
                 PointOnCurve i_next = i_pt.Next();
 
                 // Differentiate both terms for previous, middle, and next
-                gradients[curves->GlobalIndex(i_prev)] += TPESC::tpe_grad(i_pt, j, alpha, beta, i_prev);
-                gradients[curves->GlobalIndex(i_prev)] += TPESC::tpe_grad(j, i_pt, alpha, beta, i_prev);
-                gradients[curves->GlobalIndex(i_pt)]   += TPESC::tpe_grad(i_pt, j, alpha, beta, i_pt);
-                gradients[curves->GlobalIndex(i_pt)]   += TPESC::tpe_grad(j, i_pt, alpha, beta, i_pt);
-                gradients[curves->GlobalIndex(i_next)] += TPESC::tpe_grad(i_pt, j, alpha, beta, i_next);
-                gradients[curves->GlobalIndex(i_next)] += TPESC::tpe_grad(j, i_pt, alpha, beta, i_next);
+                AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(i_pt, j, alpha, beta, i_prev));
+                AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(j, i_pt, alpha, beta, i_prev));
+                AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(i_pt, j, alpha, beta, i_pt));
+                AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(j, i_pt, alpha, beta, i_pt));
+                AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(i_pt, j, alpha, beta, i_next));
+                AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(j, i_pt, alpha, beta, i_next));
             }
             else {
                 // Otherwise we continue recursively traversing the tree

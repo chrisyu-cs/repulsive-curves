@@ -4,7 +4,7 @@
 
 namespace LWS {
 
-    class KDTreeNode3D : public SpatialTree {
+    class KDTreeNode3D /*: public SpatialTree */ {
         public:
         // Note that a KD tree is constructed by supplying all points at the start.
         KDTreeNode3D(std::vector<VertexBody6D> &points, int axis, PosTan mins, PosTan maxs);

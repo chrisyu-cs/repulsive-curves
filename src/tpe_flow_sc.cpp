@@ -6,11 +6,15 @@ namespace LWS {
 
     TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveGroup* g) :
     originalPositions(g->NumVertices()),
-    l2gradients(g->NumVertices() + 1),
-    vertGradients(g->NumVertices() + 1),
-    vertConstraints(g->NumVertices() + 1),
+    l2gradients(g->NumVertices() + 1, 3),
+    vertGradients(g->NumVertices() + 1, 3),
+    vertConstraints(g->NumVertices() + 1, 3),
     initialLengths(g->NumVertices())
     {
+        l2gradients.setZero();
+        vertGradients.setZero();
+        vertConstraints.setZero();
+
         curves = g;
         alpha = 3;
         beta = 6;
@@ -49,7 +53,7 @@ namespace LWS {
         return fullSum;
     }
 
-    void TPEFlowSolverSC::FillGradientSingle(std::vector<Vector3> &gradients, int i, int j) {
+    void TPEFlowSolverSC::FillGradientSingle(Eigen::MatrixXd &gradients, int i, int j) {
         if (i == j) return;
         PointOnCurve i_pt = curves->GetCurvePoint(i);
         PointOnCurve j_pt = curves->GetCurvePoint(j);
@@ -60,28 +64,28 @@ namespace LWS {
         PointOnCurve j_prev = j_pt.Prev();
         PointOnCurve j_next = j_pt.Next();
 
-        gradients[curves->GlobalIndex(i_prev)] += TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_prev);
-        gradients[curves->GlobalIndex(i_pt)] += TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_pt);
-        gradients[curves->GlobalIndex(i_next)] += TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_next);
+        AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_prev));
+        AddToRow(gradients, curves->GlobalIndex(i_pt), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_pt));
+        AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_next));
 
         // If j_prev is not already included in one of the above 3
         if (j_prev != i_prev && j_prev != i_pt && j_prev != i_next)
-            gradients[curves->GlobalIndex(j_prev)] += TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_prev);
+            AddToRow(gradients, curves->GlobalIndex(j_prev), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_prev));
 
         // If j_pt is not already included in one of the above 3
         if (j_pt != i_prev && j_pt != i_pt && j_pt != i_next)
-            gradients[curves->GlobalIndex(j_pt)] += TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_pt);
+            AddToRow(gradients, curves->GlobalIndex(j_pt), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_pt));
 
         // If j_next is not already included in one of the above 3
         if (j_next != i_prev && j_next != i_pt && j_next != i_next)
-            gradients[curves->GlobalIndex(j_next)] += TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_next);
+            AddToRow(gradients, curves->GlobalIndex(j_next), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_next));
     }
 
-    void TPEFlowSolverSC::FillGradientVectorDirect(std::vector<Vector3> &gradients) {
+    void TPEFlowSolverSC::FillGradientVectorDirect(Eigen::MatrixXd &gradients) {
         int nVerts = curves->NumVertices();
         // Fill with zeros, so that the constraint entries are 0
-        for (size_t i = 0; i < gradients.size(); i++) {
-            gradients[i] = Vector3{0, 0, 0};
+        for (int i = 0; i < gradients.rows(); i++) {
+            SetRow(gradients, i, Vector3{0, 0, 0});
         }
         // Fill vertex entries with accumulated gradients
         for (int i = 0; i < nVerts; i++) {
@@ -92,7 +96,7 @@ namespace LWS {
         }
     }
 
-    void TPEFlowSolverSC::FillGradientVectorBH(SpatialTree *root, std::vector<Vector3> &gradients) {
+    void TPEFlowSolverSC::FillGradientVectorBH(SpatialTree *root, Eigen::MatrixXd &gradients) {
         // The single energy term (i, j) affects six vertices:
         // (i_prev, i, i_next, j_prev, j, j_next).
         // We can restructure the computation as follows:
@@ -100,8 +104,8 @@ namespace LWS {
         // contributions from the gradients of both terms (i, j) and (j, i).
         int nVerts = curves->NumVertices();
         // Fill with zeros, so that the constraint entries are 0
-        for (size_t i = 0; i < gradients.size(); i++) {
-            gradients[i] = Vector3{0, 0, 0};
+        for (int i = 0; i < gradients.rows(); i++) {
+            SetRow(gradients, i, Vector3{0, 0, 0});
         }
 
         for (int i = 0; i < nVerts; i++) {
@@ -110,29 +114,30 @@ namespace LWS {
         }
     }
 
-    void TPEFlowSolverSC::FillConstraintVector(std::vector<Vector3> &gradients) {
+    void TPEFlowSolverSC::FillConstraintVector(Eigen::MatrixXd &gradients) {
         int nVerts = curves->NumVertices();
 
-        for (size_t i = 0; i < gradients.size(); i++) {
-            gradients[i] = Vector3{0, 0, 0};
+        for (int i = 0; i < gradients.rows(); i++) {
+            SetRow(gradients, i, Vector3{0, 0, 0});
         }
 
         for (int i = 0; i < nVerts; i++) {
             PointOnCurve i_pt = curves->GetCurvePoint(i);
             Vector3 len_grad = i_pt.curve->TotalLengthGradient(i_pt.pIndex);
-            gradients[curves->GlobalIndex(i_pt)] = len_grad;
+            SetRow(gradients, curves->GlobalIndex(i_pt), len_grad);
         }
     }
 
     bool TPEFlowSolverSC::StepNaive(double h) {
         // Takes a fixed time step h using the L2 gradient
         int nVerts = curves->NumVertices();
-        std::vector<Vector3> gradients(nVerts);
+        Eigen::MatrixXd gradients(nVerts, 3);
+        gradients.setZero();
         FillGradientVectorDirect(gradients);
 
         for (int i = 0; i < nVerts; i++) {
             PointOnCurve pt = curves->GetCurvePoint(i);
-            pt.SetPosition(pt.Position() - h * gradients[i]);
+            pt.SetPosition(pt.Position() - h * SelectRow(gradients, i));
         }
         return true;
     }
@@ -149,23 +154,23 @@ namespace LWS {
         }
     }
 
-    void TPEFlowSolverSC::SetGradientStep(std::vector<Vector3> gradient, double delta) {
+    void TPEFlowSolverSC::SetGradientStep(Eigen::MatrixXd gradient, double delta) {
         // Write the new vertex positions to the mesh
         // Step every vertex by the gradient times delta
         for (int i = 0; i < curves->NumVertices(); i++) {
-            Vector3 vertGrad = gradient[i];
+            Vector3 vertGrad = SelectRow(gradient, i);
             curves->GetCurvePoint(i).SetPosition(originalPositions[i] - delta * vertGrad);
         }
     }
 
-    double TPEFlowSolverSC::LineSearchStep(std::vector<Vector3> &gradient, double gradDot, SpatialTree* root) {
-        double gradNorm = NormOfVectors(gradient);
+    double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double gradDot, SpatialTree* root) {
+        double gradNorm = gradient.norm();
         //std::cout << "Norm of gradient = " << gradNorm << std::endl;
         double initGuess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
         return LineSearchStep(gradient, initGuess, 1, gradDot, root);
     }
 
-    double TPEFlowSolverSC::LineSearchStep(std::vector<Vector3> &gradient, double initGuess, int doublingLimit,
+    double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double initGuess, int doublingLimit,
     double gradDot, SpatialTree* root) {
         double delta = initGuess;
 
@@ -173,7 +178,7 @@ namespace LWS {
         SaveCurrentPositions();
 
         double initialEnergy = CurrentEnergy(root);
-        double gradNorm = NormOfVectors(gradient);
+        double gradNorm = gradient.norm();
         int numBacktracks = 0, numDoubles = 0;
         double sigma = 0.01f;
         double newEnergy = initialEnergy;
@@ -226,7 +231,7 @@ namespace LWS {
         }
     }
 
-    double TPEFlowSolverSC::LSBackproject(std::vector<Vector3> &gradient, double initGuess,
+    double TPEFlowSolverSC::LSBackproject(Eigen::MatrixXd &gradient, double initGuess,
     Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, SpatialTree* root) {
         double delta = initGuess;
 
@@ -253,12 +258,13 @@ namespace LWS {
 
     bool TPEFlowSolverSC::StepLS() {
         int nVerts = curves->NumVertices();
-        std::vector<Vector3> gradients(nVerts);
+        Eigen::MatrixXd gradients(nVerts, 3);
+        gradients.setZero();
         FillGradientVectorDirect(gradients);
         return LineSearchStep(gradients);
     }
 
-    double TPEFlowSolverSC::ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, std::vector<Vector3> &gradients) {
+    double TPEFlowSolverSC::ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients) {
         int nVerts = curves->NumVertices();
         Eigen::VectorXd b;
         b.setZero(matrixNumRows());
@@ -269,15 +275,15 @@ namespace LWS {
 
             // Fill in RHS with all coordinates
             for (int i = 0; i < nVerts; i++) {
-                b(3 * i) = gradients[i].x;
-                b(3 * i + 1) = gradients[i].y;
-                b(3 * i + 2) = gradients[i].z;
+                b(3 * i) = gradients(i, 0);
+                b(3 * i + 1) = gradients(i, 1);
+                b(3 * i + 2) = gradients(i, 2);
             }
             // Solve for all coordinates
             Eigen::VectorXd ss_grad = lu.solve(b);
 
             for (int i = 0; i < nVerts; i++) {
-                gradients[i] = Vector3{ss_grad(3 * i), ss_grad(3 * i + 1), ss_grad(3 * i + 2)};
+                SetRow(gradients, i, Vector3{ss_grad(3 * i), ss_grad(3 * i + 1), ss_grad(3 * i + 2)});
             }
 
             return 1;
@@ -287,29 +293,32 @@ namespace LWS {
             // If not using per-edge length constraints, we solve each coordinate separately
 
             // Fill in RHS for x
-            for (int i = 0; i < nVerts; i++) {
-                b(i) = gradients[i].x;
-            }
+            //for (int i = 0; i < nVerts; i++) {
+            //    b(i) = gradients[i].x;
+            //}
             // Solve for x
+            b = gradients.col(0);
             Eigen::VectorXd ss_grad_x = lu.solve(b);
 
             // Fill in RHS for y
-            for (int i = 0; i < nVerts; i++) {
-                b(i) = gradients[i].y;
-            }
+            //for (int i = 0; i < nVerts; i++) {
+            //    b(i) = gradients[i].y;
+            //}
             // Solve for y
+            b = gradients.col(1);
             Eigen::VectorXd ss_grad_y = lu.solve(b);
 
             // Fill in RHS for z
-            for (int i = 0; i < nVerts; i++) {
-                b(i) = gradients[i].z;
-            }
+            //for (int i = 0; i < nVerts; i++) {
+            //    b(i) = gradients[i].z;
+            //}
             // Solve for z
+            b = gradients.col(2);
             Eigen::VectorXd ss_grad_z = lu.solve(b);
 
             // Copy the projected gradients back into the vector
             for (int i = 0; i < nVerts; i++) {
-                gradients[i] = Vector3{ss_grad_x(i), ss_grad_y(i), ss_grad_z(i)};
+                SetRow(gradients, i, Vector3{ss_grad_x(i), ss_grad_y(i), ss_grad_z(i)});
                 //std::cout << "Project gradient " << i << " = " << gradients[i] << std::endl;
             }
 
@@ -376,8 +385,6 @@ namespace LWS {
 
         // tree->CompareBlocks();
         tree->SetBlockTreeMode(BlockTreeMode::Barycenter);
-        //tree->Multiply(xVec, tree_mult_v);
-        // TestMultiply(tree, xVec, tree_mult_v);
         HMatrix matRepl(tree);
         tree_mult_v = matRepl * xVec;
 
@@ -538,18 +545,18 @@ namespace LWS {
         }
     }
 
-    double TPEFlowSolverSC::ComputeAndProjectGradient(std::vector<Vector3> &gradients) {
+    double TPEFlowSolverSC::ComputeAndProjectGradient(Eigen::MatrixXd &gradients) {
         Eigen::MatrixXd A;
         Eigen::PartialPivLU<Eigen::MatrixXd> lu;
         return ComputeAndProjectGradient(gradients, A, lu);
     }
 
-    double TPEFlowSolverSC::ComputeAndProjectGradient(std::vector<Vector3> &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
+    double TPEFlowSolverSC::ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
         int nRows = matrixNumRows();
         size_t nVerts = curves->NumVertices();
 
-        for (size_t i = 0; i < gradients.size(); i++) {
-            l2gradients[i] = gradients[i];
+        for (int i = 0; i < gradients.rows(); i++) {
+            l2gradients(i) = gradients(i);
         }
 
         // If we're not using the per-edge length constraints, use total length instead
@@ -612,13 +619,11 @@ namespace LWS {
         }
 
         double dot_acc = 0;
-        double norm_l2 = 0;
-        double norm_w2 = 0;
+        double norm_l2 = l2gradients.norm();
+        double norm_w2 = gradients.norm();
 
-        for (size_t i = 0; i < gradients.size(); i++) {
-            dot_acc += dot(l2gradients[i], gradients[i]);
-            norm_l2 += norm2(l2gradients[i]);
-            norm_w2 += norm2(gradients[i]);
+        for (int i = 0; i < gradients.rows(); i++) {
+            dot_acc += dot(SelectRow(l2gradients, i), SelectRow(gradients, i));
         }
 
         double dir_dot = dot_acc / (sqrt(norm_l2) * sqrt(norm_w2));
@@ -633,8 +638,6 @@ namespace LWS {
 
         size_t nVerts = curves->NumVertices();
 
-        vertGradients.reserve(nVerts + 1);
-        vertConstraints.reserve(nVerts + 1);
         int nRows = matrixNumRows();
 
         long grad_start = Utils::currentTimeMilliseconds();
@@ -686,29 +689,26 @@ namespace LWS {
         return step_size > 0;
     }
 
-    double TPEFlowSolverSC::ProjectGradientIterative(std::vector<Vector3> &gradients, BlockClusterTree* &blockTree) {
+    double TPEFlowSolverSC::ProjectGradientIterative(Eigen::MatrixXd &gradients, BlockClusterTree* &blockTree) {
 
-        for (size_t i = 0; i < gradients.size(); i++) {
-            l2gradients[i] = gradients[i];
+        for (int i = 0; i < gradients.rows(); i++) {
+            l2gradients(i) = gradients(i);
         }
 
         // If we're not using the per-edge length constraints, use total length instead
         if (!useEdgeLengthConstraint) {
             // First solve Ax = b, where b is the gradients
             blockTree->SetBlockTreeMode(BlockTreeMode::Barycenter);
-            std::vector<Vector3> sobolevGradients(gradients.size());
+            std::vector<Vector3> sobolevGradients(gradients.rows());
             // TODO: Solve blockTree * sobolevGradients = gradients
             // Now compute gradient of total length constraint
-            FillConstraintVector(vertConstraints);
+            // FillConstraintVector(vertConstraints);
             // Solve Ax = l, where l is length gradient
-            std::vector<Vector3> sobolevLengthGrads(vertConstraints.size());
+            std::vector<Vector3> sobolevLengthGrads(vertConstraints.rows());
             // TODO: Solve blockTree * sobolevLengthGrads = vertConstraints
             blockTree->SetBlockTreeMode(BlockTreeMode::MatrixOnly);
             // TODO: Project out component of Sobolev length gradient from Sobolev energy gradient
 
-            for (size_t i = 0; i < gradients.size(); i++) {
-                gradients[i] = sobolevGradients[i];
-            }
         }
         else {
             // TODO: Per-edge case
@@ -716,13 +716,11 @@ namespace LWS {
         }
 
         double dot_acc = 0;
-        double norm_l2 = 0;
-        double norm_w2 = 0;
+        double norm_l2 = l2gradients.norm();
+        double norm_w2 = gradients.norm();
 
-        for (size_t i = 0; i < gradients.size(); i++) {
-            dot_acc += dot(l2gradients[i], gradients[i]);
-            norm_l2 += norm2(l2gradients[i]);
-            norm_w2 += norm2(gradients[i]);
+        for (int i = 0; i < gradients.rows(); i++) {
+            dot_acc += dot(SelectRow(l2gradients, i), SelectRow(gradients, i));
         }
 
         double dir_dot = dot_acc / (sqrt(norm_l2) * sqrt(norm_w2));
@@ -735,8 +733,6 @@ namespace LWS {
     bool TPEFlowSolverSC::StepSobolevLSIterative() {
         size_t nVerts = curves->NumVertices();
 
-        vertGradients.reserve(nVerts + 1);
-        vertConstraints.reserve(nVerts + 1);
         int nRows = matrixNumRows();
 
         SpatialTree *tree_root = 0;
@@ -754,12 +750,11 @@ namespace LWS {
 
         // Take a line search step using this gradient
         double ls_start = Utils::currentTimeMilliseconds();
-        double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
+        // double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
         double ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
         // Correct for drift with backprojection
-        
 
         delete edgeTree;
         delete blockTree;

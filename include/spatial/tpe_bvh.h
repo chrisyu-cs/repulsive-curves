@@ -3,6 +3,7 @@
 #include "spatial_tree.h"
 #include "../tpe_energy_sc.h"
 #include "geometrycentral/utilities/vector2.h"
+#include "utils.h"
 
 namespace LWS {
 
@@ -30,7 +31,7 @@ namespace LWS {
         virtual void recomputeCentersOfMass(PolyCurveGroup* curves);
         // Compute the total energy contribution from a single vertex
         virtual void accumulateVertexEnergy(double &result, PointOnCurve &i_pt, PolyCurveGroup* curves, double alpha, double beta);
-        virtual void accumulateTPEGradient(std::vector<Vector3> &gradients, PointOnCurve &i_pt, 
+        virtual void accumulateTPEGradient(Eigen::MatrixXd &gradients, PointOnCurve &i_pt, 
             PolyCurveGroup* curves, double alpha, double beta);
         int NumElements();
         

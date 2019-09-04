@@ -41,14 +41,14 @@ namespace LWS {
         
         // Computes the inner product of the two given vectors, under the metric
         // whose Gram matrix is given.
-        static double SobolevDot(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J);
+        static double SobolevDot(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J);
 
         // Normalizes the given vector so that it has norm 1 under the metric
         // whose Gram matrix is given.
-        static void SobolevNormalize(std::vector<Vector3> &as, Eigen::MatrixXd &J);
+        static void SobolevNormalize(Eigen::MatrixXd &as, Eigen::MatrixXd &J);
 
         // Compute the projection of A onto the orthogonal complement of B under the given metric.
-        static void SobolevOrthoProjection(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J);
+        static void SobolevOrthoProjection(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J);
 
         // Assemble the Df differential operator as a matrix
         static void DfMatrix(PolyCurveGroup* loop, Eigen::MatrixXd &out);

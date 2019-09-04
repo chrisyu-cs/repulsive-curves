@@ -23,21 +23,21 @@ namespace LWS {
         double CurrentEnergy(SpatialTree *root = 0);
         inline double CurrentEnergyDirect();
         double CurrentEnergyBH(SpatialTree *root);
-        void FillGradientSingle(std::vector<Vector3> &gradients, int i, int j);
-        void FillGradientVectorDirect(std::vector<Vector3> &gradients);
+        void FillGradientSingle(Eigen::MatrixXd &gradients, int i, int j);
+        void FillGradientVectorDirect(Eigen::MatrixXd &gradients);
 
-        void FillGradientVectorBH(SpatialTree *root, std::vector<Vector3> &gradients);
+        void FillGradientVectorBH(SpatialTree *root, Eigen::MatrixXd &gradients);
 
-        void FillConstraintVector(std::vector<Vector3> &gradients);
+        void FillConstraintVector(Eigen::MatrixXd &gradients);
         bool StepNaive(double h);
         bool StepLS();
         bool StepSobolevLS(bool useBH);
         bool StepSobolevLSIterative();
 
-        double ComputeAndProjectGradient(std::vector<Vector3> &gradients);
-        double ComputeAndProjectGradient(std::vector<Vector3> &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
-        double ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, std::vector<Vector3> &gradients);
-        double ProjectGradientIterative(std::vector<Vector3> &gradients, BlockClusterTree* &blockTree);
+        double ComputeAndProjectGradient(Eigen::MatrixXd &gradients);
+        double ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
+        double ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients);
+        double ProjectGradientIterative(Eigen::MatrixXd &gradients, BlockClusterTree* &blockTree);
 
         // Fill a Sobolev-Slobodeckij inner product matrix with a barycenter constraint
         void SoboSloboMatrix(Eigen::MatrixXd &A);
@@ -49,9 +49,9 @@ namespace LWS {
 
         void SaveCurrentPositions();
         void RestoreOriginalPositions();
-        double LineSearchStep(std::vector<Vector3> &gradients, double gradDot = 1, SpatialTree* root = 0);
-        double LineSearchStep(std::vector<Vector3> &gradients, double initGuess, int doublingLimit, double gradDot, SpatialTree* root);
-        double LSBackproject(std::vector<Vector3> &gradients, double initGuess,
+        double LineSearchStep(Eigen::MatrixXd &gradients, double gradDot = 1, SpatialTree* root = 0);
+        double LineSearchStep(Eigen::MatrixXd &gradients, double initGuess, int doublingLimit, double gradDot, SpatialTree* root);
+        double LSBackproject(Eigen::MatrixXd &gradients, double initGuess,
             Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, SpatialTree* root);
 
         bool useEdgeLengthConstraint;
@@ -63,13 +63,13 @@ namespace LWS {
         CoordinateLUs coord_lus;
         PolyCurveGroup* curves;
         std::vector<Vector3> originalPositions;
-        std::vector<Vector3> l2gradients;
-        std::vector<Vector3> vertGradients;
-        std::vector<Vector3> vertConstraints;
+        Eigen::MatrixXd l2gradients;
+        Eigen::MatrixXd vertGradients;
+        Eigen::MatrixXd vertConstraints;
         std::vector<double> initialLengths;
         double alpha;
         double beta;
-        void SetGradientStep(std::vector<Vector3> gradient, double delta);
+        void SetGradientStep(Eigen::MatrixXd gradient, double delta);
         double FillLengthConstraintViolations(Eigen::VectorXd &b, int baseIndex);
         bool BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
     };

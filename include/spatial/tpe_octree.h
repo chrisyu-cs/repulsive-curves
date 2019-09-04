@@ -4,7 +4,7 @@
 
 namespace LWS {
 
-    class OctreeNode3D : public SpatialTree {
+    class OctreeNode3D /* public SpatialTree */ {
         public:
         OctreeNode3D(Vector3 center, double width);
         virtual ~OctreeNode3D();
