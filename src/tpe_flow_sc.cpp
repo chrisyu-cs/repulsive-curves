@@ -335,6 +335,11 @@ namespace LWS {
         }
     }
 
+    template<typename T>
+    void TestMultiply(T &mult, Eigen::VectorXd &xVec, Eigen::VectorXd &result) {
+        mult->Multiply(xVec, result);
+    }
+
     void TPEFlowSolverSC::CompareMatrixVectorProduct() {
         int nVerts = curves->NumVertices();
         int vecLen = nVerts + 1;
@@ -371,7 +376,11 @@ namespace LWS {
 
         // tree->CompareBlocks();
         tree->SetBlockTreeMode(BlockTreeMode::Barycenter);
-        tree->Multiply(xVec, tree_mult_v);
+        //tree->Multiply(xVec, tree_mult_v);
+        // TestMultiply(tree, xVec, tree_mult_v);
+        HMatrix matRepl(tree);
+        tree_mult_v = matRepl * xVec;
+
         long treeMultEnd = Utils::currentTimeMilliseconds();
         std::cout << "Tree multiplication: " << (treeMultEnd - treeEnd) << " ms" << std::endl;
 

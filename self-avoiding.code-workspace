@@ -67,7 +67,9 @@
 			"future": "cpp",
 			"mutex": "cpp",
 			"thread": "cpp",
-			"cfenv": "cpp"
+			"cfenv": "cpp",
+			"*.expression": "cpp",
+			"fft": "cpp"
 		}
 	}
 }

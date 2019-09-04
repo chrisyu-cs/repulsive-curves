@@ -7,6 +7,8 @@
 #include "spatial/tpe_bvh.h"
 #include "product/block_cluster_tree.h"
 
+#include "product/matrix_free.h"
+
 namespace LWS {
 
     struct CoordinateLUs {

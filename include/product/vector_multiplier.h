@@ -6,7 +6,8 @@ namespace LWS {
     template <typename T>
     class VectorMultiplier {
         public:
-        void Multiply(std::vector<double> &v, std::vector<double> &b) const {
+        template<typename V, typename Dest>
+        void Multiply(V &v, Dest &b) const {
             static_cast<T const&>(*this).Multiply(v, b);
         }
     };
