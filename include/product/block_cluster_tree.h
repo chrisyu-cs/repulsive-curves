@@ -3,6 +3,7 @@
 #include "../spatial/vertex_body.h"
 #include "../spatial/tpe_bvh.h"
 #include "vector_multiplier.h"
+#include "sobo_slobo.h"
 
 #include "Eigen/Dense"
 
@@ -30,13 +31,18 @@ namespace LWS {
 
         void PrintData();
 
-        void Multiply(Eigen::VectorXd &v, Eigen::VectorXd &b) const;
+        // Multiplies v and stores in b. Dispatches to the specific multiplication case below.
+        template<typename V, typename Dest>
+        void Multiply(V &v, Dest &b) const;
 
         // Multiplies A * v and stores it in b.
-        void MultiplyVector(Eigen::VectorXd &v, Eigen::VectorXd &b) const;
+        template<typename V, typename Dest>
+        void MultiplyVector(V &v, Dest &b) const;
+
         // Multiplies A' * v, where the last row and column of A store a barycenter constraint row.
         // Stores the result in b.
-        void MultiplyWithBarycenter(Eigen::VectorXd &v, Eigen::VectorXd &b) const;
+        template<typename V, typename Dest>
+        void MultiplyWithBarycenter(V &v, Dest &b) const;
 
         void AfFullProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
         void AfApproxProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
@@ -57,4 +63,70 @@ namespace LWS {
         std::vector<ClusterPair> unresolvedPairs;
         std::vector<ClusterPair> inadmissiblePairs;
     };
+
+    template<typename V, typename Dest>
+    void BlockClusterTree::Multiply(V &v, Dest &b) const {
+        if (mode == BlockTreeMode::MatrixOnly) {
+            MultiplyVector(v, b);
+        }
+        else if (mode == BlockTreeMode::Barycenter) {
+            MultiplyWithBarycenter(v, b);
+        }
+        else if (mode == BlockTreeMode::EdgeConstraint) {
+            // TODO
+        }
+    }
+
+    template<typename V, typename Dest>
+    void BlockClusterTree::MultiplyVector(V &v, Dest &b) const {
+        int nVerts = curves->NumVertices();
+        Eigen::MatrixXd v_hat(nVerts, 3);
+        v_hat.setZero();
+
+        SobolevCurves::ApplyDf(curves, v, v_hat);
+
+        Eigen::MatrixXd b_hat(nVerts, 3);
+        b_hat.setZero();
+
+        for (ClusterPair pair : inadmissiblePairs) {
+            AfFullProduct_hat(pair, v_hat, b_hat);
+        }
+        for (ClusterPair pair : admissiblePairs) {
+            AfApproxProduct_hat(pair, v_hat, b_hat);
+        }
+
+        SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
+    }
+
+    template<typename V, typename Dest>
+    void BlockClusterTree::MultiplyWithBarycenter(V &v, Dest &b) const {
+        int nVerts = curves->NumVertices();
+        Eigen::MatrixXd v_hat(nVerts, 3);
+        v_hat.setZero();
+
+        SobolevCurves::ApplyDf(curves, v, v_hat);
+
+        Eigen::MatrixXd b_hat(nVerts, 3);
+        b_hat.setZero();
+
+        for (ClusterPair pair : inadmissiblePairs) {
+            AfFullProduct_hat(pair, v_hat, b_hat);
+        }
+        for (ClusterPair pair : admissiblePairs) {
+            AfApproxProduct_hat(pair, v_hat, b_hat);
+        }
+
+        SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
+
+        double totalLength = curves->TotalLength();
+
+        // Multiply the last row and column of the matrix
+        for (int i = 0; i < nVerts; i++) {
+            double weight = curves->GetCurvePoint(i).DualLength() / totalLength;
+            // Add last column sum
+            b(i) += v(nVerts) * weight;
+            // Add last row sum
+            b(nVerts) += v(i) * weight;
+        }
+    }
 }

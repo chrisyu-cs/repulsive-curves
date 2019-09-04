@@ -1,6 +1,5 @@
 #include "product/block_cluster_tree.h"
 #include "utils.h"
-#include "sobo_slobo.h"
 
 namespace LWS {
 
@@ -78,69 +77,6 @@ namespace LWS {
     void BlockClusterTree::PrintData() {
         std::cout << admissiblePairs.size() << " admissible pairs" << std::endl;
         std::cout << inadmissiblePairs.size() << " inadmissible pairs" << std::endl;
-    }
-
-    void BlockClusterTree::Multiply(Eigen::VectorXd &v, Eigen::VectorXd &b) const {
-        if (mode == BlockTreeMode::MatrixOnly) {
-            MultiplyVector(v, b);
-        }
-        else if (mode == BlockTreeMode::Barycenter) {
-            MultiplyWithBarycenter(v, b);
-        }
-        else if (mode == BlockTreeMode::EdgeConstraint) {
-            // TODO
-        }
-    }
-
-    void BlockClusterTree::MultiplyVector(Eigen::VectorXd &v, Eigen::VectorXd &b) const {
-        int nVerts = curves->NumVertices();
-        Eigen::MatrixXd v_hat(nVerts, 3);
-        v_hat.setZero();
-
-        SobolevCurves::ApplyDf(curves, v, v_hat);
-
-        Eigen::MatrixXd b_hat(nVerts, 3);
-        b_hat.setZero();
-
-        for (ClusterPair pair : inadmissiblePairs) {
-            AfFullProduct_hat(pair, v_hat, b_hat);
-        }
-        for (ClusterPair pair : admissiblePairs) {
-            AfApproxProduct_hat(pair, v_hat, b_hat);
-        }
-
-        SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
-    }
-
-    void BlockClusterTree::MultiplyWithBarycenter(Eigen::VectorXd &v, Eigen::VectorXd &b) const {
-        int nVerts = curves->NumVertices();
-        Eigen::MatrixXd v_hat(nVerts, 3);
-        v_hat.setZero();
-
-        SobolevCurves::ApplyDf(curves, v, v_hat);
-
-        Eigen::MatrixXd b_hat(nVerts, 3);
-        b_hat.setZero();
-
-        for (ClusterPair pair : inadmissiblePairs) {
-            AfFullProduct_hat(pair, v_hat, b_hat);
-        }
-        for (ClusterPair pair : admissiblePairs) {
-            AfApproxProduct_hat(pair, v_hat, b_hat);
-        }
-
-        SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
-
-        double totalLength = curves->TotalLength();
-
-        // Multiply the last row and column of the matrix
-        for (int i = 0; i < nVerts; i++) {
-            double weight = curves->GetCurvePoint(i).DualLength() / totalLength;
-            // Add last column sum
-            b(i) += v(nVerts) * weight;
-            // Add last row sum
-            b(nVerts) += v(i) * weight;
-        }
     }
 
     void BlockClusterTree::SetBlockTreeMode(BlockTreeMode m) {

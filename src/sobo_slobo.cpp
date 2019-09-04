@@ -338,58 +338,6 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::ApplyDf(PolyCurveGroup* loop, Eigen::VectorXd &as, Eigen::MatrixXd &out) {
-        for (PolyCurve *c : loop->curves) {
-            int nVerts = c->NumVertices();
-            for (int i = 0; i < nVerts; i++) {
-                PointOnCurve p1 = loop->GetCurvePoint(i);
-                int i1 = loop->GlobalIndex(p1);
-                PointOnCurve p2 = p1.Next();
-                int i2 = loop->GlobalIndex(p2);
-
-                // Positive weight on the second vertex, negative on the first
-                double d12 = as(i2) - as(i1);
-                Vector3 e12 = (p2.Position() - p1.Position());
-                double length = norm(e12);
-
-                Vector3 grad12 = (d12 * e12) / (length * length);
-
-                SetRow(out, i1, grad12);
-            }
-        }
-    } 
-
-    void SobolevCurves::ApplyDfTranspose(PolyCurveGroup* loop, Eigen::MatrixXd &es, Eigen::VectorXd &out) {
-        for (PolyCurve *c : loop->curves) {
-            int nVerts = c->NumVertices();
-            for (int i = 0; i < nVerts; i++) {
-                // This is the first vertex of the next edge, so negative weight
-                PointOnCurve p1 = loop->GetCurvePoint(i);
-                // This is the second vertex of the previous edge, so positive weight
-                PointOnCurve prev = p1.Prev();
-                int i_prev = loop->GlobalIndex(prev);
-                int i_next = loop->GlobalIndex(p1);
-
-                PointOnCurve next = p1.Next();
-
-                // Compute the two weights
-                Vector3 v_prev = (p1.Position() - prev.Position());
-                double len_prev = norm(v_prev);
-                double w_prev = 1.0 / len_prev;
-                v_prev /= len_prev;
-                
-                // However, the "forward" edge had a negative weight, so it is also negative here
-                Vector3 v_next = (next.Position() - p1.Position());
-                double len_next = norm(v_next);
-                double w_next = -1.0 / len_next;
-                v_next /= len_next;
-
-                double result = w_prev * dot(v_prev, SelectRow(es, i_prev)) + w_next * dot(v_next, SelectRow(es, i_next));
-                out(i_next) += result;
-            }
-        }
-    }
-
     void SobolevCurves::ApplyGramMatrix(PolyCurveGroup* loop, Eigen::VectorXd &as, double alpha, double beta, Eigen::VectorXd &out) {
         int n = as.size();
         Eigen::MatrixXd Df_v(n, 3);
