@@ -80,7 +80,7 @@ namespace LWS {
         std::cout << inadmissiblePairs.size() << " inadmissible pairs" << std::endl;
     }
 
-    void BlockClusterTree::Multiply(std::vector<double> &v, std::vector<double> &b) const {
+    void BlockClusterTree::Multiply(Eigen::VectorXd &v, Eigen::VectorXd &b) const {
         if (mode == BlockTreeMode::MatrixOnly) {
             MultiplyVector(v, b);
         }
@@ -92,11 +92,15 @@ namespace LWS {
         }
     }
 
-    void BlockClusterTree::MultiplyVector(std::vector<double> &v, std::vector<double> &b) const {
-        std::vector<Vector3> v_hat(curves->NumVertices());
+    void BlockClusterTree::MultiplyVector(Eigen::VectorXd &v, Eigen::VectorXd &b) const {
+        int nVerts = curves->NumVertices();
+        Eigen::MatrixXd v_hat(nVerts, 3);
+        v_hat.setZero();
+
         SobolevCurves::ApplyDf(curves, v, v_hat);
 
-        std::vector<Vector3> b_hat(v_hat.size());
+        Eigen::MatrixXd b_hat(nVerts, 3);
+        b_hat.setZero();
 
         for (ClusterPair pair : inadmissiblePairs) {
             AfFullProduct_hat(pair, v_hat, b_hat);
@@ -108,12 +112,15 @@ namespace LWS {
         SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
     }
 
-    void BlockClusterTree::MultiplyWithBarycenter(std::vector<double> &v, std::vector<double> &b) const {
+    void BlockClusterTree::MultiplyWithBarycenter(Eigen::VectorXd &v, Eigen::VectorXd &b) const {
         int nVerts = curves->NumVertices();
-        std::vector<Vector3> v_hat(nVerts);
+        Eigen::MatrixXd v_hat(nVerts, 3);
+        v_hat.setZero();
+
         SobolevCurves::ApplyDf(curves, v, v_hat);
 
-        std::vector<Vector3> b_hat(v_hat.size());
+        Eigen::MatrixXd b_hat(nVerts, 3);
+        b_hat.setZero();
 
         for (ClusterPair pair : inadmissiblePairs) {
             AfFullProduct_hat(pair, v_hat, b_hat);
@@ -130,9 +137,9 @@ namespace LWS {
         for (int i = 0; i < nVerts; i++) {
             double weight = curves->GetCurvePoint(i).DualLength() / totalLength;
             // Add last column sum
-            b[i] += v[nVerts] * weight;
+            b(i) += v(nVerts) * weight;
             // Add last row sum
-            b[nVerts] += v[i] * weight;
+            b(nVerts) += v(i) * weight;
         }
     }
 
@@ -140,7 +147,7 @@ namespace LWS {
         mode = m;
     }
 
-    void BlockClusterTree::AfFullProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result) const
+    void BlockClusterTree::AfFullProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
     {
         std::vector<VertexBody6D> children1;
         pair.cluster1->accumulateChildren(children1);
@@ -177,15 +184,16 @@ namespace LWS {
                 a_times_one[i] += af_ij;
 
                 // We also dot it with v_hat(J).
-                a_times_v[i] += af_ij * v_hat[e2.vertIndex1];
+                a_times_v[i] += af_ij * SelectRow(v_hat, e2.vertIndex1);
             }
 
             // We've computed everything from row i now, so add to the results vector
-            result[e1.vertIndex1] += 2 * (a_times_one[i] * v_hat[e1.vertIndex1] - a_times_v[i]);
+            Vector3 toAdd = 2 * (a_times_one[i] * SelectRow(v_hat, e1.vertIndex1) - a_times_v[i]);
+            AddToRow(result, e1.vertIndex1, toAdd);
         }
     }
     
-    void BlockClusterTree::AfApproxProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result) const
+    void BlockClusterTree::AfApproxProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
     {
         std::vector<VertexBody6D> children1;
         pair.cluster1->accumulateChildren(children1);
@@ -194,8 +202,10 @@ namespace LWS {
         
         double pow_s = beta - alpha;
 
-        std::vector<double> wf_i(children1.size());
-        std::vector<double> wf_j(children2.size());
+        Eigen::VectorXd wf_i;
+        wf_i.setZero(children1.size());
+        Eigen::VectorXd wf_j;
+        wf_j.setZero(children2.size());
 
         for (size_t i = 0; i < children1.size(); i++) {
             wf_i[i] = children1[i].mass;
@@ -207,19 +217,20 @@ namespace LWS {
 
         double a_IJ = 1.0 / pow(norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass), pow_s);
         // Evaluate a(I,J) * w_f(J)^T * 1(J)
-        double a_wf_1 = a_IJ * std_vector_sum_entries(wf_j);
+        double a_wf_1 = a_IJ * wf_j.sum();
 
         // Evaluate a(I,J) * w_f(J)^T * v_hat(J)
         Vector3 a_wf_J{0, 0, 0};
         // Dot w_f(J) with v_hat(J)
         for (size_t j = 0; j < children2.size(); j++) {
-            a_wf_J += wf_j[j] * v_hat[children2[j].vertIndex1];
+            a_wf_J += wf_j(j) * SelectRow(v_hat, children2[j].vertIndex1);
         }
         a_wf_J *= a_IJ;
 
         // Add in the results
         for (size_t i = 0; i < children1.size(); i++) {
-            result[children1[i].vertIndex1] += 2 * (wf_i[i] * a_wf_1 * v_hat[children1[i].vertIndex1] - wf_i[i] * a_wf_J);
+            Vector3 toAdd = 2 * (wf_i[i] * a_wf_1 * SelectRow(v_hat, children1[i].vertIndex1) - wf_i[i] * a_wf_J);
+            AddToRow(result, children1[i].vertIndex1, toAdd);
         }
     }
 

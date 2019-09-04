@@ -49,4 +49,24 @@ namespace LWS {
         }
     }
 
+    Eigen::VectorXd VectorToVectorXd(std::vector<double> &x) {
+        Eigen::VectorXd v;
+        v.setZero(x.size());
+        for (size_t i = 0; i < x.size(); i++) {
+            v(i) = x[i];
+        }
+        return v;
+    }
+
+    Eigen::MatrixXd Vector3ToMatrixXd(std::vector<Vector3> &x) {
+        Eigen::MatrixXd v;
+        v.setZero(x.size(), 3);
+        for (size_t i = 0; i < x.size(); i++) {
+            v(i, 0) = x[i].x;
+            v(i, 1) = x[i].y;
+            v(i, 2) = x[i].z;
+        }
+        return v;
+    }
+
 }

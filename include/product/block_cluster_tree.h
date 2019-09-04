@@ -30,16 +30,16 @@ namespace LWS {
 
         void PrintData();
 
-        void Multiply(std::vector<double> &v, std::vector<double> &b) const;
+        void Multiply(Eigen::VectorXd &v, Eigen::VectorXd &b) const;
 
         // Multiplies A * v and stores it in b.
-        void MultiplyVector(std::vector<double> &v, std::vector<double> &b) const;
+        void MultiplyVector(Eigen::VectorXd &v, Eigen::VectorXd &b) const;
         // Multiplies A' * v, where the last row and column of A store a barycenter constraint row.
         // Stores the result in b.
-        void MultiplyWithBarycenter(std::vector<double> &v, std::vector<double> &b) const;
+        void MultiplyWithBarycenter(Eigen::VectorXd &v, Eigen::VectorXd &b) const;
 
-        void AfFullProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result) const;
-        void AfApproxProduct_hat(ClusterPair pair, std::vector<Vector3> &v_hat, std::vector<Vector3> &result) const;
+        void AfFullProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
+        void AfApproxProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
 
         void CompareBlocks();
 

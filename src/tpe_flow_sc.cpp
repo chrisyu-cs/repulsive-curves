@@ -1,7 +1,5 @@
 #include "tpe_flow_sc.h"
 #include "utils.h"
-#include "iterative/cg.h"
-#include "iterative/bicgstab.h"
 #include "product/dense_matrix.h"
 
 namespace LWS {
@@ -341,14 +339,14 @@ namespace LWS {
         int nVerts = curves->NumVertices();
         int vecLen = nVerts + 1;
 
-        Eigen::VectorXd x;
+        Eigen::VectorXd x, xVec;
         x.setZero(vecLen);
-        std::vector<double> xVec(vecLen);
+        xVec.setZero(vecLen);
 
         for (int i = 0; i < vecLen; i++) {
             double sinx = sin(((double)i / vecLen) * (2 * M_PI));
             x(i) = sinx + 0.1;
-            xVec[i] = x(i);
+            xVec(i) = x(i);
         }
 
         long matrixStart = Utils::currentTimeMilliseconds();
@@ -362,9 +360,12 @@ namespace LWS {
         std::cout << "Matrix multiplication: " << (matrixMultEnd - matrixEnd) << " ms" << std::endl;
 
         long treeStart = Utils::currentTimeMilliseconds();
+
         BVHNode3D* bvh = CreateEdgeBVHFromCurve(curves);
         BlockClusterTree* tree = new BlockClusterTree(curves, bvh, 0.25, alpha, beta);
-        std::vector<double> tree_mult_v(vecLen);
+        Eigen::VectorXd tree_mult_v;
+        tree_mult_v.setZero(vecLen);
+        
         long treeEnd = Utils::currentTimeMilliseconds();
         std::cout << "Tree assembly: " << (treeEnd - treeStart) << " ms" << std::endl;
 
@@ -687,23 +688,21 @@ namespace LWS {
             // First solve Ax = b, where b is the gradients
             blockTree->SetBlockTreeMode(BlockTreeMode::Barycenter);
             std::vector<Vector3> sobolevGradients(gradients.size());
-            // TODO: better initial guess?
-            ConjugateGradient::CGSolveComponents(blockTree, sobolevGradients, gradients);
+            // TODO: Solve blockTree * sobolevGradients = gradients
             // Now compute gradient of total length constraint
             FillConstraintVector(vertConstraints);
             // Solve Ax = l, where l is length gradient
             std::vector<Vector3> sobolevLengthGrads(vertConstraints.size());
-            ConjugateGradient::CGSolveComponents(blockTree, sobolevLengthGrads, vertConstraints);
+            // TODO: Solve blockTree * sobolevLengthGrads = vertConstraints
             blockTree->SetBlockTreeMode(BlockTreeMode::MatrixOnly);
-            // Project out component of Sobolev length gradient from Sobolev energy gradient
-            SobolevCurves::SobolevOrthoProjectionMV(sobolevGradients, sobolevLengthGrads, blockTree);
+            // TODO: Project out component of Sobolev length gradient from Sobolev energy gradient
 
             for (size_t i = 0; i < gradients.size(); i++) {
                 gradients[i] = sobolevGradients[i];
             }
         }
         else {
-            // TODO
+            // TODO: Per-edge case
             return 0;
         }
 

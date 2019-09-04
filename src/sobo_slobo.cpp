@@ -280,37 +280,6 @@ namespace LWS {
         return dot_x + dot_y + dot_z;
     }
 
-    double SobolevCurves::SobolevDotMV(std::vector<Vector3> &as, std::vector<Vector3> &bs, BlockClusterTree* tree) {
-        std::vector<double> a(as.size());
-        std::vector<double> b(bs.size());
-
-        // X component
-        for (size_t i = 0; i < as.size(); i++) {
-            a[i] = as[i].x;
-            b[i] = bs[i].x;
-        }
-        tree->MultiplyVector(b, b);
-        double dot_x = std_vector_dot(a, b);
-
-        // Y component
-        for (size_t i = 0; i < as.size(); i++) {
-            a[i] = as[i].y;
-            b[i] = bs[i].y;
-        }
-        tree->MultiplyVector(b, b);
-        double dot_y = std_vector_dot(a, b);
-
-        // Z component
-        for (size_t i = 0; i < as.size(); i++) {
-            a[i] = as[i].z;
-            b[i] = bs[i].z;
-        }
-        tree->MultiplyVector(b, b);
-        double dot_z = std_vector_dot(a, b);
-
-        return dot_x + dot_y + dot_z;
-    }
-
     void SobolevCurves::SobolevNormalize(std::vector<Vector3> &as, Eigen::MatrixXd &J) {
         double sobo_norm = sqrt(SobolevDot(as, as, J));
         for (size_t i = 0; i < as.size(); i++) {
@@ -321,15 +290,6 @@ namespace LWS {
     void SobolevCurves::SobolevOrthoProjection(std::vector<Vector3> &as, std::vector<Vector3> &bs, Eigen::MatrixXd &J) {
         double d1 = SobolevDot(as, bs, J);
         double d2 = SobolevDot(bs, bs, J);
-        // Take the projection, and divide out the norm of b
-        for (size_t i = 0; i < as.size(); i++) {
-            as[i] -= (d1 / d2) * bs[i];
-        }
-    }
-
-    void SobolevCurves::SobolevOrthoProjectionMV(std::vector<Vector3> &as, std::vector<Vector3> &bs, BlockClusterTree *tree) {
-        double d1 = SobolevDotMV(as, bs, tree);
-        double d2 = SobolevDotMV(bs, bs, tree);
         // Take the projection, and divide out the norm of b
         for (size_t i = 0; i < as.size(); i++) {
             as[i] -= (d1 / d2) * bs[i];
@@ -378,61 +338,7 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::FillGlobalMatrixSlow(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
-
-        int nVerts = loop->NumVertices();
-
-        std::vector<double> u(nVerts);
-        std::vector<double> v(nVerts);
-        std::vector<Vector3> u_hat(nVerts);
-        std::vector<Vector3> v_hat(nVerts);
-
-        for (int i = 0; i < nVerts; i++) {
-            for (int j = 0; j < nVerts; j++) {
-                // Compute u_hat and v_hat
-                for (int u_i = 0; u_i < nVerts; u_i++) {
-                    u[u_i] = (i == u_i) ? 1 : 0;
-                }
-                for (int v_j = 0; v_j < nVerts; v_j++) {
-                    v[v_j] = (j == v_j) ? 1 : 0;
-                }
-                ApplyDf(loop, u, u_hat);
-                ApplyDf(loop, v, v_hat);
-
-                std::cout << "Did ( " << i << ", " << j << ")\r";
-
-                // Loop over all faces
-                for (int s = 0; s < nVerts; s++) {
-                    for (int t = 0; t < nVerts; t++) {
-                        PointOnCurve s1 = loop->GetCurvePoint(s);
-                        PointOnCurve s2 = loop->GetCurvePoint(s).Next();
-                        PointOnCurve t1 = loop->GetCurvePoint(t);
-                        PointOnCurve t2 = loop->GetCurvePoint(t).Next();
-
-                        // if (s == t) continue;
-                        if (s1 == t1 || s1 == t2 || s2 == t1 || s2 == t2) {
-                            continue;
-                        }
-
-                        Vector3 c_s = (s1.Position() + s2.Position()) / 2;
-                        Vector3 c_t = (t1.Position() + t2.Position()) / 2;
-
-                        double mass_s = norm(s1.Position() - s2.Position());
-                        double mass_t = norm(t1.Position() - t2.Position());
-
-                        double numer = dot(u_hat[s] - u_hat[t], v_hat[s] - v_hat[t]);
-                        double denom = pow(norm(c_s - c_t), beta - alpha);
-
-                        A(i, j) += (numer / denom) * mass_s * mass_t;
-                    }
-                }
-            }
-        }
-
-        std::cout << std::endl;
-    }
-
-    void SobolevCurves::ApplyDf(PolyCurveGroup* loop, std::vector<double> &as, std::vector<Vector3> &out) {
+    void SobolevCurves::ApplyDf(PolyCurveGroup* loop, Eigen::VectorXd &as, Eigen::MatrixXd &out) {
         for (PolyCurve *c : loop->curves) {
             int nVerts = c->NumVertices();
             for (int i = 0; i < nVerts; i++) {
@@ -442,18 +348,18 @@ namespace LWS {
                 int i2 = loop->GlobalIndex(p2);
 
                 // Positive weight on the second vertex, negative on the first
-                double d12 = as[i2] - as[i1];
+                double d12 = as(i2) - as(i1);
                 Vector3 e12 = (p2.Position() - p1.Position());
                 double length = norm(e12);
 
                 Vector3 grad12 = (d12 * e12) / (length * length);
 
-                out[i1] = grad12;
+                SetRow(out, i1, grad12);
             }
         }
     } 
 
-    void SobolevCurves::ApplyDfTranspose(PolyCurveGroup* loop, std::vector<Vector3> &es, std::vector<double> &out) {
+    void SobolevCurves::ApplyDfTranspose(PolyCurveGroup* loop, Eigen::MatrixXd &es, Eigen::VectorXd &out) {
         for (PolyCurve *c : loop->curves) {
             int nVerts = c->NumVertices();
             for (int i = 0; i < nVerts; i++) {
@@ -478,15 +384,16 @@ namespace LWS {
                 double w_next = -1.0 / len_next;
                 v_next /= len_next;
 
-                double result = w_prev * dot(v_prev, es[i_prev]) + w_next * dot(v_next, es[i_next]);
-                out[i_next] += result;
+                double result = w_prev * dot(v_prev, SelectRow(es, i_prev)) + w_next * dot(v_next, SelectRow(es, i_next));
+                out(i_next) += result;
             }
         }
     }
 
-    void SobolevCurves::ApplyGramMatrix(PolyCurveGroup* loop, std::vector<double> &as, double alpha, double beta, std::vector<double> &out) {
+    void SobolevCurves::ApplyGramMatrix(PolyCurveGroup* loop, Eigen::VectorXd &as, double alpha, double beta, Eigen::VectorXd &out) {
         int n = as.size();
-        std::vector<Vector3> Df_v(n);
+        Eigen::MatrixXd Df_v(n, 3);
+        Df_v.setZero();
 
         ApplyDf(loop, as, Df_v);
 
@@ -495,16 +402,20 @@ namespace LWS {
 
         FillAfMatrix(loop, alpha, beta, Af);
 
-        std::vector<Vector3> Af_Df_v(n);
-        MultiplyComponents(Af, Df_v, Af_Df_v);
+        Eigen::MatrixXd Af_Df_v(n, 3);
+        Af_Df_v.setZero();
+        Af_Df_v = Af * Df_v;
 
         Eigen::VectorXd ones;
         ones.setOnes(n);
         Eigen::VectorXd Af_1 = Af * ones;
 
+        /*
         for (int i = 0; i < n; i++) {
-            Df_v[i] = Af_1(i) * Df_v[i] - Af_Df_v[i];
+            Df_v[i] = Af_1(i) * Df_v(i) - Af_Df_v(i);
         }
+        */
+        Df_v = Af_1.asDiagonal() * Df_v - Af_Df_v;
 
         ApplyDfTranspose(loop, Df_v, out);
     }
