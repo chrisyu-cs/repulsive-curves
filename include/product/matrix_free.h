@@ -32,7 +32,7 @@ namespace LWS {
       }
       // Custom API:
       MatrixReplacement() {}
-      MatrixReplacement(VectorMultiplier<T>* m) : multiplier(m) {}
+      MatrixReplacement(VectorMultiplier<T>* m) { multiplier = m; }
 
       double nRows;
       VectorMultiplier<T>* multiplier;

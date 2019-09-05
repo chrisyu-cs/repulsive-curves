@@ -84,9 +84,7 @@ namespace LWS {
     void TPEFlowSolverSC::FillGradientVectorDirect(Eigen::MatrixXd &gradients) {
         int nVerts = curves->NumVertices();
         // Fill with zeros, so that the constraint entries are 0
-        for (int i = 0; i < gradients.rows(); i++) {
-            SetRow(gradients, i, Vector3{0, 0, 0});
-        }
+        gradients.setZero();
         // Fill vertex entries with accumulated gradients
         for (int i = 0; i < nVerts; i++) {
             for (int j = 0; j < nVerts; j++) {
@@ -103,10 +101,7 @@ namespace LWS {
         // for each single 1-ring (i, i_prev, i_next), accumulate the
         // contributions from the gradients of both terms (i, j) and (j, i).
         int nVerts = curves->NumVertices();
-        // Fill with zeros, so that the constraint entries are 0
-        for (int i = 0; i < gradients.rows(); i++) {
-            SetRow(gradients, i, Vector3{0, 0, 0});
-        }
+        gradients.setZero();
 
         for (int i = 0; i < nVerts; i++) {
             PointOnCurve i_pt = curves->GetCurvePoint(i);
@@ -292,26 +287,14 @@ namespace LWS {
         else {
             // If not using per-edge length constraints, we solve each coordinate separately
 
-            // Fill in RHS for x
-            //for (int i = 0; i < nVerts; i++) {
-            //    b(i) = gradients[i].x;
-            //}
             // Solve for x
             b = gradients.col(0);
             Eigen::VectorXd ss_grad_x = lu.solve(b);
 
-            // Fill in RHS for y
-            //for (int i = 0; i < nVerts; i++) {
-            //    b(i) = gradients[i].y;
-            //}
             // Solve for y
             b = gradients.col(1);
             Eigen::VectorXd ss_grad_y = lu.solve(b);
 
-            // Fill in RHS for z
-            //for (int i = 0; i < nVerts; i++) {
-            //    b(i) = gradients[i].z;
-            //}
             // Solve for z
             b = gradients.col(2);
             Eigen::VectorXd ss_grad_z = lu.solve(b);
@@ -319,7 +302,6 @@ namespace LWS {
             // Copy the projected gradients back into the vector
             for (int i = 0; i < nVerts; i++) {
                 SetRow(gradients, i, Vector3{ss_grad_x(i), ss_grad_y(i), ss_grad_z(i)});
-                //std::cout << "Project gradient " << i << " = " << gradients[i] << std::endl;
             }
 
             return 1;
@@ -407,7 +389,6 @@ namespace LWS {
 
         delete tree;
         delete bvh;
-
     }
 
     void TPEFlowSolverSC::ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B) {
@@ -556,7 +537,7 @@ namespace LWS {
         size_t nVerts = curves->NumVertices();
 
         for (int i = 0; i < gradients.rows(); i++) {
-            l2gradients(i) = gradients(i);
+            l2gradients.row(i) = gradients.row(i);
         }
 
         // If we're not using the per-edge length constraints, use total length instead
