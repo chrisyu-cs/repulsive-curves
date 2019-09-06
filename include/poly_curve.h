@@ -46,6 +46,8 @@ namespace LWS {
         double DualLength(int i);
         Vector3 Barycenter();
         Vector3 TotalLengthGradient(int i);
+
+        PolyCurve* Coarsen();
     };
 
     class PolyCurveGroup {

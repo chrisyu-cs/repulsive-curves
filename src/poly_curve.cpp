@@ -198,6 +198,52 @@ namespace LWS {
         return prevEdge + nextEdge;
     }
 
+    PolyCurve* PolyCurve::Coarsen() {
+        int nVerts = positions.size();
+        bool isOddNumber = (nVerts % 2) == 1;
+
+        int coarseVerts = (isOddNumber) ? nVerts / 2 + 1 : nVerts / 2;
+
+        std::vector<Eigen::Triplet<double>> triplets;
+
+        std::cout << "Coarsening " << nVerts << " -> " << coarseVerts << std::endl;
+
+        for (int i = 0; i < coarseVerts; i++) {
+            int oldI = 2 * i;
+            if (isOddNumber && i == 0) {
+                triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.75));
+                triplets.push_back(Eigen::Triplet<double>(i, oldI + 1, 0.25));
+            }
+            else if (isOddNumber && i == coarseVerts - 1) {
+                triplets.push_back(Eigen::Triplet<double>(i, oldI - 1, 0.25));
+                triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.75));
+            }
+            else {
+                triplets.push_back(Eigen::Triplet<double>(i, (oldI - 1 + nVerts) % nVerts, 0.25));
+                triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.5));
+                triplets.push_back(Eigen::Triplet<double>(i, (oldI + 1) % nVerts, 0.25));
+            }
+        }
+
+        std::cout << "Made " << triplets.size() << " triplets" << std::endl;
+
+        Eigen::SparseMatrix<double> J(coarseVerts, nVerts);
+        J.setFromTriplets(triplets.begin(), triplets.end());
+
+        Eigen::MatrixXd positionMatrix(nVerts, 3);
+        for (int i = 0; i < nVerts; i++) {
+            SetRow(positionMatrix, i, positions[i]);
+        }
+        Eigen::MatrixXd coarsePosMat = J * positionMatrix;
+
+        std::vector<Vector3> coarsePositions(coarsePosMat.rows());
+        PolyCurve* p = new PolyCurve(coarsePosMat.rows());
+        for (int i = 0; i < coarseVerts; i++) {
+            p->positions[i] = SelectRow(coarsePosMat, i);
+        }
+        return p;
+    }
+
     void PolyCurveGroup::AddCurve(PolyCurve* c) {
         c->index = curves.size();
         c->offset = NumVertices();

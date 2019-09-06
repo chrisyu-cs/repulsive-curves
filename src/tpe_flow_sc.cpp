@@ -331,61 +331,107 @@ namespace LWS {
         mult->Multiply(xVec, result);
     }
 
+    PolyCurve* TPEFlowSolverSC::TestCoarsen(PolyCurve* c) {
+        if (c) {
+            return c->Coarsen();
+        }
+        else {
+            return curves->curves[0]->Coarsen();
+        }
+    }
+
     void TPEFlowSolverSC::CompareMatrixVectorProduct() {
         int nVerts = curves->NumVertices();
         int vecLen = nVerts + 1;
 
-        Eigen::VectorXd x, xVec;
-        x.setZero(vecLen);
-        xVec.setZero(vecLen);
-
-        for (int i = 0; i < vecLen; i++) {
-            double sinx = sin(((double)i / vecLen) * (2 * M_PI));
-            x(i) = sinx + 0.1;
-            xVec(i) = x(i);
-        }
+        Eigen::MatrixXd grads;
+        grads.setZero(vecLen, 3);
+        FillGradientVectorDirect(grads);
+        Eigen::VectorXd x = grads.col(0);
 
         long matrixStart = Utils::currentTimeMilliseconds();
         Eigen::MatrixXd A;
         A.setZero(vecLen, vecLen);
         SoboSloboMatrix(A);
         long matrixEnd = Utils::currentTimeMilliseconds();
-        std::cout << "Matrix assembly: " << (matrixEnd - matrixStart) << " ms" << std::endl;
-        Eigen::VectorXd dense_mult = A * x;
+        //std::cerr << "Matrix assembly: " << (matrixEnd - matrixStart) << " ms" << std::endl;
+
+        Eigen::VectorXd dense_solution = A.partialPivLu().solve(x);
         long matrixMultEnd = Utils::currentTimeMilliseconds();
-        std::cout << "Matrix multiplication: " << (matrixMultEnd - matrixEnd) << " ms" << std::endl;
+        //std::cerr << "Matrix solve: " << (matrixMultEnd - matrixEnd) << " ms" << std::endl;
 
         long treeStart = Utils::currentTimeMilliseconds();
 
         BVHNode3D* bvh = CreateEdgeBVHFromCurve(curves);
-        BlockClusterTree* tree = new BlockClusterTree(curves, bvh, 0.25, alpha, beta);
-        Eigen::VectorXd tree_mult_v;
-        tree_mult_v.setZero(vecLen);
+        BlockClusterTree* tree = new BlockClusterTree(curves, bvh, 0.5, alpha, beta);
+        Eigen::VectorXd tree_solution_v;
+        tree_solution_v.setZero(vecLen);
         
         long treeEnd = Utils::currentTimeMilliseconds();
-        std::cout << "Tree assembly: " << (treeEnd - treeStart) << " ms" << std::endl;
+        //std::cerr << "Tree assembly: " << (treeEnd - treeStart) << " ms" << std::endl;
 
         // tree->CompareBlocks();
         tree->SetBlockTreeMode(BlockTreeMode::Barycenter);
-        HMatrix matRepl(tree);
-        tree_mult_v = matRepl * xVec;
+        HMatrix matRepl(tree, vecLen);
+        //Eigen::GMRES<HMatrix, Eigen::IdentityPreconditioner> gmres;
+        //gmres.compute(matRepl);
+        A(nVerts, nVerts) = 1;
+        Eigen::GMRES<Eigen::MatrixXd, Eigen::IdentityPreconditioner> gmres(A);
 
-        long treeMultEnd = Utils::currentTimeMilliseconds();
-        std::cout << "Tree multiplication: " << (treeMultEnd - treeEnd) << " ms" << std::endl;
+        long mult_start = Utils::currentTimeMilliseconds();
+        Eigen::VectorXd dense_mult = A * x;
+        long mult_time = Utils::currentTimeMilliseconds() - mult_start;
 
-        Eigen::VectorXd tree_mult;
-        tree_mult.setZero(vecLen);
-        for (int i = 0; i < vecLen; i++) {
-            tree_mult(i) = tree_mult_v[i];
+        long tree_mult_start = Utils::currentTimeMilliseconds();
+        Eigen::VectorXd tree_mult = matRepl * x;
+        long tree_mult_time = Utils::currentTimeMilliseconds() - tree_mult_start;
+
+        std::cerr << "Dense multiplication: " << mult_time << " ms" << std::endl;
+        std::cerr << "Tree multiplication: " << tree_mult_time << " ms" << std::endl;
+
+        double mult_relative = 100 * ((dense_mult - tree_mult).norm() / dense_mult.norm());
+        std::cerr << "Mult. relative error = " << mult_relative << " percent" << std::endl;
+
+        int maxIters = vecLen * 2;
+
+        std::cerr << "* Approximate maximum time for iterative solve: " << (tree_mult_time * maxIters) << " ms" << std::endl;
+
+        long iterStart = Utils::currentTimeMilliseconds();
+
+        for (int i = 0; i < maxIters / 100; i++) {
+            int curMax = (i + 1) * 100;
+            gmres.setMaxIterations(curMax);
+            tree_solution_v = gmres.solve(x);
+            std::cerr << "Done with " << curMax << " iterations" << std::endl;
+
+            double norm_diff = (dense_solution - tree_solution_v).norm();
+            double norm_full = dense_solution.norm();
+            double relative = 100 * norm_diff / norm_full;
+
+            double residual = (x - A * tree_solution_v).norm() / x.norm();
+
+            std::cout << curMax << ", " << residual << ", " << relative << std::endl;
         }
 
-        Eigen::VectorXd diff = dense_mult - tree_mult;
+        std::cerr << "\nGMRES iterations: " << gmres.iterations() << std::endl;
+        std::cerr << "Estimated error: " << gmres.error() << std::endl;
+
+        long iterEnd = Utils::currentTimeMilliseconds();
+        std::cerr << "Iterative solve: " << (iterEnd - iterStart) << " ms" << std::endl;
+
+        Eigen::VectorXd tree_solution;
+        tree_solution.setZero(vecLen);
+        for (int i = 0; i < vecLen; i++) {
+            tree_solution(i) = tree_solution_v[i];
+        }
+
+        Eigen::VectorXd diff = dense_solution - tree_solution;
         double norm_diff = diff.norm();
-        double norm_full = dense_mult.norm();
+        double norm_full = dense_solution.norm();
         double relative = 100 * norm_diff / norm_full;
 
-        std::cout << "Norm dense multiply = " << norm_full << "; norm tree multiply = " << tree_mult.norm() << std::endl;
-        std::cout << "Multiply error = " << relative << " percent" << std::endl;
+        std::cerr << "Norm dense solve = " << norm_full << "; norm iterative solve = " << tree_solution.norm() << std::endl;
+        std::cerr << "Solve relative error = " << relative << " percent" << std::endl;
 
         delete tree;
         delete bvh;

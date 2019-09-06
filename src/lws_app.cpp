@@ -73,6 +73,29 @@ namespace LWS {
       tpeSolver->CompareMatrixVectorProduct();
     }
 
+    if (ImGui::Button("Test coarsening")) {
+      PolyCurve* newCurve = 0;
+      
+      for (int i = 0; i < 5; i++) {
+        PolyCurve* newCurve2 = tpeSolver->TestCoarsen(newCurve);
+        int nVerts = newCurve2->NumVertices();
+        std::vector<Vector3> positions(nVerts);
+        for (int i = 0; i < nVerts; i++) {
+          positions[i] = newCurve2->Position(i);
+        }
+        polyscope::registerSpaceCurve("coarsened" + std::to_string(i), positions, true);
+        
+        if (newCurve) delete newCurve;
+        newCurve = newCurve2;
+      }
+
+      if (newCurve) delete newCurve;
+    }
+
+    if (ImGui::Button("Output frame")) {
+      outputFrame();
+    }
+
     ImGui::Checkbox("Run TPE", &LWSOptions::runTPE);
     ImGui::Checkbox("Output frames", &LWSOptions::outputFrames);
 
