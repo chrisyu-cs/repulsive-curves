@@ -198,15 +198,13 @@ namespace LWS {
         return prevEdge + nextEdge;
     }
 
-    PolyCurve* PolyCurve::Coarsen() {
+    PolyCurve* PolyCurve::Coarsen(Eigen::SparseMatrix<double> &prolongOp) {
         int nVerts = positions.size();
         bool isOddNumber = (nVerts % 2) == 1;
 
         int coarseVerts = (isOddNumber) ? nVerts / 2 + 1 : nVerts / 2;
 
         std::vector<Eigen::Triplet<double>> triplets;
-
-        std::cout << "Coarsening " << nVerts << " -> " << coarseVerts << std::endl;
 
         for (int i = 0; i < coarseVerts; i++) {
             int oldI = 2 * i;
@@ -225,16 +223,14 @@ namespace LWS {
             }
         }
 
-        std::cout << "Made " << triplets.size() << " triplets" << std::endl;
-
-        Eigen::SparseMatrix<double> J(coarseVerts, nVerts);
-        J.setFromTriplets(triplets.begin(), triplets.end());
+        prolongOp.resize(coarseVerts, nVerts);
+        prolongOp.setFromTriplets(triplets.begin(), triplets.end());
 
         Eigen::MatrixXd positionMatrix(nVerts, 3);
         for (int i = 0; i < nVerts; i++) {
             SetRow(positionMatrix, i, positions[i]);
         }
-        Eigen::MatrixXd coarsePosMat = J * positionMatrix;
+        Eigen::MatrixXd coarsePosMat = prolongOp * positionMatrix;
 
         std::vector<Vector3> coarsePositions(coarsePosMat.rows());
         PolyCurve* p = new PolyCurve(coarsePosMat.rows());
@@ -339,6 +335,59 @@ namespace LWS {
 
     int PolyCurveGroup::GlobalIndex(PointOnCurve c) {
         return c.curve->offset + c.pIndex;
+    }
+
+    PolyCurveGroup* PolyCurveGroup::Coarsen(ProlongationOperator &prolongOps) {
+        PolyCurveGroup* coarseGroup = new PolyCurveGroup();
+        int coarseOffset = 0;
+
+        for (PolyCurve* c : curves) {
+            Eigen::SparseMatrix<double> prolongation;
+            PolyCurve* c_coarsened = c->Coarsen(prolongation);
+            c_coarsened->offset = coarseOffset;
+            // The next curve will have its offset increased by this curve's length
+            coarseOffset += c_coarsened->NumVertices();
+
+            coarseGroup->AddCurve(c_coarsened);
+            prolongOps.matrices.push_back(IndexedMatrix{prolongation, c->offset, c_coarsened->offset});
+        }
+
+        return coarseGroup;
+    }
+
+    ProlongationOperator::ProlongationOperator() {}
+
+
+    Eigen::VectorXd ProlongationOperator::mapUpward(Eigen::VectorXd v) {
+        Eigen::VectorXd out;
+        out.setZero(upperSize);
+
+        for (size_t i = 0; i < matrices.size(); i++) {
+            int outputStart = matrices[i].inputOffset;
+            int inputStart = matrices[i].outputOffset;
+            int outputRows = matrices[i].M.cols();
+            int inputRows = matrices[i].M.rows();
+
+            out.block(outputStart, 0, outputRows, 1) = (v.block(inputStart, 0, inputRows, 1).transpose() * matrices[i].M).transpose();
+        }
+
+        return out;
+    }
+
+    Eigen::VectorXd ProlongationOperator::mapDownward(Eigen::VectorXd v) {
+        Eigen::VectorXd out;
+        out.setZero(lowerSize);
+
+        for (size_t i = 0; i < matrices.size(); i++) {
+            int outputStart = matrices[i].outputOffset;
+            int inputStart = matrices[i].inputOffset;
+            int outputRows = matrices[i].M.rows();
+            int inputRows = matrices[i].M.cols();
+
+            out.block(outputStart, 0, outputRows, 1) = matrices[i].M * v.block(inputStart, 0, inputRows, 1);
+        }
+
+        return out;
     }
 
     int PointOnCurve::GlobalIndex() {

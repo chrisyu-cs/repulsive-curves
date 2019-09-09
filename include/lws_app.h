@@ -25,20 +25,20 @@ namespace LWS {
         void customWindow();
         void initSolver();
         void processFileOBJ(std::string filename);
-        void DisplayCurves();
+        void DisplayCurves(PolyCurveGroup* curves, std::string name);
+        void DisplayCyclicList(std::vector<Vector3> &positions, std::string name);
+        std::string surfaceName;
+        PolyCurveGroup* curves;
+        TPEFlowSolverSC* tpeSolver;
 
         private:
         void centerLoopBarycenter(PolyCurveGroup* curves);
         void UpdateCurvePositions();
         void outputFrame();
         void plotBHError(double alpha, double beta);
-        std::string getCurveName(int i);
         
         std::unique_ptr<surface::HalfedgeMesh> mesh;
         std::unique_ptr<surface::VertexPositionGeometry> geom;
-        std::string surfaceName;
 
-        PolyCurveGroup* curves;
-        TPEFlowSolverSC* tpeSolver;
     };
 }

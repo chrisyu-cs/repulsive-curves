@@ -1,6 +1,7 @@
 #pragma once
 
 #include "geometrycentral/utilities/vector3.h"
+#include "Eigen/Sparse"
 
 namespace LWS {
     class PolyCurve;
@@ -20,6 +21,22 @@ namespace LWS {
 
         PointOnCurve Next();
         PointOnCurve Prev();
+    };
+
+    struct IndexedMatrix {
+        Eigen::SparseMatrix<double> M;
+        int inputOffset;
+        int outputOffset;
+    };
+
+    class ProlongationOperator {
+        public:
+        ProlongationOperator();
+        int lowerSize;
+        int upperSize;
+        std::vector<IndexedMatrix> matrices;
+        Eigen::VectorXd mapUpward(Eigen::VectorXd v);
+        Eigen::VectorXd mapDownward(Eigen::VectorXd v);
     };
 
     class PolyCurve {
@@ -47,7 +64,7 @@ namespace LWS {
         Vector3 Barycenter();
         Vector3 TotalLengthGradient(int i);
 
-        PolyCurve* Coarsen();
+        PolyCurve* Coarsen(Eigen::SparseMatrix<double> &prolongOp);
     };
 
     class PolyCurveGroup {
@@ -61,5 +78,7 @@ namespace LWS {
         double TotalLength();
         int NextIndexInCurve(int v);
         int GlobalIndex(PointOnCurve c);
+
+        PolyCurveGroup* Coarsen(ProlongationOperator &prolongOps);
     };
 }

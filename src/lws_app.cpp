@@ -7,7 +7,9 @@
 #include "lws_app.h"
 #include "polyscope/gl/ground_plane.h"
 #include "utils.h"
-#include "spacecurves/space_curve.h"
+
+#include "polyscope/curve_network.h"
+#include "poly_curve_hierarchy.h"
 
 #include "spatial/tpe_kdtree.h"
 
@@ -74,22 +76,38 @@ namespace LWS {
     }
 
     if (ImGui::Button("Test coarsening")) {
-      PolyCurve* newCurve = 0;
-      
-      for (int i = 0; i < 5; i++) {
-        PolyCurve* newCurve2 = tpeSolver->TestCoarsen(newCurve);
-        int nVerts = newCurve2->NumVertices();
-        std::vector<Vector3> positions(nVerts);
-        for (int i = 0; i < nVerts; i++) {
-          positions[i] = newCurve2->Position(i);
-        }
-        polyscope::registerSpaceCurve("coarsened" + std::to_string(i), positions, true);
-        
-        if (newCurve) delete newCurve;
-        newCurve = newCurve2;
+      PolyCurveGroupHierarchy* hierarchy = new PolyCurveGroupHierarchy(curves, 2);
+
+      // Get original positions
+      Eigen::MatrixXd positions;
+      int nVerts = curves->NumVertices();
+      positions.setZero(nVerts, 3);
+      for (int i = 0; i < nVerts; i++) {
+        SetRow(positions, i, curves->GetCurvePoint(i).Position());
       }
 
-      if (newCurve) delete newCurve;
+      // Get coarser positions
+      Eigen::MatrixXd coarsePositions;
+      coarsePositions.setZero(hierarchy->levels[1]->NumVertices(), 3);
+      int nVertsCoarse = hierarchy->levels[1]->NumVertices();
+      for (int i = 0; i < nVertsCoarse; i++) {
+        SetRow(coarsePositions, i, hierarchy->levels[1]->GetCurvePoint(i).Position());
+      }
+
+      Eigen::VectorXd col_x = coarsePositions.col(0);
+      Eigen::VectorXd remapped_x = hierarchy->operators[0].mapUpward(col_x);
+
+      Eigen::MatrixXd comp(positions.rows(), 2);
+      comp.col(0) = positions.col(0);
+      comp.col(1) = remapped_x;
+
+      std::cout << "\nOriginal vs remapped positions:\n" << comp << std::endl;
+
+      for (size_t i = 0; i < hierarchy->levels.size(); i++) {
+        DisplayCurves(hierarchy->levels[i], "coarsened" + std::to_string(i));
+      }
+
+      delete hierarchy;
     }
 
     if (ImGui::Button("Output frame")) {
@@ -146,10 +164,6 @@ namespace LWS {
     UpdateCurvePositions();
   }
 
-  std::string LWSApp::getCurveName(int i) {
-    return surfaceName + "-curve" + std::to_string(i);
-  }
-
   void LWSApp::initSolver() {
     if (!tpeSolver) {
       // Set up solver
@@ -159,17 +173,20 @@ namespace LWS {
 
   void LWSApp::UpdateCurvePositions() {
     // Update the positions on the space curve
+    polyscope::CurveNetwork* curveNetwork = polyscope::getCurveNetwork(surfaceName);
+    std::vector<glm::vec3> curve_vecs(curves->NumVertices());
+
     for (size_t i = 0; i < curves->curves.size(); i++)
     {
-      PolyCurve* polyCurve = curves->curves[i];
-      polyscope::SpaceCurve* curve = polyscope::getSpaceCurve(getCurveName(i));
-      std::vector<glm::vec3> curve_vecs(curves->NumVertices());
-      for (size_t i = 0; i < curve_vecs.size(); i++) {
-        Vector3 v = polyCurve->Position(i);
-        curve_vecs[i] = glm::vec3{v.x, v.y, v.z};
+      PolyCurve* c = curves->curves[i];
+      int nVerts = c->NumVertices();
+      for (int j = 0; j < nVerts; j++) {
+        Vector3 v = c->positions[j];
+        curve_vecs[c->offset + j] = glm::vec3{v.x, v.y, v.z};
       }
-      curve->updatePoints(curve_vecs);
     }
+
+    curveNetwork->updateNodePositions(curve_vecs);
     polyscope::requestRedraw();
   }
 
@@ -207,22 +224,41 @@ namespace LWS {
     surfaceName = polyscope::guessNiceNameFromPath(filename);
   }
 
-  void LWSApp::DisplayCurves() {
-    std::vector<Vector3> positions;
-
+  void LWSApp::DisplayCurves(PolyCurveGroup* curves, std::string name) {
     size_t nVerts = curves->NumVertices();
-
-    for (size_t c = 0; c < curves->curves.size(); c++) {
-      positions.clear();
-      PolyCurve* curve = curves->curves[c];
-      int cVerts = curve->NumVertices();
-      for (int i = 0; i < cVerts; i++) {
-        positions.push_back(curve->Position(i));
+    std::vector<glm::vec3> nodes;
+    std::vector<std::array<size_t, 2>> edges;
+    
+    for (size_t i = 0; i < curves->curves.size(); i++) {
+      PolyCurve* c = curves->curves[i];
+      int nVerts = c->NumVertices();
+      // Add interior edges and vertices
+      for (int i = 0; i < nVerts; i++) {
+        nodes.push_back(glm::vec3{c->positions[i].x, c->positions[i].y, c->positions[i].z});
+        size_t v_i = c->offset + i;
+        if (i > 0) {
+          edges.push_back({v_i - 1, v_i});
+        }
       }
-      polyscope::registerSpaceCurve(getCurveName(c), positions, true);
+      // Close loop
+      edges.push_back({size_t(c->offset + nVerts - 1), size_t(c->offset)});
     }
 
-    centerLoopBarycenter(curves);
+    polyscope::registerCurveNetwork(name, nodes, edges);
+    polyscope::getCurveNetwork(name)->radius *= 5;
+
+    // centerLoopBarycenter(curves);
+  }
+
+  void LWSApp::DisplayCyclicList(std::vector<Vector3> &positions, std::string name) {
+    std::vector<std::array<size_t, 2>> edges;
+
+    for (size_t i = 0; i < positions.size() - 1; i++) {
+      edges.push_back({i, i+1});
+    }
+    edges.push_back({positions.size() - 1, 0});
+    polyscope::registerCurveNetwork(name, positions, edges);
+    polyscope::getCurveNetwork(name)->radius *= 5;
   }
 }
 
@@ -287,7 +323,7 @@ int main(int argc, char** argv) {
   std::vector<std::vector<size_t>> faceIndices;
 
   polyscope::SurfaceMesh* m = polyscope::registerSurfaceMesh("empty", vertexPositions, faceIndices);
-  app->DisplayCurves();
+  app->DisplayCurves(app->curves, app->surfaceName);
   app->initSolver();
 
   // Show the gui

@@ -331,13 +331,21 @@ namespace LWS {
         mult->Multiply(xVec, result);
     }
 
-    PolyCurve* TPEFlowSolverSC::TestCoarsen(PolyCurve* c) {
+    PolyCurveGroup* TPEFlowSolverSC::TestCoarsen(PolyCurveGroup* c) {
+        ProlongationOperator J;
+        PolyCurveGroup* p;
+
         if (c) {
-            return c->Coarsen();
+            p = c->Coarsen(J);
         }
         else {
-            return curves->curves[0]->Coarsen();
+            p = curves->Coarsen(J);
         }
+
+        for (size_t i = 0; i < J.matrices.size(); i++) {
+            std::cout << J.matrices[i].M << std::endl;
+        }
+        return p;
     }
 
     void TPEFlowSolverSC::CompareMatrixVectorProduct() {

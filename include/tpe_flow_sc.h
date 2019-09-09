@@ -44,7 +44,7 @@ namespace LWS {
         void FillVertLengthConstraintMatrix(Eigen::MatrixXd &A, int baseIndex);
 
         void CompareMatrixVectorProduct();
-        PolyCurve* TestCoarsen(PolyCurve* c);
+        PolyCurveGroup* TestCoarsen(PolyCurveGroup* c);
 
         void ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B);
 
