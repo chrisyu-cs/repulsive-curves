@@ -25,13 +25,13 @@ namespace LWS {
 
     struct IndexedMatrix {
         Eigen::SparseMatrix<double> M;
-        int inputOffset;
-        int outputOffset;
+        int fineOffset;
+        int coarseOffset;
     };
 
-    class ProlongationOperator {
+    class MultigridOperator {
         public:
-        ProlongationOperator();
+        MultigridOperator();
         int lowerSize;
         int upperSize;
         std::vector<IndexedMatrix> matrices;
@@ -64,7 +64,7 @@ namespace LWS {
         Vector3 Barycenter();
         Vector3 TotalLengthGradient(int i);
 
-        PolyCurve* Coarsen(Eigen::SparseMatrix<double> &prolongOp);
+        PolyCurve* Coarsen(Eigen::SparseMatrix<double> &prolongOp, Eigen::SparseMatrix<double> &sparsifyOp);
     };
 
     class PolyCurveGroup {
@@ -79,6 +79,6 @@ namespace LWS {
         int NextIndexInCurve(int v);
         int GlobalIndex(PointOnCurve c);
 
-        PolyCurveGroup* Coarsen(ProlongationOperator &prolongOps);
+        PolyCurveGroup* Coarsen(MultigridOperator &prolongOps, MultigridOperator &sparsifyOps);
     };
 }

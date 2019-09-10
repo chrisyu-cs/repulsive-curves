@@ -8,7 +8,8 @@ namespace LWS {
     class PolyCurveGroupHierarchy {
         public:
         std::vector<PolyCurveGroup*> levels;
-        std::vector<ProlongationOperator> operators;
+        std::vector<MultigridOperator> prolongationOps;
+        std::vector<MultigridOperator> sparsifyOps;
 
         PolyCurveGroupHierarchy(PolyCurveGroup* topLevel, size_t numLevels);
         ~PolyCurveGroupHierarchy();

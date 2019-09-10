@@ -332,14 +332,14 @@ namespace LWS {
     }
 
     PolyCurveGroup* TPEFlowSolverSC::TestCoarsen(PolyCurveGroup* c) {
-        ProlongationOperator J;
+        MultigridOperator J, S;
         PolyCurveGroup* p;
 
         if (c) {
-            p = c->Coarsen(J);
+            p = c->Coarsen(J, S);
         }
         else {
-            p = curves->Coarsen(J);
+            p = curves->Coarsen(J, S);
         }
 
         for (size_t i = 0; i < J.matrices.size(); i++) {

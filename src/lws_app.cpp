@@ -95,7 +95,7 @@ namespace LWS {
       }
 
       Eigen::VectorXd col_x = coarsePositions.col(0);
-      Eigen::VectorXd remapped_x = hierarchy->operators[0].mapUpward(col_x);
+      Eigen::VectorXd remapped_x = hierarchy->prolongationOps[0].mapUpward(col_x);
 
       Eigen::MatrixXd comp(positions.rows(), 2);
       comp.col(0) = positions.col(0);

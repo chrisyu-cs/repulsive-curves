@@ -18,12 +18,13 @@ namespace LWS {
 
     void PolyCurveGroupHierarchy::AddNextLevel() {
         PolyCurveGroup* lastLevel = levels[levels.size() - 1];
-        ProlongationOperator prolongOp;
-        PolyCurveGroup* nextLevel = lastLevel->Coarsen(prolongOp);
+        MultigridOperator prolongOp, sparsifyOp;
+        PolyCurveGroup* nextLevel = lastLevel->Coarsen(prolongOp, sparsifyOp);
         prolongOp.lowerSize = nextLevel->NumVertices();
         prolongOp.upperSize = lastLevel->NumVertices();
 
-        operators.push_back(prolongOp);
+        prolongationOps.push_back(prolongOp);
+        sparsifyOps.push_back(prolongOp);
         levels.push_back(nextLevel);
 
         std::cout << prolongOp.matrices[prolongOp.matrices.size() - 1].M.toDense() << std::endl;
