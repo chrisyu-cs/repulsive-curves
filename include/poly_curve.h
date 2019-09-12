@@ -29,14 +29,20 @@ namespace LWS {
         int coarseOffset;
     };
 
+    enum class MultigridMode {
+        MatrixOnly,
+        Barycenter,
+        EdgeLengths
+    };
+
     class MultigridOperator {
         public:
         MultigridOperator();
         int lowerSize;
         int upperSize;
         std::vector<IndexedMatrix> matrices;
-        Eigen::VectorXd mapUpward(Eigen::VectorXd v);
-        Eigen::VectorXd mapDownward(Eigen::VectorXd v);
+        Eigen::VectorXd mapUpward(Eigen::VectorXd v, MultigridMode mode);
+        Eigen::VectorXd mapDownward(Eigen::VectorXd v, MultigridMode mode);
     };
 
     class PolyCurve {

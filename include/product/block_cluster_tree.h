@@ -95,6 +95,11 @@ namespace LWS {
             AfApproxProduct_hat(pair, v_hat, b_hat);
         }
 
+        // TEMPORARY: add small delta to the diagonal
+        for (int i = 0; i < nVerts; i++) {
+            b(i) += 0.1 * curves->GetCurvePoint(i).DualLength() * v(i);
+        }
+
         SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
     }
 

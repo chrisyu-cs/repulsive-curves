@@ -264,7 +264,6 @@ namespace LWS {
     void PolyCurveGroup::AddCurve(PolyCurve* c) {
         c->index = curves.size();
         c->offset = NumVertices();
-        std::cout << "Added curve (offset " << c->offset << ")" << std::endl;
         curves.push_back(c);
     }
 
@@ -381,7 +380,7 @@ namespace LWS {
     MultigridOperator::MultigridOperator() {}
 
 
-    Eigen::VectorXd MultigridOperator::mapUpward(Eigen::VectorXd v) {
+    Eigen::VectorXd MultigridOperator::mapUpward(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
         out.setZero(upperSize);
 
@@ -397,7 +396,7 @@ namespace LWS {
         return out;
     }
 
-    Eigen::VectorXd MultigridOperator::mapDownward(Eigen::VectorXd v) {
+    Eigen::VectorXd MultigridOperator::mapDownward(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
         out.setZero(lowerSize);
 
@@ -407,7 +406,8 @@ namespace LWS {
             int outputRows = matrices[i].M.cols();
             int inputRows = matrices[i].M.rows();
 
-            out.block(outputStart, 0, outputRows, 1) = (v.block(inputStart, 0, inputRows, 1).transpose() *  matrices[i].M).transpose();
+            //out.block(outputStart, 0, outputRows, 1) = (v.block(inputStart, 0, inputRows, 1).transpose() *  matrices[i].M).transpose();
+            out.block(outputStart, 0, outputRows, 1) = matrices[i].M.transpose() * v.block(inputStart, 0, inputRows, 1);
         }
 
         return out;

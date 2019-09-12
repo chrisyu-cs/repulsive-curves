@@ -76,36 +76,57 @@ namespace LWS {
     }
 
     if (ImGui::Button("Test coarsening")) {
-      PolyCurveGroupHierarchy* hierarchy = new PolyCurveGroupHierarchy(curves, 2);
-
-      // Get original positions
-      Eigen::MatrixXd positions;
       int nVerts = curves->NumVertices();
-      positions.setZero(nVerts, 3);
+      int logNumVerts = log2(nVerts) - 3;
+
+      Eigen::MatrixXd A;
+      A.setZero(nVerts, nVerts);
+
+      SobolevCurves::FillGlobalMatrix(curves, 3, 6, A);
       for (int i = 0; i < nVerts; i++) {
-        SetRow(positions, i, curves->GetCurvePoint(i).Position());
+          A(i, i) += 100;
       }
 
-      // Get coarser positions
-      Eigen::MatrixXd coarsePositions;
-      coarsePositions.setZero(hierarchy->levels[1]->NumVertices(), 3);
-      int nVertsCoarse = hierarchy->levels[1]->NumVertices();
-      for (int i = 0; i < nVertsCoarse; i++) {
-        SetRow(coarsePositions, i, hierarchy->levels[1]->GetCurvePoint(i).Position());
+      std::cout << A << std::endl;
+
+      PolyCurveGroupHierarchy* hierarchy = new PolyCurveGroupHierarchy(curves, logNumVerts);
+      Eigen::VectorXd x;
+      x.setZero(nVerts);
+      for (int i = 0; i < nVerts; i++) {
+        x(i) = curves->GetCurvePoint(i).Position().x;
       }
 
-      Eigen::VectorXd col_x = coarsePositions.col(0);
-      Eigen::VectorXd remapped_x = hierarchy->prolongationOps[0].mapUpward(col_x);
+      Eigen::VectorXd sol = hierarchy->VCycleSolve(x, 0.25, 3, 6);
+      Eigen::VectorXd ref_sol = A.partialPivLu().solve(x);
+      Eigen::VectorXd diff = sol - ref_sol;
 
-      Eigen::MatrixXd comp(positions.rows(), 2);
-      comp.col(0) = positions.col(0);
-      comp.col(1) = remapped_x;
+      Eigen::MatrixXd sols(sol.rows(), 2);
+      sols.row(0) = sol;
+      sols.row(1) = ref_sol;
 
-      std::cout << "\nOriginal vs remapped positions:\n" << comp << std::endl;
+      std::cout << sols << std::endl;
 
-      for (size_t i = 0; i < hierarchy->levels.size(); i++) {
-        DisplayCurves(hierarchy->levels[i], "coarsened" + std::to_string(i));
+      A.setZero(nVerts + 1, nVerts + 1);
+      SobolevCurves::FillGlobalMatrix(curves, 3, 6, A);
+      double sumLength = curves->TotalLength();
+      double sumW = 0;
+      // Fill the bottom row with weights for the constraint
+      for (int i = 0; i < nVerts; i++) {
+        double areaWeight = curves->GetCurvePoint(i).DualLength() / sumLength;
+        sumW += areaWeight;
+        // Fill in bottom row and rightmost column
+        A(i, nVerts) = areaWeight;
+        A(nVerts, i) = areaWeight;
       }
+
+      Eigen::VectorXd x1;
+      x1.setZero(nVerts + 1);
+      x1.block(0, 0, nVerts, 1) = x;
+
+      Eigen::VectorXd sol_bary = A.partialPivLu().solve(x1); 
+      std::cout << x1 << std::endl;
+
+      std::cout << "Relative error from ground truth = " << diff.norm() / ref_sol.norm() << " percent" << std::endl;
 
       delete hierarchy;
     }
