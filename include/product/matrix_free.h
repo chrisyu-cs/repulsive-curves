@@ -5,6 +5,7 @@
 #include <unsupported/Eigen/IterativeSolvers>
 
 #include "vector_multiplier.h"
+#include "dense_matrix.h"
 
 using Eigen::SparseMatrix;
 
@@ -40,6 +41,7 @@ namespace LWS {
   }
   // Typedef for a matrix-free multiplier using hierarchical block cluster trees.
   using HMatrix = Product::MatrixReplacement<BlockClusterTree>;
+  using WrappedMatrix = Product::MatrixReplacement<DenseMatrixMult>;
 }
 
 template<typename T>

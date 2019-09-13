@@ -11,6 +11,8 @@
 #include "polyscope/curve_network.h"
 #include "poly_curve_hierarchy.h"
 
+#include "product/test_matrices.h"
+
 #include "spatial/tpe_kdtree.h"
 
 using namespace geometrycentral;
@@ -79,54 +81,47 @@ namespace LWS {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 3;
 
-      Eigen::MatrixXd A;
-      A.setZero(nVerts, nVerts);
-
-      SobolevCurves::FillGlobalMatrix(curves, 3, 6, A);
-      for (int i = 0; i < nVerts; i++) {
-          A(i, i) += 100;
-      }
-
-      std::cout << A << std::endl;
-
-      PolyCurveGroupHierarchy* hierarchy = new PolyCurveGroupHierarchy(curves, logNumVerts);
+      Eigen::MatrixXd A = TestMatrices::LaplacianSaddle1D(nVerts);
       Eigen::VectorXd x;
-      x.setZero(nVerts);
-      for (int i = 0; i < nVerts; i++) {
-        x(i) = curves->GetCurvePoint(i).Position().x;
-      }
+      x.setZero(nVerts + 1);
+      x(nVerts / 3) = -1;
+      x(3 * nVerts / 4) = 1;
 
-      Eigen::VectorXd sol = hierarchy->VCycleSolve(x, 0.25, 3, 6);
+      long multigridStart = Utils::currentTimeMilliseconds();
+      PolyCurveGroupHierarchy* hierarchy = new PolyCurveGroupHierarchy(curves, logNumVerts);
+      Eigen::VectorXd sol = hierarchy->VCycleSolve(x, 0.25, 3, 6, MultigridMode::Barycenter);
+      long multigridEnd = Utils::currentTimeMilliseconds();
+      std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
+
       Eigen::VectorXd ref_sol = A.partialPivLu().solve(x);
+      long solveEnd = Utils::currentTimeMilliseconds();
+      std::cout << "Direct solve time = " << (solveEnd - multigridEnd) << " ms" << std::endl;
+
+      Eigen::GMRES<Eigen::MatrixXd> gmresNormal(A);
+      Eigen::VectorXd gm_sol = gmresNormal.solve(x);
+      long iterEnd = Utils::currentTimeMilliseconds();
+      std::cout << "GMRES iterations: " << gmresNormal.iterations() << "; error = " << gmresNormal.error() << std::endl;
+      std::cout << "Iterative solve time = " << (iterEnd - solveEnd) << " ms" << std::endl;
+
+      Eigen::MatrixXd sols(sol.rows(), 3);
+      sols.col(0) = sol;
+      sols.col(1) = ref_sol;
+      sols.col(2) = gm_sol;
+
+      // std::cout << sols << std::endl;
+
       Eigen::VectorXd diff = sol - ref_sol;
+      Eigen::VectorXd diff_gm = sol - gm_sol;
 
-      Eigen::MatrixXd sols(sol.rows(), 2);
-      sols.row(0) = sol;
-      sols.row(1) = ref_sol;
+      std::cout << "Reference norm = " << ref_sol.norm() << "; multigrid norm = " << sol.norm() << "; difference norm = " << diff.norm() << std::endl;
+      std::cout << "Multigrid error from ground truth = " << 100 * (diff.norm() / ref_sol.norm()) << " percent" << std::endl;
+      std::cout << "GMRES error from ground truth = " << 100 * (diff_gm.norm() / ref_sol.norm()) << " percent" << std::endl;
 
-      std::cout << sols << std::endl;
+      double finalResidual = (x - A * sol).lpNorm<Eigen::Infinity>();
 
-      A.setZero(nVerts + 1, nVerts + 1);
-      SobolevCurves::FillGlobalMatrix(curves, 3, 6, A);
-      double sumLength = curves->TotalLength();
-      double sumW = 0;
-      // Fill the bottom row with weights for the constraint
-      for (int i = 0; i < nVerts; i++) {
-        double areaWeight = curves->GetCurvePoint(i).DualLength() / sumLength;
-        sumW += areaWeight;
-        // Fill in bottom row and rightmost column
-        A(i, nVerts) = areaWeight;
-        A(nVerts, i) = areaWeight;
-      }
-
-      Eigen::VectorXd x1;
-      x1.setZero(nVerts + 1);
-      x1.block(0, 0, nVerts, 1) = x;
-
-      Eigen::VectorXd sol_bary = A.partialPivLu().solve(x1); 
-      std::cout << x1 << std::endl;
-
-      std::cout << "Relative error from ground truth = " << diff.norm() / ref_sol.norm() << " percent" << std::endl;
+      double dot = sol.normalized().dot(ref_sol.normalized());
+      std::cout << "Dot product between directions = " << dot << std::endl;
+      std::cout << "Multigrid residual = " << finalResidual << std::endl;
 
       delete hierarchy;
     }

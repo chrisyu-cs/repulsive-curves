@@ -308,24 +308,6 @@ namespace LWS {
         }
     }
 
-    void TPEFlowSolverSC::SoboSloboMatrix(Eigen::MatrixXd &A) {
-        int nVerts = curves->NumVertices();
-        // Fill the top-left block with the gram matrix
-        SobolevCurves::FillGlobalMatrix(curves, alpha, beta, A);
-
-        double sumLength = curves->TotalLength();
-        double sumW = 0;
-
-        // Fill the bottom row with weights for the constraint
-        for (int i = 0; i < nVerts; i++) {
-            double areaWeight = curves->GetCurvePoint(i).DualLength() / sumLength;
-            sumW += areaWeight;
-            // Fill in bottom row and rightmost column
-            A(i, nVerts) = areaWeight;
-            A(nVerts, i) = areaWeight;
-        }
-    }
-
     template<typename T>
     void TestMultiply(T &mult, Eigen::VectorXd &xVec, Eigen::VectorXd &result) {
         mult->Multiply(xVec, result);
@@ -360,7 +342,7 @@ namespace LWS {
         long matrixStart = Utils::currentTimeMilliseconds();
         Eigen::MatrixXd A;
         A.setZero(vecLen, vecLen);
-        SoboSloboMatrix(A);
+        SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
         long matrixEnd = Utils::currentTimeMilliseconds();
         //std::cerr << "Matrix assembly: " << (matrixEnd - matrixStart) << " ms" << std::endl;
 
@@ -599,7 +581,7 @@ namespace LWS {
             double ss_start = Utils::currentTimeMilliseconds();
             // Fill the Sobo-Slobo matrix, one entry per vertex
             A.setZero(nRows, nRows);
-            SoboSloboMatrix(A);
+            SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
             double ss_end = Utils::currentTimeMilliseconds();
 
             std::cout << "  Assemble saddle matrix: " << (ss_end - ss_start) << " ms" << std::endl;
@@ -633,7 +615,7 @@ namespace LWS {
             A.setZero(nRows, nRows);
             // A_temp is a smaller saddle matrix (one row for each gradient entry, only gradient + barycenter, with coordinates lumped together)
             A_temp.setZero(nVerts + 1, nVerts + 1);
-            SoboSloboMatrix(A_temp);
+            SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A_temp);
 
             // Duplicate the saddle matrix portion into the larger matrix
             ExpandMatrix3x(A_temp, A);

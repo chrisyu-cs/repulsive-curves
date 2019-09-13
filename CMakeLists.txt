@@ -7,6 +7,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+set(CMAKE_BUILD_TYPE "Debug")
+
 # Print the build type
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: Debug Release" FORCE)
@@ -78,6 +80,7 @@ set(SRCS
   src/vert_jacobian.cpp
   src/product/block_cluster_tree.cpp
   src/product/dense_matrix.cpp
+  src/product/test_matrices.cpp
   src/spatial/spatial_tree.cpp
   src/spatial/tpe_bvh.cpp
   src/spatial/tpe_kdtree.cpp

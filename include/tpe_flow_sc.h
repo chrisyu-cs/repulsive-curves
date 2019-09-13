@@ -39,8 +39,6 @@ namespace LWS {
         double ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients);
         double ProjectGradientIterative(Eigen::MatrixXd &gradients, BlockClusterTree* &blockTree);
 
-        // Fill a Sobolev-Slobodeckij inner product matrix with a barycenter constraint
-        void SoboSloboMatrix(Eigen::MatrixXd &A);
         void FillVertLengthConstraintMatrix(Eigen::MatrixXd &A, int baseIndex);
 
         void CompareMatrixVectorProduct();

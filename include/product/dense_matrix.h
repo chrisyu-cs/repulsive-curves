@@ -20,15 +20,16 @@ namespace LWS {
     template<typename V, typename Dest>
     void DenseMatrixMult::Multiply(V &v, Dest &b) const {
         Eigen::VectorXd x;
-        x.setZero(v.size());
+        int nRows = v.size();
+        x.setZero(nRows);
 
-        for (size_t i = 0; i < v.size(); i++) {
+        for (int i = 0; i < nRows; i++) {
             x(i) = v[i];
         }
 
         Eigen::VectorXd Ax = A * x;
 
-        for (size_t i = 0; i < v.size(); i++) {
+        for (int i = 0; i < nRows; i++) {
             b[i] = Ax(i);
         }
     }

@@ -2,6 +2,8 @@
 #include "spatial/tpe_bvh.h"
 #include "product/block_cluster_tree.h"
 #include "product/matrix_free.h"
+#include "product/dense_matrix.h"
+#include "product/test_matrices.h"
 
 namespace LWS {
 
@@ -33,20 +35,24 @@ namespace LWS {
         levels.push_back(nextLevel);
     }
 
-    Eigen::VectorXd PolyCurveGroupHierarchy::VCycleSolve(Eigen::VectorXd b, double sepCoeff, double alpha, double beta) {
+    Eigen::VectorXd PolyCurveGroupHierarchy::VCycleSolve(Eigen::VectorXd b, double sepCoeff, double alpha, double beta, MultigridMode mode) {
         int numLevels = levels.size();
-        std::vector<BVHNode3D*> vertexBVHs(numLevels);
-        std::vector<BVHNode3D*> edgeBVHs(numLevels);
-        std::vector<BlockClusterTree*> trees(numLevels);
-        std::vector<HMatrix> hMatrices(numLevels);
+        //std::vector<BVHNode3D*> vertexBVHs(numLevels);
+        //std::vector<BVHNode3D*> edgeBVHs(numLevels);
+        //std::vector<BlockClusterTree*> trees(numLevels);
+        //std::vector<HMatrix> hMatrices(numLevels);
+        std::vector<WrappedMatrix> hMatrices(numLevels);
 
         for (int i = 0; i < numLevels; i++) {
-            vertexBVHs[i] = CreateBVHFromCurve(levels[i]);
-            edgeBVHs[i] = CreateEdgeBVHFromCurve(levels[i]);
-            trees[i] = new BlockClusterTree(levels[i], edgeBVHs[i], sepCoeff, alpha, beta);
+            int nVerts = levels[i]->NumVertices();
+            //vertexBVHs[i] = CreateBVHFromCurve(levels[i]);
+            //edgeBVHs[i] = CreateEdgeBVHFromCurve(levels[i]);
+            //trees[i] = new BlockClusterTree(levels[i], edgeBVHs[i], sepCoeff, alpha, beta);
             // For now, just solve the problem with only the top-left block
-            trees[i]->SetBlockTreeMode(BlockTreeMode::MatrixOnly);
-            hMatrices[i] = HMatrix(trees[i], levels[i]->NumVertices());
+            //trees[i]->SetBlockTreeMode(BlockTreeMode::MatrixOnly);
+            //hMatrices[i] = HMatrix(trees[i], levels[i]->NumVertices());
+            DenseMatrixMult* multiplier = new DenseMatrixMult(TestMatrices::LaplacianSaddle1D(nVerts));
+            hMatrices[i] = WrappedMatrix(multiplier, nVerts + 1);
         }
 
         std::vector<Eigen::VectorXd> residuals(numLevels);
@@ -57,13 +63,14 @@ namespace LWS {
         int numIters = 0;
 
         int coarsestRows = levels[numLevels - 1]->NumVertices();
-        Eigen::MatrixXd coarse_A(coarsestRows, coarsestRows);
+        Eigen::MatrixXd coarse_A;
         coarse_A.setZero();
 
         while (!done) {
             // Propagate residuals downward
             for (int i = 0; i < numLevels - 1; i++) {
-                Eigen::GMRES<HMatrix, Eigen::IdentityPreconditioner> gmres;
+                //Eigen::GMRES<HMatrix, Eigen::IdentityPreconditioner> gmres;
+                Eigen::GMRES<WrappedMatrix, Eigen::IdentityPreconditioner> gmres;
                 gmres.compute(hMatrices[i]);
                 gmres.setMaxIterations(30);
                 // Run the smoother on this level to get some intermediate solution
@@ -75,12 +82,12 @@ namespace LWS {
                 }
                 // On the next level, the right-hand side becomes the restricted    
                 // residual from this level.
-                residuals[i + 1] = prolongationOps[i].mapDownward(residuals[i] - hMatrices[i] * solutions[i], MultigridMode::Barycenter);
+                residuals[i + 1] = prolongationOps[i].mapDownward(residuals[i] - hMatrices[i] * solutions[i], mode);
             }
 
             // Assemble full operator on sparsest curve and solve normally
             solutions[numLevels - 1].setZero(residuals[numLevels - 1].rows());
-            SobolevCurves::FillGlobalMatrix(levels[numLevels - 1], alpha, beta, coarse_A);
+            coarse_A = TestMatrices::LaplacianSaddle1D(coarsestRows);
             for (int i = 0; i < coarsestRows; i++) {
                 coarse_A(i, i) += 0.1 * levels[numLevels - 1]->GetCurvePoint(i).DualLength();
             }
@@ -88,7 +95,8 @@ namespace LWS {
 
             // Propagate solutions upward
             for (int i = numLevels - 2; i >= 0; i--) {
-                Eigen::GMRES<HMatrix, Eigen::IdentityPreconditioner> gmres;
+                //Eigen::GMRES<HMatrix, Eigen::IdentityPreconditioner> gmres;
+                Eigen::GMRES<WrappedMatrix, Eigen::IdentityPreconditioner> gmres;
                 gmres.compute(hMatrices[i]);
                 gmres.setMaxIterations(30);
                 // Compute the new initial guess -- old solution from this level, plus
@@ -99,8 +107,8 @@ namespace LWS {
 
             double overallResidual = (b - hMatrices[0] * solutions[0]).lpNorm<Eigen::Infinity>();
 
-            done = (overallResidual < 1e-4 || numIters > 100);
             numIters++;
+            done = (overallResidual < 1e-5 || numIters >= 100);
             std::cout << "[Iteration " << numIters << "] residual = " << overallResidual << std::endl;
         }
 

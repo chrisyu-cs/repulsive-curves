@@ -18,7 +18,7 @@ namespace LWS {
         void AddNextLevel();
 
         // Solve Gx = b, where G is the Sobolev Gram matrix of the top-level curve.
-        Eigen::VectorXd VCycleSolve(Eigen::VectorXd b, double sepCoeff, double alpha, double beta);
+        Eigen::VectorXd VCycleSolve(Eigen::VectorXd b, double sepCoeff, double alpha, double beta, MultigridMode mode);
 
     };
 }

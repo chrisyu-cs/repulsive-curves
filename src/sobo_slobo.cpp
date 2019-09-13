@@ -231,7 +231,7 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::FillGlobalMatrix(PolyCurveGroup* curves, double alpha, double beta, Eigen::MatrixXd &A) {
+    void SobolevCurves::SobolevGramMatrix(PolyCurveGroup* curves, double alpha, double beta, Eigen::MatrixXd &A) {
         double out[4][4];
         int nVerts = curves->NumVertices();
 
@@ -248,6 +248,25 @@ namespace LWS {
                 AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
                 // AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
             }
+        }
+    }
+
+
+    void SobolevCurves::SobolevPlusBarycenter(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
+        int nVerts = loop->NumVertices();
+        // Fill the top-left block with the gram matrix
+        SobolevCurves::SobolevGramMatrix(loop, alpha, beta, A);
+
+        double sumLength = loop->TotalLength();
+        double sumW = 0;
+
+        // Fill the bottom row with weights for the constraint
+        for (int i = 0; i < nVerts; i++) {
+            double areaWeight = loop->GetCurvePoint(i).DualLength() / sumLength;
+            sumW += areaWeight;
+            // Fill in bottom row and rightmost column
+            A(i, nVerts) = areaWeight;
+            A(nVerts, i) = areaWeight;
         }
     }
 

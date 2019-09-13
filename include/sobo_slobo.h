@@ -36,7 +36,12 @@ namespace LWS {
             PointOnCurve p1, PointOnCurve p2, Eigen::MatrixXd &A);
         
         // Fills the global Sobolev-Slobodeckij Gram matrix.
-        static void FillGlobalMatrix(PolyCurveGroup* loop, double alpha,
+        static void SobolevGramMatrix(PolyCurveGroup* loop, double alpha,
+            double beta, Eigen::MatrixXd &A);
+
+        // Fills the global Sobolev-Slobodeckij Gram matrix, plus an
+        // extra row for a barycenter constraint.
+        static void SobolevPlusBarycenter(PolyCurveGroup* loop, double alpha,
             double beta, Eigen::MatrixXd &A);
         
         // Computes the inner product of the two given vectors, under the metric
