@@ -9,7 +9,7 @@
 #include "utils.h"
 
 #include "polyscope/curve_network.h"
-#include "poly_curve_hierarchy.h"
+#include "multigrid_hierarchy.h"
 
 #include "product/test_matrices.h"
 
@@ -88,7 +88,7 @@ namespace LWS {
       x(3 * nVerts / 4) = 1;
 
       long multigridStart = Utils::currentTimeMilliseconds();
-      PolyCurveGroupHierarchy* hierarchy = new PolyCurveGroupHierarchy(curves, logNumVerts);
+      MultigridHierarchy* hierarchy = new MultigridHierarchy(curves, logNumVerts);
       Eigen::VectorXd sol = hierarchy->VCycleSolve(x, 0.25, 3, 6, MultigridMode::Barycenter);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;

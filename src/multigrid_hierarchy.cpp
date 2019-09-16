@@ -1,4 +1,4 @@
-#include "poly_curve_hierarchy.h"
+#include "multigrid_hierarchy.h"
 #include "spatial/tpe_bvh.h"
 #include "product/block_cluster_tree.h"
 #include "product/matrix_free.h"
@@ -7,7 +7,7 @@
 
 namespace LWS {
 
-    PolyCurveGroupHierarchy::PolyCurveGroupHierarchy(PolyCurveGroup* topLevel, size_t numLevels) {
+    MultigridHierarchy::MultigridHierarchy(PolyCurveGroup* topLevel, size_t numLevels) {
         levels.push_back(topLevel);
 
         while (levels.size() < numLevels) {
@@ -15,13 +15,13 @@ namespace LWS {
         }
     }
 
-    PolyCurveGroupHierarchy::~PolyCurveGroupHierarchy() {
+    MultigridHierarchy::~MultigridHierarchy() {
         for (size_t i = 1; i < levels.size(); i++) {
             delete levels[i];
         }
     }
 
-    void PolyCurveGroupHierarchy::AddNextLevel() {
+    void MultigridHierarchy::AddNextLevel() {
         PolyCurveGroup* lastLevel = levels[levels.size() - 1];
         MultigridOperator prolongOp, sparsifyOp;
         PolyCurveGroup* nextLevel = lastLevel->Coarsen(prolongOp, sparsifyOp);
@@ -35,7 +35,7 @@ namespace LWS {
         levels.push_back(nextLevel);
     }
 
-    Eigen::VectorXd PolyCurveGroupHierarchy::VCycleSolve(Eigen::VectorXd b, double sepCoeff, double alpha, double beta, MultigridMode mode) {
+    Eigen::VectorXd MultigridHierarchy::VCycleSolve(Eigen::VectorXd b, double sepCoeff, double alpha, double beta, MultigridMode mode) {
         int numLevels = levels.size();
         //std::vector<BVHNode3D*> vertexBVHs(numLevels);
         //std::vector<BVHNode3D*> edgeBVHs(numLevels);

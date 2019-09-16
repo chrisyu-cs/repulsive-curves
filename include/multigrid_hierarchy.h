@@ -6,14 +6,14 @@
 #include "Eigen/Sparse"
 
 namespace LWS {
-    class PolyCurveGroupHierarchy {
+    class MultigridHierarchy {
         public:
         std::vector<PolyCurveGroup*> levels;
         std::vector<MultigridOperator> prolongationOps;
         std::vector<MultigridOperator> sparsifyOps;
 
-        PolyCurveGroupHierarchy(PolyCurveGroup* topLevel, size_t numLevels);
-        ~PolyCurveGroupHierarchy();
+        MultigridHierarchy(PolyCurveGroup* topLevel, size_t numLevels);
+        ~MultigridHierarchy();
 
         void AddNextLevel();
 
