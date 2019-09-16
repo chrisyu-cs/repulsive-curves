@@ -2,6 +2,7 @@
 
 #include "geometrycentral/utilities/vector3.h"
 #include "Eigen/Sparse"
+#include "multigrid_operator.h"
 
 namespace LWS {
     class PolyCurve;
@@ -21,28 +22,6 @@ namespace LWS {
 
         PointOnCurve Next();
         PointOnCurve Prev();
-    };
-
-    struct IndexedMatrix {
-        Eigen::SparseMatrix<double> M;
-        int fineOffset;
-        int coarseOffset;
-    };
-
-    enum class MultigridMode {
-        MatrixOnly,
-        Barycenter,
-        EdgeLengths
-    };
-
-    class MultigridOperator {
-        public:
-        MultigridOperator();
-        int lowerSize;
-        int upperSize;
-        std::vector<IndexedMatrix> matrices;
-        Eigen::VectorXd mapUpward(Eigen::VectorXd v, MultigridMode mode);
-        Eigen::VectorXd mapDownward(Eigen::VectorXd v, MultigridMode mode);
     };
 
     class PolyCurve {

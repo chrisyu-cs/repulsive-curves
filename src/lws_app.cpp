@@ -9,11 +9,10 @@
 #include "utils.h"
 
 #include "polyscope/curve_network.h"
-#include "multigrid_hierarchy.h"
-
 #include "product/test_matrices.h"
-
 #include "spatial/tpe_kdtree.h"
+#include "multigrid_domain.h"
+#include "multigrid_hierarchy.h"
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
@@ -79,17 +78,20 @@ namespace LWS {
 
     if (ImGui::Button("Test coarsening")) {
       int nVerts = curves->NumVertices();
-      int logNumVerts = log2(nVerts) - 3;
+      int logNumVerts = log2(nVerts) - 4;
 
-      Eigen::MatrixXd A = TestMatrices::LaplacianSaddle1D(nVerts);
+      Eigen::MatrixXd A = TestMatrices::LaplacianDirichlet1D(nVerts);
       Eigen::VectorXd x;
-      x.setZero(nVerts + 1);
-      x(nVerts / 3) = -1;
-      x(3 * nVerts / 4) = 1;
+      x.setZero(nVerts);
+      x(0) = -1;
+      x(nVerts - 1) = 1;
 
       long multigridStart = Utils::currentTimeMilliseconds();
-      MultigridHierarchy* hierarchy = new MultigridHierarchy(curves, logNumVerts);
-      Eigen::VectorXd sol = hierarchy->VCycleSolve(x, 0.25, 3, 6, MultigridMode::Barycenter);
+
+      MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>* hierarchy =
+        new MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>(new PolyCurveDomain(curves), logNumVerts);
+
+      Eigen::VectorXd sol = hierarchy->VCycleSolve(x, 0.25, 3, 6, MultigridMode::MatrixOnly);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 
