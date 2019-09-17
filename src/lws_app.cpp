@@ -80,18 +80,48 @@ namespace LWS {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 4;
 
-      Eigen::MatrixXd A = TestMatrices::LaplacianDirichlet1D(nVerts);
+      // Eigen::MatrixXd A;
+      // A.setZero(nVerts + 1, nVerts + 1);
+      // SobolevCurves::SobolevPlusBarycenter(curves, 3, 6, A);
+      Eigen::MatrixXd A = TestMatrices::LaplacianSaddle1D(nVerts);
+
+      /*
+      Eigen::MatrixXd gradients;
+      gradients.setZero(nVerts, 3);
+      tpeSolver->FillGradientVectorDirect(gradients);
+      Eigen::VectorXd x = gradients.col(0);
+      */
+
       Eigen::VectorXd x;
       x.setZero(nVerts);
-      x(0) = -1;
-      x(nVerts - 1) = 1;
+      for (int i = 0; i < nVerts; i++) {
+        x(i) = sin(2 * M_PI * (double)i / nVerts);
+      }
+
+      double xMean = x.sum() / nVerts;
+      for (int i = 0; i < nVerts; i++) {
+        x(i) -= xMean;
+      }
+      std::cout << "Mean of rhs = " << x.sum() << std::endl;
+      
+      // Eigen::VectorXd x;
+      // x.setZero(nVerts);
+      // x(nVerts / 3) = 1;
+      // x(3 * nVerts / 4) = -1;
+
+      // Eigen::VectorXd x;
+      // x.setZero(nVerts);
+      // x(0) = 1;
 
       long multigridStart = Utils::currentTimeMilliseconds();
 
-      MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>* hierarchy =
-        new MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>(new PolyCurveDomain(curves), logNumVerts);
+      //MultigridHierarchy<Interval1DDomain, DenseMatrixMult>* hierarchy =
+      //  new MultigridHierarchy<Interval1DDomain, DenseMatrixMult>(new Interval1DDomain(curves->NumVertices()), logNumVerts);
 
-      Eigen::VectorXd sol = hierarchy->VCycleSolve(x, 0.25, 3, 6, MultigridMode::MatrixOnly);
+      MultigridHierarchy<Interval1DDomain, DenseMatrixMult>* hierarchy =
+        new MultigridHierarchy<Interval1DDomain, DenseMatrixMult>(new Interval1DDomain(nVerts), logNumVerts);
+
+      Eigen::VectorXd sol = hierarchy->VCycleSolve(x, 0.25, 3, 6, MultigridMode::Barycenter);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 
@@ -100,7 +130,9 @@ namespace LWS {
       std::cout << "Direct solve time = " << (solveEnd - multigridEnd) << " ms" << std::endl;
 
       Eigen::GMRES<Eigen::MatrixXd> gmresNormal(A);
-      Eigen::VectorXd gm_sol = gmresNormal.solve(x);
+      // Eigen::VectorXd gm_sol = gmresNormal.solve(x);
+      Eigen::VectorXd gm_sol(nVerts);
+      gm_sol.setZero();
       long iterEnd = Utils::currentTimeMilliseconds();
       std::cout << "GMRES iterations: " << gmresNormal.iterations() << "; error = " << gmresNormal.error() << std::endl;
       std::cout << "Iterative solve time = " << (iterEnd - solveEnd) << " ms" << std::endl;
@@ -113,9 +145,12 @@ namespace LWS {
       // std::cout << sols << std::endl;
 
       Eigen::VectorXd diff = sol - ref_sol;
-      Eigen::VectorXd diff_gm = sol - gm_sol;
+      Eigen::VectorXd diff_gm = gm_sol - ref_sol;
 
-      std::cout << "Reference norm = " << ref_sol.norm() << "; multigrid norm = " << sol.norm() << "; difference norm = " << diff.norm() << std::endl;
+      std::cout << "Reference norm = " << ref_sol.norm() << std::endl;
+      std::cout << "Multigrid norm = " << sol.norm() << std::endl;
+      std::cout << "GMRES norm = " << gm_sol.norm() << std::endl;
+      std::cout << "Difference norm = " << diff.norm() << std::endl;
       std::cout << "Multigrid error from ground truth = " << 100 * (diff.norm() / ref_sol.norm()) << " percent" << std::endl;
       std::cout << "GMRES error from ground truth = " << 100 * (diff_gm.norm() / ref_sol.norm()) << " percent" << std::endl;
 
@@ -175,8 +210,9 @@ namespace LWS {
 
     for (PolyCurve* loop : curves->curves) {
       int nVerts = loop->NumVertices();
-      for (int i = 0; i < nVerts; i++)
-      loop->positions[i] = loop->positions[i] - center;
+      for (int i = 0; i < nVerts; i++) {
+        loop->positions[i] = loop->positions[i] - center;
+      }
     }
 
     UpdateCurvePositions();
@@ -265,7 +301,7 @@ namespace LWS {
     polyscope::registerCurveNetwork(name, nodes, edges);
     polyscope::getCurveNetwork(name)->radius *= 5;
 
-    // centerLoopBarycenter(curves);
+    centerLoopBarycenter(curves);
   }
 
   void LWSApp::DisplayCyclicList(std::vector<Vector3> &positions, std::string name) {

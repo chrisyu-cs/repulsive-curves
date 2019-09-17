@@ -29,17 +29,17 @@ namespace LWS {
 
         for (int i = 0; i < rows; i++) {
             if (i == 0) {
-                M(i, i) = -1;
-                M(i, i + 1) = 1;
+                M(i, i) = 1;
+                M(i, i + 1) = -1;
             }
             else if (i == rows - 1) {
-                M(i, i) = -1;
-                M(i, i - 1) = 1;
+                M(i, i) = 1;
+                M(i, i - 1) = -1;
             }
             else {
-                M(i, i - 1) = 1;
-                M(i, i) = -2.001;
-                M(i, i + 1) = 1;
+                M(i, i - 1) = -1;
+                M(i, i) = 2.001;
+                M(i, i + 1) = -1;
             }
         }
 

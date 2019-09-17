@@ -18,7 +18,7 @@ namespace LWS {
             return static_cast<T const&>(*this).Coarsen(prolongOp, sparsifyOp);
         }
 
-        Product::MatrixReplacement<Mult> GetMultiplier() const {
+        Mult* GetMultiplier() const {
             return static_cast<T const&>(*this).GetMultiplier();
         }
 
@@ -35,13 +35,16 @@ namespace LWS {
         public:
         PolyCurveGroup* curves;
         DenseMatrixMult* multiplier;
-        WrappedMatrix hMatrix;
+        double alpha, beta;
         
-        PolyCurveDomain(PolyCurveGroup* c) {
+        PolyCurveDomain(PolyCurveGroup* c, double a, double b) {
             curves = c;
+            alpha = a;
+            beta = b;
             int nVerts = c->NumVertices();
-            multiplier = new DenseMatrixMult(TestMatrices::LaplacianDirichlet1D(nVerts));
-            hMatrix = WrappedMatrix(multiplier, nVerts);
+
+            Eigen::MatrixXd A = GetFullMatrix();
+            multiplier = new DenseMatrixMult(A);
         }
 
         ~PolyCurveDomain() {
@@ -50,16 +53,19 @@ namespace LWS {
 
         MultigridDomain<PolyCurveDomain, DenseMatrixMult>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
             PolyCurveGroup* coarsened = curves->Coarsen(prolongOp, sparsifyOp);
-            return new PolyCurveDomain(coarsened);
+            return new PolyCurveDomain(coarsened, alpha, beta);
         }
 
-        Product::MatrixReplacement<DenseMatrixMult> GetMultiplier() const {
-            return hMatrix;
+        DenseMatrixMult* GetMultiplier() const {
+            return multiplier;
         }
 
         Eigen::MatrixXd GetFullMatrix() const {
             int nVerts = curves->NumVertices();
-            return TestMatrices::LaplacianDirichlet1D(nVerts);
+            Eigen::MatrixXd A;
+            A.setZero(nVerts + 1, nVerts + 1);
+            SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
+            return A;
         }
 
         int NumVertices() const {
@@ -71,12 +77,10 @@ namespace LWS {
         public:
         int nVerts;
         DenseMatrixMult* multiplier;
-        WrappedMatrix hMatrix;
 
         Interval1DDomain(int n) {
             nVerts = n;
-            multiplier = new DenseMatrixMult(TestMatrices::LaplacianDirichlet1D(nVerts));
-            hMatrix = WrappedMatrix(multiplier, nVerts);
+            multiplier = new DenseMatrixMult(TestMatrices::LaplacianSaddle1D(nVerts));
         }
 
         ~Interval1DDomain() {
@@ -138,12 +142,12 @@ namespace LWS {
             return new Interval1DDomain(sparseVerts);
         }
 
-        Product::MatrixReplacement<DenseMatrixMult> GetMultiplier() const {
-            return hMatrix;
+        DenseMatrixMult* GetMultiplier() const {
+            return multiplier;
         }
 
         Eigen::MatrixXd GetFullMatrix() const {
-            return TestMatrices::LaplacianDirichlet1D(nVerts);
+            return TestMatrices::LaplacianSaddle1D(nVerts);
         }
         
         int NumVertices() const {

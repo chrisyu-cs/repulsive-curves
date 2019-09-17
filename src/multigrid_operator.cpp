@@ -57,7 +57,7 @@ namespace LWS {
         }
 
         if (mode == MultigridMode::Barycenter) {
-            out(lowerSize) = v(upperSize);
+            out(lowerSize) = 0;
         }
 
         return out;

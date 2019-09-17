@@ -14,7 +14,7 @@ namespace LWS {
 
         MultigridHierarchy(MultigridDomain<T, Mult>* topLevel, size_t numLevels) {
             levels.push_back(topLevel);
-            std::cout << "Constructing hierarchy..." << std::endl;
+            std::cout << "Constructing hierarchy with " << numLevels << " levels..." << std::endl;
 
             while (levels.size() < numLevels) {
                 AddNextLevel();
@@ -46,6 +46,13 @@ namespace LWS {
             int numLevels = levels.size();
             std::vector<Eigen::VectorXd> residuals(numLevels);
             std::vector<Eigen::VectorXd> solutions(numLevels);
+            std::vector<WrappedMatrix> hMatrices(numLevels);
+
+            for (int i = 0; i < numLevels; i++) {
+                int levelNVerts = levels[i]->NumVertices();
+                if (mode == MultigridMode::Barycenter) levelNVerts++;
+                hMatrices[i] = WrappedMatrix(levels[i]->GetMultiplier(), levelNVerts);
+            }
 
             residuals[0] = b;
             bool done = false;
@@ -55,12 +62,15 @@ namespace LWS {
             Eigen::MatrixXd coarse_A;
             coarse_A.setZero();
 
+            int iter = 0;
+
             while (!done) {
                 // Propagate residuals downward
                 for (int i = 0; i < numLevels - 1; i++) {
                     //Eigen::GMRES<HMatrix, Eigen::IdentityPreconditioner> gmres;
-                    Eigen::GMRES<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> gmres;
-                    gmres.compute(levels[i]->GetMultiplier());
+                    Eigen::BiCGSTAB<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> gmres;
+                    // Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> gmres;
+                    gmres.compute(hMatrices[i]);
 
                     gmres.setMaxIterations(30);
                     // Run the smoother on this level to get some intermediate solution
@@ -68,11 +78,16 @@ namespace LWS {
                         solutions[i] = gmres.solve(residuals[i]);
                     }
                     else {
+                        Eigen::VectorXd resid_i = residuals[i] - hMatrices[i] * solutions[i];
+                        // std::cout << iter++ << ", " << i << ", " << resid_i.lpNorm<Eigen::Infinity>() << std::endl;
                         solutions[i] = gmres.solveWithGuess(residuals[i], solutions[i]);
                     }
                     // On the next level, the right-hand side becomes the restricted    
                     // residual from this level.
-                    residuals[i + 1] = prolongationOps[i].mapDownward(residuals[i] - levels[i]->GetMultiplier() * solutions[i], mode);
+                    Eigen::VectorXd resid_i = residuals[i] - hMatrices[i] * solutions[i];
+                    // std::cout << iter++ << ", " << i << ", " << resid_i.lpNorm<Eigen::Infinity>() << std::endl;
+                    residuals[i + 1] = prolongationOps[i].mapDownward(resid_i, mode);
+
                 }
 
                 // Assemble full operator on sparsest curve and solve normally
@@ -80,27 +95,38 @@ namespace LWS {
                 coarse_A = levels[numLevels - 1]->GetFullMatrix();
                 solutions[numLevels - 1] = coarse_A.partialPivLu().solve(residuals[numLevels - 1]);
 
+                Eigen::VectorXd resid_bottom = residuals[numLevels - 1] - hMatrices[numLevels - 1] * solutions[numLevels - 1];
+                // std::cout << iter++ << ", " << (numLevels - 1) << ", " << resid_bottom.lpNorm<Eigen::Infinity>() << std::endl;
+
                 // Propagate solutions upward
                 for (int i = numLevels - 2; i >= 0; i--) {
                     //Eigen::GMRES<HMatrix, Eigen::IdentityPreconditioner> gmres;
-                    Eigen::GMRES<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> gmres;
-                    gmres.compute(levels[i]->GetMultiplier());
+                    Eigen::BiCGSTAB<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> gmres;
+                    // Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> gmres;
+                    gmres.compute(hMatrices[i]);
                     gmres.setMaxIterations(30);
                     // Compute the new initial guess -- old solution from this level, plus
                     // new solution from prolongation operator
                     Eigen::VectorXd guess = solutions[i] + prolongationOps[i].mapUpward(solutions[i + 1], mode);
+
+                    Eigen::VectorXd resid_before = residuals[i] - hMatrices[i] * guess;
+                    // std::cout << iter++ << ", " << i << ", " << resid_before.lpNorm<Eigen::Infinity>() << std::endl;
+
                     solutions[i] = gmres.solveWithGuess(residuals[i], guess);
+
+                    Eigen::VectorXd resid_i = residuals[i] - hMatrices[i] * solutions[i];
+                    // std::cout << iter++ << ", " << i << ", " << resid_i.lpNorm<Eigen::Infinity>() << std::endl;
                 }
 
-                Eigen::VectorXd overallResidual = b - levels[0]->GetMultiplier() * solutions[0];
+                Eigen::VectorXd overallResidual = b - hMatrices[0] * solutions[0];
                 double residNorm = overallResidual.lpNorm<Eigen::Infinity>();
 
                 numIters++;
                 done = (residNorm < 1e-5 || numIters >= 100);
-                std::cout << "[Iteration " << numIters << "] residual = " << residNorm << std::endl;
+                std::cerr << "[Iteration " << numIters << "] residual = " << residNorm << "     \r" << std::flush;
             }
 
-            std::cout << "Did " << numIters << " iterations" << std::endl; 
+            std::cout << "\nDid " << numIters << " iterations" << std::endl; 
             return solutions[0];
         }
 
