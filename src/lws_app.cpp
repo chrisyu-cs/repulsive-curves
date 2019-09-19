@@ -10,7 +10,7 @@
 
 #include "polyscope/curve_network.h"
 #include "product/test_matrices.h"
-#include "spatial/tpe_kdtree.h"
+#include "spatial/tpe_bvh.h"
 #include "multigrid_domain.h"
 #include "multigrid_hierarchy.h"
 
@@ -59,6 +59,16 @@ namespace LWS {
     delete bvh;
   }
 
+  void printMatrix(Eigen::MatrixXd &G, int precision) {
+      std::cout.precision(precision);
+      for (int i = 0; i < G.rows(); i++) {
+        for (int j = 0; j < G.cols(); j++) {
+          std::cout << std::fixed << G(i, j) << ((j == G.cols() - 1) ? "" : ", ");
+        }
+        std::cout << std::endl;
+      }
+  }
+
   void LWSApp::customWindow() {
 
     ImGuiIO& io = ImGui::GetIO();
@@ -76,33 +86,36 @@ namespace LWS {
       tpeSolver->CompareMatrixVectorProduct();
     }
 
+    if (ImGui::Button("Print Sobolev gram")) {
+      int nVerts = curves->NumVertices();
+      Eigen::MatrixXd G;
+      G.setZero(nVerts, nVerts);
+      SobolevCurves::SobolevLengthScaled(curves, 3, 6, G, 0.1);
+      printMatrix(G, 17);
+    }
+
     if (ImGui::Button("Test coarsening")) {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 4;
 
-      // Eigen::MatrixXd A;
-      // A.setZero(nVerts + 1, nVerts + 1);
-      // SobolevCurves::SobolevPlusBarycenter(curves, 3, 6, A);
-      Eigen::MatrixXd A = TestMatrices::LaplacianSaddle1D(nVerts);
-
-      /*
+      LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
       Eigen::MatrixXd gradients;
       gradients.setZero(nVerts, 3);
-      tpeSolver->FillGradientVectorDirect(gradients);
+      tpeSolver->FillGradientVectorBH(tree, gradients);
       Eigen::VectorXd x = gradients.col(0);
-      */
+      delete tree;
 
-      Eigen::VectorXd x;
-      x.setZero(nVerts);
-      for (int i = 0; i < nVerts; i++) {
-        x(i) = sin(2 * M_PI * (double)i / nVerts);
-      }
+      // Eigen::VectorXd x;
+      // x.setZero(nVerts);
+      // for (int i = 0; i < nVerts; i++) {
+      //   x(i) = sin(2 * M_PI * (double)i / nVerts);
+      // }
 
-      double xMean = x.sum() / nVerts;
-      for (int i = 0; i < nVerts; i++) {
-        x(i) -= xMean;
-      }
-      std::cout << "Mean of rhs = " << x.sum() << std::endl;
+      // double xMean = x.sum() / nVerts;
+      // for (int i = 0; i < nVerts; i++) {
+      //   x(i) -= xMean;
+      // }
+      // std::cout << "Mean of rhs = " << x.sum() << std::endl;
       
       // Eigen::VectorXd x;
       // x.setZero(nVerts);
@@ -113,15 +126,24 @@ namespace LWS {
       // x.setZero(nVerts);
       // x(0) = 1;
 
+
+      long matrixStart = Utils::currentTimeMilliseconds();
+      // Interval1DDomain* domain = new Interval1DDomain(nVerts);
+      PolyCurveDomain* domain = new PolyCurveDomain(curves, 3, 6);
+      Eigen::MatrixXd A = domain->GetFullMatrix();
+      // printMatrix(A);
+
       long multigridStart = Utils::currentTimeMilliseconds();
 
-      //MultigridHierarchy<Interval1DDomain, DenseMatrixMult>* hierarchy =
-      //  new MultigridHierarchy<Interval1DDomain, DenseMatrixMult>(new Interval1DDomain(curves->NumVertices()), logNumVerts);
+      std::cout << "Matrix assembly = " << (multigridStart - matrixStart) << " ms" << std::endl;
 
-      MultigridHierarchy<Interval1DDomain, DenseMatrixMult>* hierarchy =
-        new MultigridHierarchy<Interval1DDomain, DenseMatrixMult>(new Interval1DDomain(nVerts), logNumVerts);
+      // MultigridHierarchy<Interval1DDomain, DenseMatrixMult>* hierarchy =
+      //  new MultigridHierarchy<Interval1DDomain, DenseMatrixMult>(domain, logNumVerts);
 
-      Eigen::VectorXd sol = hierarchy->VCycleSolve(x, 0.25, 3, 6, MultigridMode::Barycenter);
+      MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>* hierarchy =
+        new MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>(domain, logNumVerts);
+
+      Eigen::VectorXd sol = hierarchy->VCycleSolve(x, MultigridMode::MatrixOnly);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 
@@ -129,30 +151,29 @@ namespace LWS {
       long solveEnd = Utils::currentTimeMilliseconds();
       std::cout << "Direct solve time = " << (solveEnd - multigridEnd) << " ms" << std::endl;
 
-      Eigen::GMRES<Eigen::MatrixXd> gmresNormal(A);
-      // Eigen::VectorXd gm_sol = gmresNormal.solve(x);
-      Eigen::VectorXd gm_sol(nVerts);
-      gm_sol.setZero();
-      long iterEnd = Utils::currentTimeMilliseconds();
-      std::cout << "GMRES iterations: " << gmresNormal.iterations() << "; error = " << gmresNormal.error() << std::endl;
-      std::cout << "Iterative solve time = " << (iterEnd - solveEnd) << " ms" << std::endl;
-
-      Eigen::MatrixXd sols(sol.rows(), 3);
+      Eigen::MatrixXd sols(sol.rows(), 2);
       sols.col(0) = sol;
       sols.col(1) = ref_sol;
-      sols.col(2) = gm_sol;
 
-      // std::cout << sols << std::endl;
+      // Eigen::BiCGSTAB<Eigen::MatrixXd, Eigen::IdentityPreconditioner> bicg(A);
+      // bicg.setMaxIterations(10);
+      // Eigen::VectorXd bicg_sol = bicg.solve(x);
+      
+      // std::cout << "Normal BiCGStab finished in " << bicg.iterations() << std::endl;
+      // Eigen::VectorXd bicg_resid = (x - A * bicg_sol);
+      // std::cout << "BiCGStab residual = " << bicg_resid.lpNorm<Eigen::Infinity>() << std::endl;
+      // std::cout << "BiCGStab error = " << (100 * (bicg_sol - ref_sol).norm() / ref_sol.norm()) << " percent" << std::endl;
+
+      for (int i = 0; i < sol.rows(); i++) {
+        // std::cout << i << ", " << sol(i) << ", " << ref_sol(i) << std::endl;
+      }
 
       Eigen::VectorXd diff = sol - ref_sol;
-      Eigen::VectorXd diff_gm = gm_sol - ref_sol;
 
       std::cout << "Reference norm = " << ref_sol.norm() << std::endl;
       std::cout << "Multigrid norm = " << sol.norm() << std::endl;
-      std::cout << "GMRES norm = " << gm_sol.norm() << std::endl;
       std::cout << "Difference norm = " << diff.norm() << std::endl;
       std::cout << "Multigrid error from ground truth = " << 100 * (diff.norm() / ref_sol.norm()) << " percent" << std::endl;
-      std::cout << "GMRES error from ground truth = " << 100 * (diff_gm.norm() / ref_sol.norm()) << " percent" << std::endl;
 
       double finalResidual = (x - A * sol).lpNorm<Eigen::Infinity>();
 

@@ -62,9 +62,10 @@ namespace LWS {
 
         Eigen::MatrixXd GetFullMatrix() const {
             int nVerts = curves->NumVertices();
-            Eigen::MatrixXd A;
-            A.setZero(nVerts + 1, nVerts + 1);
-            SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
+            // Eigen::MatrixXd A = TestMatrices::CurveLaplacian(nVerts);
+            Eigen::MatrixXd A(nVerts, nVerts);
+            A.setZero();
+            SobolevCurves::SobolevLengthScaled(curves, alpha, beta, A, 0.01);
             return A;
         }
 
@@ -80,56 +81,54 @@ namespace LWS {
 
         Interval1DDomain(int n) {
             nVerts = n;
-            multiplier = new DenseMatrixMult(TestMatrices::LaplacianSaddle1D(nVerts));
+            multiplier = new DenseMatrixMult(GetFullMatrix());
         }
 
         ~Interval1DDomain() {
             delete multiplier;
         }
 
-        MultigridDomain<Interval1DDomain, DenseMatrixMult>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
+        DenseMatrixMult* GetMultiplier() const {
+            return multiplier;
+        }
+
+        Eigen::MatrixXd GetFullMatrix() const {
+            return TestMatrices::LaplacianNeumann1D(nVerts);
+        }
+
+        MultigridDomain<Interval1DDomain, DenseMatrixMult>* Coarsen(MultigridOperator &prolongOp,
+                                                                    MultigridOperator &restrictOp) const {
             
             bool isOdd = (nVerts % 2) == 1;
             int sparseVerts = nVerts / 2 + 1;
             
             std::vector<Eigen::Triplet<double>> triplets;
+            std::vector<Eigen::Triplet<double>> coarsenTriplets;
 
-            if (isOdd) {
-                for (int i = 0; i < sparseVerts; i++) {
-                    if (i == 0) {
-                        triplets.push_back(Eigen::Triplet<double>(0, i, 1));
-                        triplets.push_back(Eigen::Triplet<double>(1, i, 0.5));
-                    }
-                    else if (i == sparseVerts - 1) {
-                        triplets.push_back(Eigen::Triplet<double>(nVerts - 1, i, 1));
-                        triplets.push_back(Eigen::Triplet<double>(nVerts - 2, i, 0.5));
-                    }
-                    else {
-                        int oldI = 2 * i;
-                        triplets.push_back(Eigen::Triplet<double>(oldI - 1, i, 0.5));
-                        triplets.push_back(Eigen::Triplet<double>(oldI, i, 1));
-                        triplets.push_back(Eigen::Triplet<double>(oldI + 1, i, 0.5));
-                    }
+            for (int i = 0; i < nVerts; i++) {
+                if (i == 0) {
+                    triplets.push_back(Eigen::Triplet<double>(0, 0, 1));
+                    coarsenTriplets.push_back(Eigen::Triplet<double>(0, 0, 1));
                 }
-            }
-            else {
-                for (int i = 0; i < sparseVerts; i++) {
-                    if (i == 0) {
-                        triplets.push_back(Eigen::Triplet<double>(0, i, 1));
-                        triplets.push_back(Eigen::Triplet<double>(1, i, 0.5));
-                    }
-                    else if (i == sparseVerts - 2) {
-                        triplets.push_back(Eigen::Triplet<double>(nVerts - 3, i, 0.5));
-                        triplets.push_back(Eigen::Triplet<double>(nVerts - 2, i, 1));
-                    }
-                    else if (i == sparseVerts - 1) {
-                        triplets.push_back(Eigen::Triplet<double>(nVerts - 1, i, 1));
+                else if (i == nVerts - 1) {
+                    triplets.push_back(Eigen::Triplet<double>(i, sparseVerts - 1, 1));
+                    coarsenTriplets.push_back(Eigen::Triplet<double>(i, sparseVerts - 1, 1));
+                }
+                else {
+                    int oldI = i / 2;
+                    if (i % 2 == 0) {
+                        triplets.push_back(Eigen::Triplet<double>(i, oldI - 1, 0.25));
+                        triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.5));
+                        triplets.push_back(Eigen::Triplet<double>(i, oldI + 1, 0.25));
+
+                        coarsenTriplets.push_back(Eigen::Triplet<double>(i, oldI, 0.5));
                     }
                     else {
-                        int oldI = 2 * i;
-                        triplets.push_back(Eigen::Triplet<double>(oldI - 1, i, 0.5));
-                        triplets.push_back(Eigen::Triplet<double>(oldI, i, 1));
-                        triplets.push_back(Eigen::Triplet<double>(oldI + 1, i, 0.5));
+                        triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.5));
+                        triplets.push_back(Eigen::Triplet<double>(i, oldI + 1, 0.5));
+
+                        coarsenTriplets.push_back(Eigen::Triplet<double>(i, oldI, 0.25));
+                        coarsenTriplets.push_back(Eigen::Triplet<double>(i, oldI + 1, 0.25));
                     }
                 }
             }
@@ -139,15 +138,12 @@ namespace LWS {
             prolongMatrix.setFromTriplets(triplets.begin(), triplets.end());
             prolongOp.matrices.push_back(IndexedMatrix{prolongMatrix, 0, 0});
 
+            Eigen::SparseMatrix<double> restrictMatrix;
+            restrictMatrix.resize(nVerts, sparseVerts);
+            restrictMatrix.setFromTriplets(coarsenTriplets.begin(), coarsenTriplets.end());
+            restrictOp.matrices.push_back(IndexedMatrix{restrictMatrix, 0, 0});
+
             return new Interval1DDomain(sparseVerts);
-        }
-
-        DenseMatrixMult* GetMultiplier() const {
-            return multiplier;
-        }
-
-        Eigen::MatrixXd GetFullMatrix() const {
-            return TestMatrices::LaplacianSaddle1D(nVerts);
         }
         
         int NumVertices() const {

@@ -231,7 +231,7 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::SobolevGramMatrix(PolyCurveGroup* curves, double alpha, double beta, Eigen::MatrixXd &A) {
+    void SobolevCurves::SobolevGramMatrix(PolyCurveGroup* curves, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
         double out[4][4];
         int nVerts = curves->NumVertices();
 
@@ -248,9 +248,24 @@ namespace LWS {
                 AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
                 // AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
             }
+            A(i, i) += diagEps * pc_i.DualLength();
         }
     }
 
+    void SobolevCurves::SobolevLengthScaled(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
+        int nVerts = loop->NumVertices();
+        SobolevCurves::SobolevGramMatrix(loop, alpha, beta, A);
+        double p = beta - alpha;
+
+        for (int i = 0; i < nVerts; i++) {
+            PointOnCurve pc_i = loop->GetCurvePoint(i);
+            double dLen = pc_i.DualLength();
+            double massWt = pow(dLen, p);
+            A.row(i) *= massWt;
+
+            A(i, i) += diagEps;
+        }
+    }
 
     void SobolevCurves::SobolevPlusBarycenter(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
         int nVerts = loop->NumVertices();

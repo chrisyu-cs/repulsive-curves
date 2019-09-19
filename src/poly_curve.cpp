@@ -207,23 +207,14 @@ namespace LWS {
 
         std::vector<Eigen::Triplet<double>> triplets;
 
-        int i1 = 0, oldI1 = 0, endptIndex1 = 0;
-        int i2 = 0, oldI2 = 0, endptIndex2 = 0;
-
         for (int i = 0; i < coarseVerts; i++) {
             int oldI = 2 * i;
             if (isOddNumber && i == 0) {
-                i1 = i;
-                oldI1 = oldI;
-                endptIndex1 = triplets.size();
                 triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.75));
                 triplets.push_back(Eigen::Triplet<double>(i, oldI + 1, 0.25));
             }
             else if (isOddNumber && i == coarseVerts - 1) {
                 triplets.push_back(Eigen::Triplet<double>(i, oldI - 1, 0.25));
-                i2 = i;
-                oldI2 = oldI;
-                endptIndex2 = triplets.size();
                 triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.75));
             }
             else {
@@ -250,14 +241,24 @@ namespace LWS {
             p->positions[i] = SelectRow(coarsePosMat, i);
         }
 
-        if (isOddNumber) {
-            triplets[endptIndex1] = Eigen::Triplet<double>(i1, oldI1, 0.5);
-            triplets[endptIndex2] = Eigen::Triplet<double>(i2, oldI2, 0.5);
+        // Now assemble the corresponding prolongation operator
+        triplets.clear();
+
+        for (int i = 0; i < nVerts; i++) {
+            int oldI = i / 2;
+            if (i % 2 == 0) {
+                triplets.push_back(Eigen::Triplet<double>(i, (oldI - 1 + coarseVerts) % coarseVerts, 0.25));
+                triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.5));
+                triplets.push_back(Eigen::Triplet<double>(i, (oldI + 1) % coarseVerts, 0.25));
+            }
+            else {
+                triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.5));
+                triplets.push_back(Eigen::Triplet<double>(i, (oldI + 1) % coarseVerts, 0.5));
+            }
         }
 
-        prolongOp.resize(coarseVerts, nVerts);
+        prolongOp.resize(nVerts, coarseVerts);
         prolongOp.setFromTriplets(triplets.begin(), triplets.end());
-        prolongOp = prolongOp.transpose() * 2;
 
         return p;
     }

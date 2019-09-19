@@ -102,7 +102,8 @@ namespace LWS {
             deriv_B = -beta * pow(norm(disp), beta - 1) * unit_disp;
         }
         // Quotient rule for A / B
-        return (deriv_A * B - A * deriv_B) / (B * B);
+        Vector3 total = (deriv_A * B - A * deriv_B) / (B * B);
+        return total;
     }
     
     Vector3 TPESC::tpe_grad_Kf(TangentMassPoint i, PointOnCurve j, double alpha, double beta, PointOnCurve wrt) {
@@ -187,6 +188,8 @@ namespace LWS {
         // Evaluate the product rule for dx*dy
         Vector3 prod_rule = grad_lx * l_y + l_x * grad_ly;
         // Evaluate the product rule for k dx dy
+        Vector3 total = grad_Kf * l_x * l_y + Kf * prod_rule;
+
         return grad_Kf * l_x * l_y + Kf * prod_rule;
     }
 
@@ -266,6 +269,10 @@ namespace LWS {
         Vector3 normal_proj = disp - dot(disp, T_i) * T_i;
         double proj_len = norm(normal_proj);
 
+        // If the displacement is actually exactly perpendicular to the tangent,
+        // then the contribution is exactly 0.
+        if (proj_len < 1e-12) return Vector3{0, 0, 0};
+
         // Derivative of |f(x) - ...|^alpha = alpha * |f(x) - ...|^(alpha - 1)
         double alpha_deriv = alpha * pow(proj_len, alpha - 1);
         // Normalized vector of projection onto normal plane
@@ -288,7 +295,8 @@ namespace LWS {
         VertJacobian deriv_T_inner = grad_tangent_proj(i, j, wrt);
         VertJacobian deriv_N_proj = deriv_disp - deriv_T_inner;
 
-        return alpha_deriv * deriv_N_proj.LeftMultiply(proj_normalized);
+        Vector3 total = alpha_deriv * deriv_N_proj.LeftMultiply(proj_normalized);
+        return total;
     }
 
     Vector3 TPESC::grad_norm_proj_alpha(TangentMassPoint i, PointOnCurve j, double alpha, double beta, PointOnCurve wrt) {

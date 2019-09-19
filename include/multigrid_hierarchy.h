@@ -10,7 +10,7 @@ namespace LWS {
         public:
         std::vector<MultigridDomain<T, Mult>*> levels;
         std::vector<MultigridOperator> prolongationOps;
-        std::vector<MultigridOperator> sparsifyOps;
+        std::vector<MultigridOperator> restrictionOps;
 
         MultigridHierarchy(MultigridDomain<T, Mult>* topLevel, size_t numLevels) {
             levels.push_back(topLevel);
@@ -29,20 +29,42 @@ namespace LWS {
 
         void AddNextLevel() {
             MultigridDomain<T, Mult>* lastLevel = levels[levels.size() - 1];
-            MultigridOperator prolongOp, sparsifyOp;
-            MultigridDomain<T, Mult>* nextLevel = lastLevel->Coarsen(prolongOp, sparsifyOp);
+            MultigridOperator prolongOp, restrictOp;
+            MultigridDomain<T, Mult>* nextLevel = lastLevel->Coarsen(prolongOp, restrictOp);
             prolongOp.lowerSize = nextLevel->NumVertices();
             prolongOp.upperSize = lastLevel->NumVertices();
+            restrictOp.lowerSize = prolongOp.lowerSize;
+            restrictOp.upperSize = prolongOp.upperSize;
 
             std::cout << "Added multigrid level with " << nextLevel->NumVertices() << std::endl;
 
             prolongationOps.push_back(prolongOp);
-            sparsifyOps.push_back(sparsifyOp);
+            restrictionOps.push_back(restrictOp);
             levels.push_back(nextLevel);
         }
 
+        Eigen::VectorXd VCycleInitGuess(Eigen::VectorXd b, MultigridMode mode) {
+            int numLevels = levels.size();
+            Eigen::VectorXd coarseB = b;
+
+            // Propagate RHS downward
+            for (int i = 0; i < numLevels - 1; i++) {
+                coarseB = restrictionOps[i].mapDownward(coarseB, mode);
+            }
+
+            Eigen::MatrixXd coarse_A = levels[numLevels - 1]->GetFullMatrix();
+            Eigen::VectorXd sol = coarse_A.partialPivLu().solve(coarseB);
+
+            // Propagate solution upward
+            for (int i = numLevels - 2; i >= 0; i--) {
+                sol = prolongationOps[i].mapUpward(sol, mode);
+            }
+
+            return sol;
+    }
+
         // Solve Gx = b, where G is the Sobolev Gram matrix of the top-level curve.
-        Eigen::VectorXd VCycleSolve(Eigen::VectorXd b, double sepCoeff, double alpha, double beta, MultigridMode mode) {
+        Eigen::VectorXd VCycleSolve(Eigen::VectorXd b, MultigridMode mode) {
             int numLevels = levels.size();
             std::vector<Eigen::VectorXd> residuals(numLevels);
             std::vector<Eigen::VectorXd> solutions(numLevels);
@@ -64,6 +86,9 @@ namespace LWS {
 
             int iter = 0;
 
+            Eigen::VectorXd initGuess = VCycleInitGuess(b, mode);
+            // std::cout << "Initial guess: " << initGuess.transpose() << std::endl;
+
             while (!done) {
                 // Propagate residuals downward
                 for (int i = 0; i < numLevels - 1; i++) {
@@ -72,13 +97,19 @@ namespace LWS {
                     // Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> gmres;
                     gmres.compute(hMatrices[i]);
 
-                    gmres.setMaxIterations(30);
+                    gmres.setMaxIterations(24);
                     // Run the smoother on this level to get some intermediate solution
                     if (numIters == 0) {
-                        solutions[i] = gmres.solve(residuals[i]);
+                        if (i == 0) {
+                            solutions[i] = gmres.solveWithGuess(residuals[i], initGuess);
+                        }
+                        else {
+                            solutions[i] = gmres.solve(residuals[i]);
+                        }
+                        // solutions[i] = gmres.solve(residuals[i]);
                     }
                     else {
-                        Eigen::VectorXd resid_i = residuals[i] - hMatrices[i] * solutions[i];
+                        // Eigen::VectorXd resid_i = residuals[i] - hMatrices[i] * solutions[i];
                         // std::cout << iter++ << ", " << i << ", " << resid_i.lpNorm<Eigen::Infinity>() << std::endl;
                         solutions[i] = gmres.solveWithGuess(residuals[i], solutions[i]);
                     }
@@ -87,7 +118,6 @@ namespace LWS {
                     Eigen::VectorXd resid_i = residuals[i] - hMatrices[i] * solutions[i];
                     // std::cout << iter++ << ", " << i << ", " << resid_i.lpNorm<Eigen::Infinity>() << std::endl;
                     residuals[i + 1] = prolongationOps[i].mapDownward(resid_i, mode);
-
                 }
 
                 // Assemble full operator on sparsest curve and solve normally
@@ -104,7 +134,7 @@ namespace LWS {
                     Eigen::BiCGSTAB<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> gmres;
                     // Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> gmres;
                     gmres.compute(hMatrices[i]);
-                    gmres.setMaxIterations(30);
+                    gmres.setMaxIterations(24);
                     // Compute the new initial guess -- old solution from this level, plus
                     // new solution from prolongation operator
                     Eigen::VectorXd guess = solutions[i] + prolongationOps[i].mapUpward(solutions[i + 1], mode);
