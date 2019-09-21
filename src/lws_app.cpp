@@ -14,6 +14,8 @@
 #include "multigrid_domain.h"
 #include "multigrid_hierarchy.h"
 
+#include <random>
+
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
 using std::cerr;
@@ -60,15 +62,52 @@ namespace LWS {
   }
 
   void printMatrix(Eigen::MatrixXd &G, int precision) {
-      std::cout.precision(precision);
-      for (int i = 0; i < G.rows(); i++) {
-        for (int j = 0; j < G.cols(); j++) {
-          std::cout << std::fixed << G(i, j) << ((j == G.cols() - 1) ? "" : ", ");
-        }
-        std::cout << std::endl;
+    std::cout.precision(precision);
+    for (int i = 0; i < G.rows(); i++) {
+      for (int j = 0; j < G.cols(); j++) {
+        if (G(i,j) == 0) std::cout.precision(1);
+        else std::cout.precision(precision);
+        std::cout << std::fixed << G(i, j) << ((j == G.cols() - 1) ? "" : ", ");
       }
+      std::cout << std::endl;
+    }
   }
 
+  void writeSparseMatrix(std::ofstream &file, Eigen::MatrixXd &G, int precision) {
+    file.precision(precision);
+    std::vector<int> rows;
+    std::vector<int> cols;
+    std::vector<double> values;
+
+    for (int i = 0; i < G.rows(); i++) {
+      for (int j = 0; j < G.cols(); j++) {
+        if (G(i,j) != 0) {
+          rows.push_back(i);
+          cols.push_back(j);
+          values.push_back(G(i, j));
+        }
+      }
+    }
+
+    for (size_t i = 0; i < rows.size(); i++) {
+      file << rows[i];
+      if (i < rows.size() - 1) file << ", ";
+    }
+    file << std::endl;
+
+    for (size_t i = 0; i < cols.size(); i++) {
+      file << cols[i];
+      if (i < cols.size() - 1) file << ", ";
+    }
+    file << std::endl;
+
+    for (size_t i = 0; i < values.size(); i++) {
+      file << values[i];
+      if (i < values.size() - 1) file << ", ";
+    }
+    file << std::endl;
+  }
+  
   void LWSApp::customWindow() {
 
     ImGuiIO& io = ImGui::GetIO();
@@ -98,12 +137,22 @@ namespace LWS {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 4;
 
-      LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
-      Eigen::MatrixXd gradients;
-      gradients.setZero(nVerts, 3);
-      tpeSolver->FillGradientVectorBH(tree, gradients);
-      Eigen::VectorXd x = gradients.col(0);
-      delete tree;
+      // LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
+      // Eigen::MatrixXd gradients;
+      // gradients.setZero(nVerts, 3);
+      // tpeSolver->FillGradientVectorBH(tree, gradients);
+      // Eigen::VectorXd x = gradients.col(0);
+      // delete tree;
+
+      std::uniform_real_distribution<double> unif(-1, 1);
+      std::default_random_engine re;
+      re.seed(42);
+
+      Eigen::VectorXd x(nVerts);
+      for (int i = 0; i < nVerts; i++) {
+        
+        x(i) = unif(re);
+      }
 
       // Eigen::VectorXd x;
       // x.setZero(nVerts);
@@ -126,12 +175,12 @@ namespace LWS {
       // x.setZero(nVerts);
       // x(0) = 1;
 
-
       long matrixStart = Utils::currentTimeMilliseconds();
       // Interval1DDomain* domain = new Interval1DDomain(nVerts);
       PolyCurveDomain* domain = new PolyCurveDomain(curves, 3, 6);
       Eigen::MatrixXd A = domain->GetFullMatrix();
-      // printMatrix(A);
+
+      // printMatrix(A, 10);
 
       long multigridStart = Utils::currentTimeMilliseconds();
 
@@ -143,6 +192,24 @@ namespace LWS {
       MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>* hierarchy =
         new MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>(domain, logNumVerts);
 
+      // for (size_t i = 0; i < hierarchy->levels.size(); i++) {
+      //   Eigen::MatrixXd M = hierarchy->levels[i]->GetFullMatrix();
+      //   std::string fname = "laplacian" + std::to_string(M.rows()) + ".csv";
+      //   std::ofstream Mfile(fname);
+      //   writeSparseMatrix(Mfile, M, 10);
+      //   Mfile.close();
+      //   std::cout << "Wrote to " << fname << std::endl;
+      // }
+
+      // for (size_t i = 0; i < hierarchy->prolongationOps.size(); i++) {
+      //   Eigen::MatrixXd M = hierarchy->prolongationOps[i].matrices[0].M.toDense();
+      //   std::string fname = "prolongation_" + std::to_string(M.rows()) + "x" + std::to_string(M.cols()) + ".csv";
+      //   std::ofstream Mfile(fname);
+      //   writeSparseMatrix(Mfile, M, 10);
+      //   Mfile.close();
+      //   std::cout << "Wrote to " << fname << std::endl;
+      // }
+
       Eigen::VectorXd sol = hierarchy->VCycleSolve(x, MultigridMode::MatrixOnly);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
@@ -151,9 +218,10 @@ namespace LWS {
       long solveEnd = Utils::currentTimeMilliseconds();
       std::cout << "Direct solve time = " << (solveEnd - multigridEnd) << " ms" << std::endl;
 
-      Eigen::MatrixXd sols(sol.rows(), 2);
-      sols.col(0) = sol;
-      sols.col(1) = ref_sol;
+      Eigen::MatrixXd sols(sol.rows(), 3);
+      sols.col(0) = x;
+      sols.col(1) = sol;
+      sols.col(2) = ref_sol.block(0, 0, nVerts, 1);
 
       // Eigen::BiCGSTAB<Eigen::MatrixXd, Eigen::IdentityPreconditioner> bicg(A);
       // bicg.setMaxIterations(10);
@@ -165,7 +233,7 @@ namespace LWS {
       // std::cout << "BiCGStab error = " << (100 * (bicg_sol - ref_sol).norm() / ref_sol.norm()) << " percent" << std::endl;
 
       for (int i = 0; i < sol.rows(); i++) {
-        // std::cout << i << ", " << sol(i) << ", " << ref_sol(i) << std::endl;
+        // std::cout << i << ", " << x(i) << ", " << sol(i) << ", " << ref_sol(i) << std::endl;
       }
 
       Eigen::VectorXd diff = sol - ref_sol;
@@ -179,9 +247,32 @@ namespace LWS {
 
       double dot = sol.normalized().dot(ref_sol.normalized());
       std::cout << "Dot product between directions = " << dot << std::endl;
-      std::cout << "Multigrid residual = " << finalResidual << std::endl;
+      std::cout << "Multigrid relative residual = " << (finalResidual / x.lpNorm<Eigen::Infinity>()) << std::endl;
 
       delete hierarchy;
+    }
+
+    if (ImGui::Button("Build hierarchy")) {
+      int nVerts = curves->NumVertices();
+      int logNumVerts = log2(nVerts) - 4;
+
+      PolyCurveDomain* domain = new PolyCurveDomain(curves, 3, 6);
+
+      MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>* hierarchy =
+        new MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>(domain, logNumVerts);
+      
+      for (size_t i = 1; i < hierarchy->levels.size(); i++) {
+        PolyCurveGroup* g = static_cast<PolyCurveDomain*>(hierarchy->levels[i])->curves;
+        DisplayCurves(g, "multigrid" + std::to_string(i));
+
+        Eigen::VectorXd position_xs = g->GetPositionMatrix().col(0);
+        Eigen::VectorXd prolonged = hierarchy->prolongationOps[i - 1].prolong(position_xs, MultigridMode::MatrixOnly);
+        Eigen::VectorXd restricted = hierarchy->prolongationOps[i - 1].restrictWithPinv(prolonged, MultigridMode::MatrixOnly);
+
+        Eigen::VectorXd diff = position_xs - restricted;
+
+        std::cout << "Level " << i << " (RJx - x) = " << diff.norm() << std::endl;
+      }
     }
 
     if (ImGui::Button("Output frame")) {
@@ -281,12 +372,15 @@ namespace LWS {
 
     for (BoundaryLoop b : mesh->boundaryLoops()) {
       positions.clear();
-      Halfedge he = b.halfedge().next();
-      Halfedge start = b.halfedge().next();
+      Halfedge he = b.halfedge().twin();
+      Halfedge start = b.halfedge().twin();
+
+      // int i = 0;
 
       do {
         Vector3 v = geom->vertexPositions[he.vertex()];
         positions.push_back(v);
+        // std::cout << i++ << ", " << v << std::endl;
         he = he.next();
       }
       while (he != start);

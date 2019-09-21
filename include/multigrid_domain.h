@@ -62,10 +62,7 @@ namespace LWS {
 
         Eigen::MatrixXd GetFullMatrix() const {
             int nVerts = curves->NumVertices();
-            // Eigen::MatrixXd A = TestMatrices::CurveLaplacian(nVerts);
-            Eigen::MatrixXd A(nVerts, nVerts);
-            A.setZero();
-            SobolevCurves::SobolevLengthScaled(curves, alpha, beta, A, 0.01);
+            Eigen::MatrixXd A = TestMatrices::CurveMetricLaplacian(curves, 0.01);
             return A;
         }
 

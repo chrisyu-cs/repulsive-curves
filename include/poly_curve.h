@@ -1,7 +1,7 @@
 #pragma once
 
 #include "geometrycentral/utilities/vector3.h"
-#include "Eigen/Sparse"
+#include <Eigen/Sparse>
 #include "multigrid_operator.h"
 
 namespace LWS {
@@ -63,6 +63,7 @@ namespace LWS {
         double TotalLength();
         int NextIndexInCurve(int v);
         int GlobalIndex(PointOnCurve c);
+        Eigen::MatrixXd GetPositionMatrix();
 
         PolyCurveGroup* Coarsen(MultigridOperator &prolongOps, MultigridOperator &sparsifyOps);
     };

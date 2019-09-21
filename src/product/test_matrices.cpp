@@ -25,7 +25,7 @@ namespace LWS {
             }
         }
 
-        return M;
+        return M * mass;
     }
 
     Eigen::MatrixXd TestMatrices::LaplacianNeumann1D(int rows) {
@@ -45,9 +45,15 @@ namespace LWS {
             }
             else {
                 M(i, i - 1) = -1;
-                M(i, i) = 2.001;
+                M(i, i) = 2;
                 M(i, i + 1) = -1;
             }
+        }
+
+        M *= mass;
+
+        for (int i = 0; i < rows; i++) {
+            M(i, i) += 1e-4 * mass;
         }
 
         return M;
@@ -94,6 +100,33 @@ namespace LWS {
         }
 
         return M;
+    }
+
+    Eigen::MatrixXd TestMatrices::CurveMetricLaplacian(PolyCurveGroup* curves, double epsilon) {
+        int rows = curves->NumVertices();
+
+        std::vector<Eigen::Triplet<double>> triplets;
+        Eigen::VectorXd masses(rows);
+
+        for (int i = 0; i < rows; i++) {
+            double mass = curves->GetCurvePoint(i).DualLength();
+            triplets.push_back(Eigen::Triplet<double>(i, i, -1.0 / mass));
+            triplets.push_back(Eigen::Triplet<double>(i, (i+1) % rows, 1.0 / mass));
+            masses(i) = mass;
+        }
+
+        Eigen::SparseMatrix<double> G;
+        G.resize(rows, rows);
+        G.setFromTriplets(triplets.begin(), triplets.end());
+
+        Eigen::SparseMatrix<double> laplacian = G.transpose() * masses.asDiagonal() * G;
+        Eigen::MatrixXd L = laplacian.toDense();
+
+        for (int i = 0; i < rows; i++) {
+            L(i, i) += epsilon * masses(i);
+        }
+
+        return L;
     }
 
     

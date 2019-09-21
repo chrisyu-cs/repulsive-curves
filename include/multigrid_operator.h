@@ -23,7 +23,11 @@ namespace LWS {
         int lowerSize;
         int upperSize;
         std::vector<IndexedMatrix> matrices;
-        Eigen::VectorXd mapUpward(Eigen::VectorXd v, MultigridMode mode);
-        Eigen::VectorXd mapDownward(Eigen::VectorXd v, MultigridMode mode);
+        Eigen::VectorXd prolong(Eigen::VectorXd v, MultigridMode mode);
+        Eigen::VectorXd restrictWithTranspose(Eigen::VectorXd v, MultigridMode mode);
+        Eigen::VectorXd restrictWithPinv(Eigen::VectorXd v, MultigridMode mode);
     };
+
+    Eigen::VectorXd ApplyPinv(Eigen::SparseMatrix<double> &J, Eigen::VectorXd &x);
+    Eigen::MatrixXd ApplyPinv(Eigen::SparseMatrix<double> &J, Eigen::MatrixXd &xs);
 }

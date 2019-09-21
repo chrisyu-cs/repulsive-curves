@@ -207,6 +207,7 @@ namespace LWS {
 
         std::vector<Eigen::Triplet<double>> triplets;
 
+        /*
         for (int i = 0; i < coarseVerts; i++) {
             int oldI = 2 * i;
             if (isOddNumber && i == 0) {
@@ -240,16 +241,15 @@ namespace LWS {
         for (int i = 0; i < coarseVerts; i++) {
             p->positions[i] = SelectRow(coarsePosMat, i);
         }
+        */
 
-        // Now assemble the corresponding prolongation operator
+        // Assemble the prolongation operator
         triplets.clear();
 
         for (int i = 0; i < nVerts; i++) {
             int oldI = i / 2;
             if (i % 2 == 0) {
-                triplets.push_back(Eigen::Triplet<double>(i, (oldI - 1 + coarseVerts) % coarseVerts, 0.25));
-                triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.5));
-                triplets.push_back(Eigen::Triplet<double>(i, (oldI + 1) % coarseVerts, 0.25));
+                triplets.push_back(Eigen::Triplet<double>(i, oldI, 1));
             }
             else {
                 triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.5));
@@ -259,6 +259,21 @@ namespace LWS {
 
         prolongOp.resize(nVerts, coarseVerts);
         prolongOp.setFromTriplets(triplets.begin(), triplets.end());
+
+        sparsifyOp.resize(nVerts, coarseVerts);
+        sparsifyOp.setFromTriplets(triplets.begin(), triplets.end());
+
+        Eigen::MatrixXd positionMatrix(nVerts, 3);
+        for (int i = 0; i < nVerts; i++) {
+            SetRow(positionMatrix, i, positions[i]);
+        }
+        Eigen::MatrixXd coarsePosMat = ApplyPinv(prolongOp, positionMatrix);
+
+        std::vector<Vector3> coarsePositions(coarsePosMat.rows());
+        PolyCurve* p = new PolyCurve(coarsePosMat.rows());
+        for (int i = 0; i < coarseVerts; i++) {
+            p->positions[i] = SelectRow(coarsePosMat, i);
+        }
 
         return p;
     }
@@ -357,6 +372,17 @@ namespace LWS {
 
     int PolyCurveGroup::GlobalIndex(PointOnCurve c) {
         return c.curve->offset + c.pIndex;
+    }
+
+    Eigen::MatrixXd PolyCurveGroup::GetPositionMatrix() {
+        int nVerts = NumVertices();
+        Eigen::MatrixXd positions(nVerts, 3);
+
+        for (int i = 0; i < nVerts; i++) {
+            SetRow(positions, i, GetCurvePoint(i).Position());
+        }
+
+        return positions;
     }
 
     PolyCurveGroup* PolyCurveGroup::Coarsen(MultigridOperator &prolongOps, MultigridOperator &sparsifyOps) {

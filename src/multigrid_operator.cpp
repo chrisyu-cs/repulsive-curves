@@ -6,9 +6,11 @@ namespace LWS {
     MultigridOperator::MultigridOperator() {}
 
 
-    Eigen::VectorXd MultigridOperator::mapUpward(Eigen::VectorXd v, MultigridMode mode) {
+    Eigen::VectorXd MultigridOperator::prolong(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
+        out = matrices[0].M * v;
 
+        /*
         if (mode == MultigridMode::MatrixOnly) {
             assert(v.rows() == lowerSize);
             out.setZero(upperSize);
@@ -29,14 +31,16 @@ namespace LWS {
 
         if (mode == MultigridMode::Barycenter) {
             out(upperSize) = v(lowerSize);
-        }
+        }*/
 
         return out;
     }
 
-    Eigen::VectorXd MultigridOperator::mapDownward(Eigen::VectorXd v, MultigridMode mode) {
+    Eigen::VectorXd MultigridOperator::restrictWithTranspose(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
+        out = matrices[0].M.transpose() * v;
 
+        /*
         if (mode == MultigridMode::MatrixOnly) {
             assert(v.rows() == upperSize);
             out.setZero(lowerSize);
@@ -59,6 +63,61 @@ namespace LWS {
         if (mode == MultigridMode::Barycenter) {
             out(lowerSize) = 0;
         }
+        */
+
+        return out;
+    }
+
+    Eigen::VectorXd ApplyPinv(Eigen::SparseMatrix<double> &J, Eigen::VectorXd &x) {
+        Eigen::SparseMatrix<double> JTJ = J.transpose() * J;
+        Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> JTJ_solver;
+        JTJ_solver.analyzePattern(JTJ);
+        JTJ_solver.factorize(JTJ);
+
+        Eigen::VectorXd JT_v = J.transpose() * x;
+        Eigen::VectorXd pinv_v = JTJ_solver.solve(JT_v);
+        return pinv_v;
+    }
+
+    Eigen::MatrixXd ApplyPinv(Eigen::SparseMatrix<double> &J, Eigen::MatrixXd &xs) {
+        Eigen::MatrixXd out(J.cols(), xs.cols());
+        for (int i = 0; i < xs.cols(); i++) {
+            Eigen::VectorXd c_i = xs.col(i);
+            out.col(i) = ApplyPinv(J, c_i);
+        }
+        return out;
+    }
+
+    Eigen::VectorXd MultigridOperator::restrictWithPinv(Eigen::VectorXd v, MultigridMode mode) {
+        Eigen::VectorXd out;
+        out = ApplyPinv(matrices[0].M, v);
+
+        /*
+        if (mode == MultigridMode::MatrixOnly) {
+            assert(v.rows() == upperSize);
+            out.setZero(lowerSize);
+        }
+        else if (mode == MultigridMode::Barycenter) {
+            assert(v.rows() == upperSize + 1);
+            out.setZero(lowerSize + 1);
+        }
+
+        for (size_t i = 0; i < matrices.size(); i++) {
+            int outputStart = matrices[i].coarseOffset;
+            int inputStart = matrices[i].fineOffset;
+            int outputRows = matrices[i].M.cols();
+            int inputRows = matrices[i].M.rows();
+
+            Eigen::VectorXd vblock = v.block(inputStart, 0, inputRows, 1);
+
+            //out.block(outputStart, 0, outputRows, 1) = (v.block(inputStart, 0, inputRows, 1).transpose() *  matrices[i].M).transpose();
+            out.block(outputStart, 0, outputRows, 1) = ApplyPinv(matrices[i].M, vblock);
+        }
+
+        if (mode == MultigridMode::Barycenter) {
+            out(lowerSize) = 0;
+        }
+        */
 
         return out;
     }
