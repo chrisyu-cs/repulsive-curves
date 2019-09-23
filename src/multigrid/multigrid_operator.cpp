@@ -1,16 +1,13 @@
-#include "multigrid_operator.h"
+#include "multigrid/multigrid_operator.h"
 #include <iostream>
 
 namespace LWS {
 
     MultigridOperator::MultigridOperator() {}
 
-
     Eigen::VectorXd MultigridOperator::prolong(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
-        out = matrices[0].M * v;
 
-        /*
         if (mode == MultigridMode::MatrixOnly) {
             assert(v.rows() == lowerSize);
             out.setZero(upperSize);
@@ -31,16 +28,14 @@ namespace LWS {
 
         if (mode == MultigridMode::Barycenter) {
             out(upperSize) = v(lowerSize);
-        }*/
+        }
 
         return out;
     }
 
     Eigen::VectorXd MultigridOperator::restrictWithTranspose(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
-        out = matrices[0].M.transpose() * v;
 
-        /*
         if (mode == MultigridMode::MatrixOnly) {
             assert(v.rows() == upperSize);
             out.setZero(lowerSize);
@@ -63,7 +58,6 @@ namespace LWS {
         if (mode == MultigridMode::Barycenter) {
             out(lowerSize) = 0;
         }
-        */
 
         return out;
     }
@@ -90,9 +84,7 @@ namespace LWS {
 
     Eigen::VectorXd MultigridOperator::restrictWithPinv(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
-        out = ApplyPinv(matrices[0].M, v);
-
-        /*
+        
         if (mode == MultigridMode::MatrixOnly) {
             assert(v.rows() == upperSize);
             out.setZero(lowerSize);
@@ -117,7 +109,6 @@ namespace LWS {
         if (mode == MultigridMode::Barycenter) {
             out(lowerSize) = 0;
         }
-        */
 
         return out;
     }

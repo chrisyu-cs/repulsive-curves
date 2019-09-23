@@ -252,21 +252,6 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::SobolevLengthScaled(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
-        int nVerts = loop->NumVertices();
-        SobolevCurves::SobolevGramMatrix(loop, alpha, beta, A);
-        double p = beta - alpha;
-
-        for (int i = 0; i < nVerts; i++) {
-            PointOnCurve pc_i = loop->GetCurvePoint(i);
-            double dLen = pc_i.DualLength();
-            double massWt = pow(dLen, p);
-            A.row(i) *= massWt;
-
-            A(i, i) += diagEps;
-        }
-    }
-
     void SobolevCurves::SobolevPlusBarycenter(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
         int nVerts = loop->NumVertices();
         // Fill the top-left block with the gram matrix

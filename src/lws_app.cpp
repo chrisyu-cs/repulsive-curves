@@ -11,8 +11,8 @@
 #include "polyscope/curve_network.h"
 #include "product/test_matrices.h"
 #include "spatial/tpe_bvh.h"
-#include "multigrid_domain.h"
-#include "multigrid_hierarchy.h"
+#include "multigrid/multigrid_domain.h"
+#include "multigrid/multigrid_hierarchy.h"
 
 #include <random>
 
@@ -125,112 +125,48 @@ namespace LWS {
       tpeSolver->CompareMatrixVectorProduct();
     }
 
-    if (ImGui::Button("Print Sobolev gram")) {
-      int nVerts = curves->NumVertices();
-      Eigen::MatrixXd G;
-      G.setZero(nVerts, nVerts);
-      SobolevCurves::SobolevLengthScaled(curves, 3, 6, G, 0.1);
-      printMatrix(G, 17);
-    }
-
     if (ImGui::Button("Test coarsening")) {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 4;
 
-      // LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
-      // Eigen::MatrixXd gradients;
-      // gradients.setZero(nVerts, 3);
-      // tpeSolver->FillGradientVectorBH(tree, gradients);
-      // Eigen::VectorXd x = gradients.col(0);
-      // delete tree;
+      LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
+      Eigen::MatrixXd gradients;
+      gradients.setZero(nVerts, 3);
+      tpeSolver->FillGradientVectorBH(tree, gradients);
+      Eigen::VectorXd x = gradients.col(0);
+      delete tree;
 
-      std::uniform_real_distribution<double> unif(-1, 1);
-      std::default_random_engine re;
-      re.seed(42);
+      // std::uniform_real_distribution<double> unif(-1, 1);
+      // std::default_random_engine re;
+      // re.seed(42);
 
-      Eigen::VectorXd x(nVerts);
-      for (int i = 0; i < nVerts; i++) {
+      // Eigen::VectorXd x(nVerts);
+      // for (int i = 0; i < nVerts; i++) {
         
-        x(i) = unif(re);
-      }
-
-      // Eigen::VectorXd x;
-      // x.setZero(nVerts);
-      // for (int i = 0; i < nVerts; i++) {
-      //   x(i) = sin(2 * M_PI * (double)i / nVerts);
+      //   x(i) = unif(re);
       // }
 
-      // double xMean = x.sum() / nVerts;
-      // for (int i = 0; i < nVerts; i++) {
-      //   x(i) -= xMean;
-      // }
-      // std::cout << "Mean of rhs = " << x.sum() << std::endl;
-      
-      // Eigen::VectorXd x;
-      // x.setZero(nVerts);
-      // x(nVerts / 3) = 1;
-      // x(3 * nVerts / 4) = -1;
-
-      // Eigen::VectorXd x;
-      // x.setZero(nVerts);
-      // x(0) = 1;
-
-      long matrixStart = Utils::currentTimeMilliseconds();
       // Interval1DDomain* domain = new Interval1DDomain(nVerts);
-      PolyCurveDomain* domain = new PolyCurveDomain(curves, 3, 6);
-      Eigen::MatrixXd A = domain->GetFullMatrix();
-
-      // printMatrix(A, 10);
-
+      // PolyCurveDenseDomain* domain = new PolyCurveDenseDomain(curves, 2, 4, 1);
       long multigridStart = Utils::currentTimeMilliseconds();
-
-      std::cout << "Matrix assembly = " << (multigridStart - matrixStart) << " ms" << std::endl;
-
-      // MultigridHierarchy<Interval1DDomain, DenseMatrixMult>* hierarchy =
-      //  new MultigridHierarchy<Interval1DDomain, DenseMatrixMult>(domain, logNumVerts);
-
-      MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>* hierarchy =
-        new MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>(domain, logNumVerts);
-
-      // for (size_t i = 0; i < hierarchy->levels.size(); i++) {
-      //   Eigen::MatrixXd M = hierarchy->levels[i]->GetFullMatrix();
-      //   std::string fname = "laplacian" + std::to_string(M.rows()) + ".csv";
-      //   std::ofstream Mfile(fname);
-      //   writeSparseMatrix(Mfile, M, 10);
-      //   Mfile.close();
-      //   std::cout << "Wrote to " << fname << std::endl;
-      // }
-
-      // for (size_t i = 0; i < hierarchy->prolongationOps.size(); i++) {
-      //   Eigen::MatrixXd M = hierarchy->prolongationOps[i].matrices[0].M.toDense();
-      //   std::string fname = "prolongation_" + std::to_string(M.rows()) + "x" + std::to_string(M.cols()) + ".csv";
-      //   std::ofstream Mfile(fname);
-      //   writeSparseMatrix(Mfile, M, 10);
-      //   Mfile.close();
-      //   std::cout << "Wrote to " << fname << std::endl;
-      // }
-
+      PolyCurveHMatrixDomain* domain = new PolyCurveHMatrixDomain(curves, 2, 4, 0.5, 1);
+      // MultigridHierarchy<Interval1DDomain>* hierarchy = new MultigridHierarchy<Interval1DDomain>(domain, logNumVerts);
+      // MultigridHierarchy<PolyCurveDenseDomain>* hierarchy = new MultigridHierarchy<PolyCurveDenseDomain>(domain, logNumVerts);
+      MultigridHierarchy<PolyCurveHMatrixDomain>* hierarchy = new MultigridHierarchy<PolyCurveHMatrixDomain>(domain, logNumVerts);
       Eigen::VectorXd sol = hierarchy->VCycleSolve(x, MultigridMode::MatrixOnly);
       long multigridEnd = Utils::currentTimeMilliseconds();
-      std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
+      std::cout << "Multigrid assembly + solve time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 
+      long solveStart = Utils::currentTimeMilliseconds();
+      Eigen::MatrixXd A = domain->GetFullMatrix();
       Eigen::VectorXd ref_sol = A.partialPivLu().solve(x);
       long solveEnd = Utils::currentTimeMilliseconds();
-      std::cout << "Direct solve time = " << (solveEnd - multigridEnd) << " ms" << std::endl;
+      std::cout << "Direct assembly + solve time = " << (solveEnd - solveStart) << " ms" << std::endl;
 
       Eigen::MatrixXd sols(sol.rows(), 3);
       sols.col(0) = x;
       sols.col(1) = sol;
       sols.col(2) = ref_sol.block(0, 0, nVerts, 1);
-
-      // Eigen::BiCGSTAB<Eigen::MatrixXd, Eigen::IdentityPreconditioner> bicg(A);
-      // bicg.setMaxIterations(10);
-      // Eigen::VectorXd bicg_sol = bicg.solve(x);
-      
-      // std::cout << "Normal BiCGStab finished in " << bicg.iterations() << std::endl;
-      // Eigen::VectorXd bicg_resid = (x - A * bicg_sol);
-      // std::cout << "BiCGStab residual = " << bicg_resid.lpNorm<Eigen::Infinity>() << std::endl;
-      // std::cout << "BiCGStab error = " << (100 * (bicg_sol - ref_sol).norm() / ref_sol.norm()) << " percent" << std::endl;
 
       for (int i = 0; i < sol.rows(); i++) {
         // std::cout << i << ", " << x(i) << ", " << sol(i) << ", " << ref_sol(i) << std::endl;
@@ -250,29 +186,6 @@ namespace LWS {
       std::cout << "Multigrid relative residual = " << (finalResidual / x.lpNorm<Eigen::Infinity>()) << std::endl;
 
       delete hierarchy;
-    }
-
-    if (ImGui::Button("Build hierarchy")) {
-      int nVerts = curves->NumVertices();
-      int logNumVerts = log2(nVerts) - 4;
-
-      PolyCurveDomain* domain = new PolyCurveDomain(curves, 3, 6);
-
-      MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>* hierarchy =
-        new MultigridHierarchy<PolyCurveDomain, DenseMatrixMult>(domain, logNumVerts);
-      
-      for (size_t i = 1; i < hierarchy->levels.size(); i++) {
-        PolyCurveGroup* g = static_cast<PolyCurveDomain*>(hierarchy->levels[i])->curves;
-        DisplayCurves(g, "multigrid" + std::to_string(i));
-
-        Eigen::VectorXd position_xs = g->GetPositionMatrix().col(0);
-        Eigen::VectorXd prolonged = hierarchy->prolongationOps[i - 1].prolong(position_xs, MultigridMode::MatrixOnly);
-        Eigen::VectorXd restricted = hierarchy->prolongationOps[i - 1].restrictWithPinv(prolonged, MultigridMode::MatrixOnly);
-
-        Eigen::VectorXd diff = position_xs - restricted;
-
-        std::cout << "Level " << i << " (RJx - x) = " << diff.norm() << std::endl;
-      }
     }
 
     if (ImGui::Button("Output frame")) {

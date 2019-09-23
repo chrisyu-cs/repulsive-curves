@@ -1,5 +1,6 @@
 #pragma once
 
+#include "spatial/tpe_bvh.h"
 #include "poly_curve.h"
 #include "multigrid_operator.h"
 #include "product/matrix_free.h"
@@ -13,6 +14,7 @@ namespace LWS {
     template<typename T, typename Mult>
     class MultigridDomain {
         public:
+        typedef Mult MultType;
 
         MultigridDomain<T, Mult>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
             return static_cast<T const&>(*this).Coarsen(prolongOp, sparsifyOp);
@@ -31,29 +33,79 @@ namespace LWS {
         }
     };
 
-    class PolyCurveDomain : public MultigridDomain<PolyCurveDomain, DenseMatrixMult> {
+    class PolyCurveHMatrixDomain : public MultigridDomain<PolyCurveHMatrixDomain, BlockClusterTree> {
+        public:
+        PolyCurveGroup* curves;
+        BVHNode3D* bvh;
+        BlockClusterTree* tree;
+        double alpha, beta;
+        double epsilon;
+        double sepCoeff;
+
+        PolyCurveHMatrixDomain(PolyCurveGroup* c, double a, double b, double sep, double e) {
+            curves = c;
+            alpha = a;
+            beta = b;
+            epsilon = e;
+            sepCoeff = sep;
+            int nVerts = c->NumVertices();
+
+            bvh = CreateEdgeBVHFromCurve(curves);
+            tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta, epsilon);
+        }
+
+        ~PolyCurveHMatrixDomain() {
+            delete tree;
+            delete bvh;
+        }
+
+        MultigridDomain<PolyCurveHMatrixDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
+            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp, sparsifyOp);
+            return new PolyCurveHMatrixDomain(coarsened, alpha, beta, sepCoeff, epsilon);
+        }
+
+        BlockClusterTree* GetMultiplier() const {
+            return tree;
+        }
+
+        Eigen::MatrixXd GetFullMatrix() const {
+            int nVerts = curves->NumVertices();
+            Eigen::MatrixXd A;
+            A.setZero(nVerts, nVerts);
+            SobolevCurves::SobolevGramMatrix(curves, alpha, beta, A, epsilon);
+            return A;
+        }
+
+        int NumVertices() const {
+            return curves->NumVertices();
+        }
+    };
+
+    class PolyCurveDenseDomain : public MultigridDomain<PolyCurveDenseDomain, DenseMatrixMult> {
         public:
         PolyCurveGroup* curves;
         DenseMatrixMult* multiplier;
         double alpha, beta;
+        double epsilon;
         
-        PolyCurveDomain(PolyCurveGroup* c, double a, double b) {
+        PolyCurveDenseDomain(PolyCurveGroup* c, double a, double b, double e) {
             curves = c;
             alpha = a;
             beta = b;
+            epsilon = e;
             int nVerts = c->NumVertices();
 
             Eigen::MatrixXd A = GetFullMatrix();
             multiplier = new DenseMatrixMult(A);
         }
 
-        ~PolyCurveDomain() {
+        ~PolyCurveDenseDomain() {
             delete multiplier;
         }
 
-        MultigridDomain<PolyCurveDomain, DenseMatrixMult>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
+        MultigridDomain<PolyCurveDenseDomain, DenseMatrixMult>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
             PolyCurveGroup* coarsened = curves->Coarsen(prolongOp, sparsifyOp);
-            return new PolyCurveDomain(coarsened, alpha, beta);
+            return new PolyCurveDenseDomain(coarsened, alpha, beta, epsilon);
         }
 
         DenseMatrixMult* GetMultiplier() const {
@@ -62,7 +114,10 @@ namespace LWS {
 
         Eigen::MatrixXd GetFullMatrix() const {
             int nVerts = curves->NumVertices();
-            Eigen::MatrixXd A = TestMatrices::CurveMetricLaplacian(curves, 0.01);
+            Eigen::MatrixXd A;
+            A.setZero(nVerts, nVerts);
+            SobolevCurves::SobolevGramMatrix(curves, alpha, beta, A, epsilon);
+            // Eigen::MatrixXd A = TestMatrices::CurveMetricLaplacian(curves, 0.01);
             return A;
         }
 

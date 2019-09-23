@@ -3,11 +3,12 @@
 
 namespace LWS {
 
-    BlockClusterTree::BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, double sepCoeff, double a, double b) {
+    BlockClusterTree::BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e) {
         curves = cg;
         alpha = a;
         beta = b;
         separationCoeff = sepCoeff;
+        epsilon = e;
 
         tree_root = tree;
         ClusterPair pair{tree, tree};
@@ -16,6 +17,8 @@ namespace LWS {
         while (unresolvedPairs.size() > 0) {
             splitInadmissibleNodes();
         }
+
+        mode = BlockTreeMode::MatrixOnly;
     }
 
     void BlockClusterTree::splitInadmissibleNodes() {

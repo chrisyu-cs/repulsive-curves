@@ -71,7 +71,7 @@ set(SRCS
   src/lws_options.cpp
   src/mesh_helpers.cpp
   src/poly_curve.cpp
-  src/multigrid_operator.cpp
+  src/multigrid/multigrid_operator.cpp
   src/sobo_slobo.cpp
   src/tpe_energy_sc.cpp
   src/tpe_flow_sc.cpp

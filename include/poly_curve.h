@@ -2,7 +2,7 @@
 
 #include "geometrycentral/utilities/vector3.h"
 #include <Eigen/Sparse>
-#include "multigrid_operator.h"
+#include "multigrid/multigrid_operator.h"
 
 namespace LWS {
     class PolyCurve;

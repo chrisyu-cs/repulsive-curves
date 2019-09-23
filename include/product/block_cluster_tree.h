@@ -22,7 +22,7 @@ namespace LWS {
 
     class BlockClusterTree : public VectorMultiplier<BlockClusterTree> {
         public:
-        BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, double sepCoeff, double a, double b);
+        BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e = 0.0);
         // Loop over all currently inadmissible cluster pairs
         // and subdivide them to their children.
         void splitInadmissibleNodes();
@@ -57,6 +57,7 @@ namespace LWS {
         private:
         BlockTreeMode mode;
         double alpha, beta, separationCoeff;
+        double epsilon;
         PolyCurveGroup* curves;
         BVHNode3D* tree_root;
         std::vector<ClusterPair> admissiblePairs;
@@ -74,6 +75,12 @@ namespace LWS {
         }
         else if (mode == BlockTreeMode::EdgeConstraint) {
             // TODO
+        }
+
+        int nVerts = curves->NumVertices();
+        // TEMPORARY: add small delta to the diagonal
+        for (int i = 0; i < nVerts; i++) {
+            b(i) += epsilon * curves->GetCurvePoint(i).DualLength() * v(i);
         }
     }
 
@@ -93,11 +100,6 @@ namespace LWS {
         }
         for (ClusterPair pair : admissiblePairs) {
             AfApproxProduct_hat(pair, v_hat, b_hat);
-        }
-
-        // TEMPORARY: add small delta to the diagonal
-        for (int i = 0; i < nVerts; i++) {
-            b(i) += 0.1 * curves->GetCurvePoint(i).DualLength() * v(i);
         }
 
         SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
