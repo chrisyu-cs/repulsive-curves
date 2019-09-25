@@ -13,6 +13,7 @@
 #include "spatial/tpe_bvh.h"
 #include "multigrid/multigrid_domain.h"
 #include "multigrid/multigrid_hierarchy.h"
+#include "multigrid/nullspace_projector.h"
 
 #include <random>
 
@@ -125,9 +126,8 @@ namespace LWS {
       tpeSolver->CompareMatrixVectorProduct();
     }
 
-    if (ImGui::Button("Test coarsening")) {
+    if (ImGui::Button("Test projector")) {
       int nVerts = curves->NumVertices();
-      int logNumVerts = log2(nVerts) - 4;
 
       LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
       Eigen::MatrixXd gradients;
@@ -136,24 +136,57 @@ namespace LWS {
       Eigen::VectorXd x = gradients.col(0);
       delete tree;
 
+      double totalLength = curves->TotalLength();
+
+      Eigen::MatrixXd constrs(1, nVerts);
+      for (int i = 0; i < nVerts; i++) {
+        double len_i = curves->GetCurvePoint(i).DualLength();
+        double weight = len_i / totalLength;
+        constrs(i) = weight;
+      }
+
+      NullSpaceProjector<Eigen::MatrixXd> P(constrs);
+      Eigen::VectorXd proj_x;
+      P.Multiply(x, proj_x);
+
+      std::cout << "Sum before projection = " << (constrs * x) << std::endl;
+      std::cout << "Sum after projection = " << (constrs * proj_x) << std::endl;
+
+    }
+
+    if (ImGui::Button("Test multigrid")) {
+      int nVerts = curves->NumVertices();
+      int logNumVerts = log2(nVerts) - 4;
+
+      double bh_start = Utils::currentTimeMilliseconds();
+      LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
+      Eigen::MatrixXd gradients;
+      gradients.setZero(nVerts, 3);
+      tpeSolver->FillGradientVectorBH(tree, gradients);
+      Eigen::VectorXd x(nVerts + 1);
+      x.setZero();
+      x.block(0, 0, nVerts, 1) = gradients.col(0);
+      delete tree;
+      double bh_end = Utils::currentTimeMilliseconds();
+      std::cout << "Gradient w/ Barnes-Hut time = " << (bh_end - bh_start) << " ms" << std::endl;
+
       // std::uniform_real_distribution<double> unif(-1, 1);
       // std::default_random_engine re;
       // re.seed(42);
 
       // Eigen::VectorXd x(nVerts);
       // for (int i = 0; i < nVerts; i++) {
-        
       //   x(i) = unif(re);
       // }
 
       // Interval1DDomain* domain = new Interval1DDomain(nVerts);
       // PolyCurveDenseDomain* domain = new PolyCurveDenseDomain(curves, 2, 4, 1);
       long multigridStart = Utils::currentTimeMilliseconds();
-      PolyCurveHMatrixDomain* domain = new PolyCurveHMatrixDomain(curves, 2, 4, 0.5, 1);
+      PolyCurveHMatrixDomain* domain = new PolyCurveHMatrixDomain(curves, 2, 4, 0.5, 0.1, BlockTreeMode::Barycenter);
       // MultigridHierarchy<Interval1DDomain>* hierarchy = new MultigridHierarchy<Interval1DDomain>(domain, logNumVerts);
       // MultigridHierarchy<PolyCurveDenseDomain>* hierarchy = new MultigridHierarchy<PolyCurveDenseDomain>(domain, logNumVerts);
       MultigridHierarchy<PolyCurveHMatrixDomain>* hierarchy = new MultigridHierarchy<PolyCurveHMatrixDomain>(domain, logNumVerts);
-      Eigen::VectorXd sol = hierarchy->VCycleSolve(x, MultigridMode::MatrixOnly);
+      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<PolyCurveHMatrixDomain>::EigenCG>(x, MultigridMode::Barycenter);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid assembly + solve time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 
@@ -165,12 +198,23 @@ namespace LWS {
 
       Eigen::MatrixXd sols(sol.rows(), 3);
       sols.col(0) = x;
-      sols.col(1) = sol;
+      sols.col(1) = sol.block(0, 0, nVerts, 1);
       sols.col(2) = ref_sol.block(0, 0, nVerts, 1);
 
       for (int i = 0; i < sol.rows(); i++) {
-        // std::cout << i << ", " << x(i) << ", " << sol(i) << ", " << ref_sol(i) << std::endl;
+        // std::cout << i << ", " << sol(i) << ", " << ref_sol(i) << std::endl;
       }
+
+      double barycenterRef = 0;
+      double barycenter = 0;
+      double totalLen = curves->TotalLength();
+      for (int i = 0; i < nVerts; i++) {
+        double weight =  curves->GetCurvePoint(i).DualLength() / totalLen;
+        barycenterRef += ref_sol(i) * weight;
+        barycenter += sol(i) * weight;
+      }
+
+      std::cout << "Barycenter = " << barycenter << ", reference barycenter = " << barycenterRef << std::endl;
 
       Eigen::VectorXd diff = sol - ref_sol;
 
@@ -184,6 +228,14 @@ namespace LWS {
       double dot = sol.normalized().dot(ref_sol.normalized());
       std::cout << "Dot product between directions = " << dot << std::endl;
       std::cout << "Multigrid relative residual = " << (finalResidual / x.lpNorm<Eigen::Infinity>()) << std::endl;
+
+      Eigen::VectorXd Ax_hier(nVerts);
+      Ax_hier.setZero();
+      domain->GetMultiplier()->Multiply(x, Ax_hier);
+      Eigen::VectorXd Ax_dense = A * x;
+
+      double mult_rel_err = 100 * (Ax_hier - Ax_dense).norm() / Ax_dense.norm();
+      std::cout << "Hierarchical mult. relative error = " << mult_rel_err << " percent" << std::endl;
 
       delete hierarchy;
     }

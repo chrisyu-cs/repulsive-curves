@@ -73,7 +73,11 @@ namespace LWS {
             return sol;
     }
 
+        typedef Eigen::GMRES<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> EigenGMRES;
+        typedef Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> EigenCG;
+
         // Solve Gx = b, where G is the Sobolev Gram matrix of the top-level curve.
+        template<typename Smoother>
         Eigen::VectorXd VCycleSolve(Eigen::VectorXd b, MultigridMode mode) {
             int numLevels = levels.size();
             std::vector<Eigen::VectorXd> residuals(numLevels);
@@ -83,7 +87,7 @@ namespace LWS {
             for (int i = 0; i < numLevels; i++) {
                 int levelNVerts = levels[i]->NumVertices();
                 solutions[i].setZero(levelNVerts);
-                // if (mode == MultigridMode::Barycenter) levelNVerts++;
+                if (mode == MultigridMode::Barycenter) levelNVerts++;
                 hMatrices[i] = Product::MatrixReplacement<Mult>(levels[i]->GetMultiplier(), levelNVerts);
             }
 
@@ -105,8 +109,9 @@ namespace LWS {
             while (!done) {
                 // Propagate residuals downward
                 for (int i = 0; i < numLevels - 1; i++) {
+                    Smoother smoother;
                     // Eigen::GMRES<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> smoother;
-                    Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> smoother;
+                    // Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> smoother;
                     smoother.compute(hMatrices[i]);
 
                     smoother.setMaxIterations(12);
@@ -144,8 +149,9 @@ namespace LWS {
 
                 // Propagate solutions upward
                 for (int i = numLevels - 2; i >= 0; i--) {
+                    Smoother smoother;
                     // Eigen::GMRES<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> smoother;
-                    Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> smoother;
+                    // Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> smoother;
                     smoother.compute(hMatrices[i]);
                     smoother.setMaxIterations(12);
                     // Compute the new initial guess -- old solution from this level, plus

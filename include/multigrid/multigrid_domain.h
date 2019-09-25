@@ -41,8 +41,9 @@ namespace LWS {
         double alpha, beta;
         double epsilon;
         double sepCoeff;
+        BlockTreeMode mode;
 
-        PolyCurveHMatrixDomain(PolyCurveGroup* c, double a, double b, double sep, double e) {
+        PolyCurveHMatrixDomain(PolyCurveGroup* c, double a, double b, double sep, double e, BlockTreeMode m) {
             curves = c;
             alpha = a;
             beta = b;
@@ -52,6 +53,8 @@ namespace LWS {
 
             bvh = CreateEdgeBVHFromCurve(curves);
             tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta, epsilon);
+            mode = m;
+            tree->SetBlockTreeMode(mode);
         }
 
         ~PolyCurveHMatrixDomain() {
@@ -61,7 +64,7 @@ namespace LWS {
 
         MultigridDomain<PolyCurveHMatrixDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
             PolyCurveGroup* coarsened = curves->Coarsen(prolongOp, sparsifyOp);
-            return new PolyCurveHMatrixDomain(coarsened, alpha, beta, sepCoeff, epsilon);
+            return new PolyCurveHMatrixDomain(coarsened, alpha, beta, sepCoeff, epsilon, mode);
         }
 
         BlockClusterTree* GetMultiplier() const {
@@ -71,8 +74,8 @@ namespace LWS {
         Eigen::MatrixXd GetFullMatrix() const {
             int nVerts = curves->NumVertices();
             Eigen::MatrixXd A;
-            A.setZero(nVerts, nVerts);
-            SobolevCurves::SobolevGramMatrix(curves, alpha, beta, A, epsilon);
+            A.setZero(nVerts + 1, nVerts + 1);
+            SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
             return A;
         }
 

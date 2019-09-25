@@ -16,8 +16,8 @@ namespace LWS {
         vertConstraints.setZero();
 
         curves = g;
-        alpha = 3;
-        beta = 6;
+        alpha = 2;
+        beta = 4;
         ls_step_threshold = 1e-15;
         backproj_threshold = 1e-3;
 
@@ -286,7 +286,6 @@ namespace LWS {
 
         else {
             // If not using per-edge length constraints, we solve each coordinate separately
-
             // Solve for x
             b = gradients.col(0);
             Eigen::VectorXd ss_grad_x = lu.solve(b);

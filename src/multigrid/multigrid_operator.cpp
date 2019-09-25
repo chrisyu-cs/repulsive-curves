@@ -9,11 +9,15 @@ namespace LWS {
         Eigen::VectorXd out;
 
         if (mode == MultigridMode::MatrixOnly) {
-            assert(v.rows() == lowerSize);
+            if (v.rows() != lowerSize) {
+                std::cerr << "Size mismatch in prolong" << std::endl;
+            }
             out.setZero(upperSize);
         }
         else if (mode == MultigridMode::Barycenter) {
-            assert(v.rows() == lowerSize + 1);
+            if (v.rows() != lowerSize + 1) {
+                std::cerr << "Size mismatch in prolong" << std::endl;
+            }
             out.setZero(upperSize + 1);
         }
 
@@ -37,11 +41,15 @@ namespace LWS {
         Eigen::VectorXd out;
 
         if (mode == MultigridMode::MatrixOnly) {
-            assert(v.rows() == upperSize);
+            if (v.rows() != upperSize) {
+                std::cerr << "Size mismatch in restrictWithTranspose" << std::endl;
+            }
             out.setZero(lowerSize);
         }
         else if (mode == MultigridMode::Barycenter) {
-            assert(v.rows() == upperSize + 1);
+            if (v.rows() != upperSize + 1) {
+                std::cerr << "Size mismatch in restrictWithTranspose" << std::endl;
+            }
             out.setZero(lowerSize + 1);
         }
 
@@ -56,7 +64,7 @@ namespace LWS {
         }
 
         if (mode == MultigridMode::Barycenter) {
-            out(lowerSize) = 0;
+            out(lowerSize) = v(upperSize);
         }
 
         return out;
@@ -86,11 +94,15 @@ namespace LWS {
         Eigen::VectorXd out;
         
         if (mode == MultigridMode::MatrixOnly) {
-            assert(v.rows() == upperSize);
+            if (v.rows() != upperSize) {
+                std::cerr << "Size mismatch in restrictWithPinv" << std::endl;
+            }
             out.setZero(lowerSize);
         }
         else if (mode == MultigridMode::Barycenter) {
-            assert(v.rows() == upperSize + 1);
+            if (v.rows() != upperSize + 1) {
+                std::cerr << "Size mismatch in restrictWithPinv" << std::endl;
+            }
             out.setZero(lowerSize + 1);
         }
 
@@ -107,7 +119,7 @@ namespace LWS {
         }
 
         if (mode == MultigridMode::Barycenter) {
-            out(lowerSize) = 0;
+            out(lowerSize) = v(upperSize);
         }
 
         return out;
