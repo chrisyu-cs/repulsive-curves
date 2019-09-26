@@ -1,27 +1,27 @@
 #pragma once
 
+#include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <iostream>
 
 namespace LWS {
 
-    template<typename Matrix>
     class NullSpaceProjector {
         private:
-        Matrix B;
+        Eigen::MatrixXd B;
 
         public:
-        NullSpaceProjector(Matrix constraints) {
+        NullSpaceProjector(Eigen::MatrixXd constraints) {
             B = constraints;
         }
 
         ~NullSpaceProjector() {}
 
-        void Multiply(Eigen::VectorXd &v, Eigen::VectorXd &out) {
+        template<typename V, typename Dest>
+        void Multiply(V &v, Dest &out) {
             // We want to get (B^T) (B B^T)^{-1} B v, so start from the right
             out = B * v;
-            std::cout << out << std::endl;
-            Matrix BBT = B * B.transpose();
+            Eigen::MatrixXd BBT = B * B.transpose();
             // Multiply with (B B^T) inverse
             out = BBT.partialPivLu().solve(out);
             // Lastly multiply with B^T
@@ -30,9 +30,16 @@ namespace LWS {
             // subtract the above from the input
             out = v - out;
         }
+
+        Eigen::VectorXd Multiply(Eigen::VectorXd &v) {
+            Eigen::VectorXd out(v.rows());
+            Multiply(v, out);
+            return out;
+        }
     };
 
-    template<> void NullSpaceProjector<Eigen::SparseMatrix<double>>::Multiply(Eigen::VectorXd &v, Eigen::VectorXd &out) {
+    /*
+    void NullSpaceProjector::Multiply(Eigen::VectorXd &v, Eigen::VectorXd &out) {
         // We want to get (B^T) (B B^T)^{-1} B v, so start from the right
         out = B * v;
         Eigen::SparseMatrix<double> BBT = B * B.transpose();
@@ -47,5 +54,6 @@ namespace LWS {
         // subtract the above from the input
         out = v - out;
     }
+    */
 
 }

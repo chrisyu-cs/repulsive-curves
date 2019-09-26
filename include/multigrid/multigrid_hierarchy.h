@@ -38,6 +38,11 @@ namespace LWS {
             restrictOp.lowerSize = prolongOp.lowerSize;
             restrictOp.upperSize = prolongOp.upperSize;
 
+            prolongOp.lowerP = nextLevel->GetConstraintProjector();
+            prolongOp.upperP = lastLevel->GetConstraintProjector();
+            restrictOp.lowerP = nextLevel->GetConstraintProjector();
+            restrictOp.upperP = lastLevel->GetConstraintProjector();
+
             std::cout << "Added multigrid level with " << nextLevel->NumVertices() << std::endl;
 
             prolongationOps.push_back(prolongOp);

@@ -68,7 +68,20 @@ namespace LWS {
     template<typename V, typename Dest>
     void BlockClusterTree::Multiply(V &v, Dest &b) const {
         if (mode == BlockTreeMode::MatrixOnly) {
-            MultiplyVector(v, b);
+            if (curves->constrP) {
+                Eigen::VectorXd tmp(v.rows());
+                tmp.setZero();
+                curves->constrP->Multiply(v, tmp);
+
+                Eigen::VectorXd tmp2(v.rows());
+                tmp2.setZero();
+                MultiplyVector(tmp, tmp2);
+
+                curves->constrP->Multiply(tmp2, b);
+            }
+            else {
+                MultiplyVector(v, b);
+            }
         }
         else if (mode == BlockTreeMode::Barycenter) {
             MultiplyWithBarycenter(v, b);

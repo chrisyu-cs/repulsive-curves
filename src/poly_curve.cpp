@@ -278,6 +278,10 @@ namespace LWS {
         return p;
     }
 
+    PolyCurveGroup::PolyCurveGroup() {
+        constrP = 0;
+    }
+
     void PolyCurveGroup::AddCurve(PolyCurve* c) {
         c->index = curves.size();
         c->offset = NumVertices();
@@ -402,7 +406,26 @@ namespace LWS {
             sparsifyOps.matrices.push_back(IndexedMatrix{sparsify, c->offset, c_coarsened->offset});
         }
 
+        // If this already has a constraint projector, then add one for the
+        // coarse version as well
+        if (constrP) {
+            coarseGroup->AddConstraintProjector();
+        }
+
         return coarseGroup;
+    }
+
+    void PolyCurveGroup::AddConstraintProjector() {
+        int nVerts = NumVertices();
+        Eigen::MatrixXd B(1, nVerts);
+        B.setZero();
+        double totalLen = TotalLength();
+        for (int i = 0; i < nVerts; i++) {
+            double wt = GetCurvePoint(i).DualLength() / totalLen;
+            B(0, i) = wt;
+        }
+
+        constrP = new NullSpaceProjector(B);
     }
 
     int PointOnCurve::GlobalIndex() {

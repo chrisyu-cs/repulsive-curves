@@ -8,6 +8,10 @@ namespace LWS {
     Eigen::VectorXd MultigridOperator::prolong(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
 
+        if (mode == MultigridMode::MatrixOnly && lowerP) {
+            v = lowerP->Multiply(v);
+        }
+
         if (mode == MultigridMode::MatrixOnly) {
             if (v.rows() != lowerSize) {
                 std::cerr << "Size mismatch in prolong" << std::endl;
@@ -34,11 +38,19 @@ namespace LWS {
             out(upperSize) = v(lowerSize);
         }
 
+        if (mode == MultigridMode::MatrixOnly && upperP) {
+            out = upperP->Multiply(out);
+        }
+
         return out;
     }
 
     Eigen::VectorXd MultigridOperator::restrictWithTranspose(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
+
+        if (mode == MultigridMode::MatrixOnly && upperP) {
+            v = upperP->Multiply(v);
+        }
 
         if (mode == MultigridMode::MatrixOnly) {
             if (v.rows() != upperSize) {
@@ -67,6 +79,10 @@ namespace LWS {
             out(lowerSize) = v(upperSize);
         }
 
+        if (mode == MultigridMode::MatrixOnly && lowerP) {
+            out = lowerP->Multiply(out);
+        }
+
         return out;
     }
 
@@ -92,6 +108,10 @@ namespace LWS {
 
     Eigen::VectorXd MultigridOperator::restrictWithPinv(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
+
+        if (mode == MultigridMode::MatrixOnly && upperP) {
+            v = upperP->Multiply(v);
+        }
         
         if (mode == MultigridMode::MatrixOnly) {
             if (v.rows() != upperSize) {
@@ -120,6 +140,10 @@ namespace LWS {
 
         if (mode == MultigridMode::Barycenter) {
             out(lowerSize) = v(upperSize);
+        }
+
+        if (mode == MultigridMode::MatrixOnly && lowerP) {
+            out = lowerP->Multiply(out);
         }
 
         return out;

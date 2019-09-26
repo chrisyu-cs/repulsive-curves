@@ -3,6 +3,7 @@
 #include "geometrycentral/utilities/vector3.h"
 #include <Eigen/Sparse>
 #include "multigrid/multigrid_operator.h"
+#include "multigrid/nullspace_projector.h"
 
 namespace LWS {
     class PolyCurve;
@@ -54,6 +55,7 @@ namespace LWS {
 
     class PolyCurveGroup {
         public:
+        PolyCurveGroup();
         std::vector<PolyCurve*> curves;
         void AddCurve(PolyCurve* c);
         int NumVertices();
@@ -66,5 +68,7 @@ namespace LWS {
         Eigen::MatrixXd GetPositionMatrix();
 
         PolyCurveGroup* Coarsen(MultigridOperator &prolongOps, MultigridOperator &sparsifyOps);
+        void AddConstraintProjector();
+        NullSpaceProjector* constrP;
     };
 }
