@@ -179,12 +179,8 @@ namespace LWS {
       //   x(i) = unif(re);
       // }
 
-      // Interval1DDomain* domain = new Interval1DDomain(nVerts);
-      // PolyCurveDenseDomain* domain = new PolyCurveDenseDomain(curves, 2, 4, 1);
       long multigridStart = Utils::currentTimeMilliseconds();
       PolyCurveHMatrixDomain* domain = new PolyCurveHMatrixDomain(curves, 2, 4, 0.5, 0.1, BlockTreeMode::Barycenter);
-      // MultigridHierarchy<Interval1DDomain>* hierarchy = new MultigridHierarchy<Interval1DDomain>(domain, logNumVerts);
-      // MultigridHierarchy<PolyCurveDenseDomain>* hierarchy = new MultigridHierarchy<PolyCurveDenseDomain>(domain, logNumVerts);
       MultigridHierarchy<PolyCurveHMatrixDomain>* hierarchy = new MultigridHierarchy<PolyCurveHMatrixDomain>(domain, logNumVerts);
       Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<PolyCurveHMatrixDomain>::EigenCG>(x, MultigridMode::Barycenter);
       long multigridEnd = Utils::currentTimeMilliseconds();

@@ -78,6 +78,9 @@ namespace LWS {
         }
 
         int nVerts = curves->NumVertices();
+        for (int i = 0; i < nVerts; i++) {
+            b(i) += epsilon * curves->GetCurvePoint(i).DualLength() * v(i);
+        }
     }
 
     template<typename V, typename Dest>
