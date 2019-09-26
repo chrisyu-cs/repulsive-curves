@@ -72,10 +72,15 @@ namespace LWS {
         }
 
         Eigen::MatrixXd GetFullMatrix() const {
-            int nVerts = curves->NumVertices();
+            int rows = (mode == BlockTreeMode::Barycenter) ? curves->NumVertices() + 1 : curves->NumVertices();
             Eigen::MatrixXd A;
-            A.setZero(nVerts + 1, nVerts + 1);
-            SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
+            A.setZero(rows, rows);
+            if (mode == BlockTreeMode::Barycenter) {
+                SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
+            }
+            else {
+                SobolevCurves::SobolevGramMatrix(curves, alpha, beta, A, 0.01);
+            }
             return A;
         }
 

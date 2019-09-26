@@ -15,6 +15,8 @@ namespace LWS {
             B = constraints;
         }
 
+        ~NullSpaceProjector() {}
+
         void Multiply(Eigen::VectorXd &v, Eigen::VectorXd &out) {
             // We want to get (B^T) (B B^T)^{-1} B v, so start from the right
             out = B * v;
