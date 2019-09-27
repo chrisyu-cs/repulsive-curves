@@ -126,34 +126,6 @@ namespace LWS {
       tpeSolver->CompareMatrixVectorProduct();
     }
 
-    if (ImGui::Button("Test projector")) {
-      int nVerts = curves->NumVertices();
-
-      LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
-      Eigen::MatrixXd gradients;
-      gradients.setZero(nVerts, 3);
-      tpeSolver->FillGradientVectorBH(tree, gradients);
-      Eigen::VectorXd x = gradients.col(0);
-      delete tree;
-
-      double totalLength = curves->TotalLength();
-
-      Eigen::MatrixXd constrs(1, nVerts);
-      for (int i = 0; i < nVerts; i++) {
-        double len_i = curves->GetCurvePoint(i).DualLength();
-        double weight = len_i / totalLength;
-        constrs(i) = weight;
-      }
-
-      NullSpaceProjector P(constrs);
-      Eigen::VectorXd proj_x;
-      P.Multiply(x, proj_x);
-
-      std::cout << "Sum before projection = " << (constrs * x) << std::endl;
-      std::cout << "Sum after projection = " << (constrs * proj_x) << std::endl;
-
-    }
-
     if (ImGui::Button("Test multigrid")) {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 4;
@@ -177,11 +149,12 @@ namespace LWS {
       double bh_end = Utils::currentTimeMilliseconds();
       std::cout << "Gradient w/ Barnes-Hut time = " << (bh_end - bh_start) << " ms" << std::endl;
 
-      x = curves->constrP->Multiply(x);
+      // If we've enabled null-space projectors, then project the RHS
+      if (domain->GetMode() == MultigridMode::MatrixAndProjector) x = curves->constraints->Multiply(x);
 
       long multigridStart = Utils::currentTimeMilliseconds();
       MultigridHierarchy<MGDomain>* hierarchy = new MultigridHierarchy<MGDomain>(domain, logNumVerts);
-      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<MGDomain>::EigenGMRES>(x);
+      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<MGDomain>::EigenCG>(x);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid assembly + solve time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 

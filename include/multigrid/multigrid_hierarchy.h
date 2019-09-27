@@ -75,7 +75,7 @@ namespace LWS {
             }
 
             return sol;
-    }
+        }
 
         typedef Eigen::GMRES<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> EigenGMRES;
         typedef Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> EigenCG;

@@ -14,6 +14,7 @@ namespace LWS {
 
     enum class MultigridMode {
         MatrixOnly,
+        MatrixAndProjector,
         Barycenter,
         EdgeLengths
     };

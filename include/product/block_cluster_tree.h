@@ -16,6 +16,7 @@ namespace LWS {
 
     enum class BlockTreeMode {
         MatrixOnly,
+        MatrixAndProjector,
         Barycenter,
         EdgeConstraint
     };
@@ -68,20 +69,18 @@ namespace LWS {
     template<typename V, typename Dest>
     void BlockClusterTree::Multiply(V &v, Dest &b) const {
         if (mode == BlockTreeMode::MatrixOnly) {
-            if (curves->constrP) {
-                Eigen::VectorXd tmp(v.rows());
-                tmp.setZero();
-                curves->constrP->Multiply(v, tmp);
+            MultiplyVector(v, b);
+        }
+        else if (mode == BlockTreeMode::MatrixAndProjector) {
+            Eigen::VectorXd tmp(v.rows());
+            tmp.setZero();
+            curves->constraints->Multiply(v, tmp);
 
-                Eigen::VectorXd tmp2(v.rows());
-                tmp2.setZero();
-                MultiplyVector(tmp, tmp2);
+            Eigen::VectorXd tmp2(v.rows());
+            tmp2.setZero();
+            MultiplyVector(tmp, tmp2);
 
-                curves->constrP->Multiply(tmp2, b);
-            }
-            else {
-                MultiplyVector(v, b);
-            }
+            curves->constraints->Multiply(tmp2, b);
         }
         else if (mode == BlockTreeMode::Barycenter) {
             MultiplyWithBarycenter(v, b);

@@ -8,13 +8,13 @@ namespace LWS {
     Eigen::VectorXd MultigridOperator::prolong(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
 
-        if (mode == MultigridMode::MatrixOnly && lowerP) {
+        if (mode == MultigridMode::MatrixAndProjector) {
             // std::cout << "[prolong] Barycenter before 1st projection = " << lowerP->EvaluateConstraints(v) << std::endl;
             v = lowerP->Multiply(v);
             // std::cout << "[prolong] Barycenter before prolongation = " << lowerP->EvaluateConstraints(v) << std::endl;
         }
 
-        if (mode == MultigridMode::MatrixOnly) {
+        if (mode == MultigridMode::MatrixOnly || mode == MultigridMode::MatrixAndProjector) {
             if (v.rows() != lowerSize) {
                 std::cerr << "Size mismatch in prolong" << std::endl;
             }
@@ -40,7 +40,7 @@ namespace LWS {
             out(upperSize) = v(lowerSize);
         }
 
-        if (mode == MultigridMode::MatrixOnly && upperP) {
+        if (mode == MultigridMode::MatrixAndProjector) {
             // std::cout << "[prolong] Barycenter after prolongation = " << upperP->EvaluateConstraints(out) << std::endl;
             out = upperP->Multiply(out);
             // std::cout << "[prolong] Barycenter after 2nd projection = " << upperP->EvaluateConstraints(out) << "\n" << std::endl;
@@ -52,13 +52,13 @@ namespace LWS {
     Eigen::VectorXd MultigridOperator::restrictWithTranspose(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
 
-        if (mode == MultigridMode::MatrixOnly && upperP) {
+        if (mode == MultigridMode::MatrixAndProjector) {
             // std::cout << "[restrictWithTranspose] Barycenter before 1st projection = " << upperP->EvaluateConstraints(v) << std::endl;
             v = upperP->Multiply(v);
             // std::cout << "[restrictWithTranspose] Barycenter before restriction = " << upperP->EvaluateConstraints(v) << std::endl;
         }
 
-        if (mode == MultigridMode::MatrixOnly) {
+        if (mode == MultigridMode::MatrixOnly || mode == MultigridMode::MatrixAndProjector) {
             if (v.rows() != upperSize) {
                 std::cerr << "Size mismatch in restrictWithTranspose" << std::endl;
             }
@@ -85,7 +85,7 @@ namespace LWS {
             out(lowerSize) = v(upperSize);
         }
 
-        if (mode == MultigridMode::MatrixOnly && lowerP) {
+        if (mode == MultigridMode::MatrixAndProjector) {
             // std::cout << "[restrictWithTranspose] Barycenter after restriction = " << lowerP->EvaluateConstraints(out) << std::endl;
             out = lowerP->Multiply(out);
             // std::cout << "[restrictWithTranspose] Barycenter after 2nd projection = " << lowerP->EvaluateConstraints(out) << "\n" << std::endl;
@@ -117,11 +117,11 @@ namespace LWS {
     Eigen::VectorXd MultigridOperator::restrictWithPinv(Eigen::VectorXd v, MultigridMode mode) {
         Eigen::VectorXd out;
 
-        if (mode == MultigridMode::MatrixOnly && upperP) {
+        if (mode == MultigridMode::MatrixAndProjector) {
             v = upperP->Multiply(v);
         }
         
-        if (mode == MultigridMode::MatrixOnly) {
+        if (mode == MultigridMode::MatrixOnly || mode == MultigridMode::MatrixAndProjector) {
             if (v.rows() != upperSize) {
                 std::cerr << "Size mismatch in restrictWithPinv" << std::endl;
             }
@@ -150,7 +150,7 @@ namespace LWS {
             out(lowerSize) = v(upperSize);
         }
 
-        if (mode == MultigridMode::MatrixOnly && lowerP) {
+        if (mode == MultigridMode::MatrixAndProjector) {
             out = lowerP->Multiply(out);
         }
 

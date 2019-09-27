@@ -68,7 +68,7 @@ namespace LWS {
         Eigen::MatrixXd GetPositionMatrix();
 
         PolyCurveGroup* Coarsen(MultigridOperator &prolongOps, MultigridOperator &sparsifyOps);
-        void AddConstraintProjector();
-        NullSpaceProjector* constrP;
+        void AddConstraints();
+        NullSpaceProjector* constraints;
     };
 }

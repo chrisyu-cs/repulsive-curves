@@ -279,7 +279,7 @@ namespace LWS {
     }
 
     PolyCurveGroup::PolyCurveGroup() {
-        constrP = 0;
+        constraints = 0;
     }
 
     void PolyCurveGroup::AddCurve(PolyCurve* c) {
@@ -408,24 +408,27 @@ namespace LWS {
 
         // If this already has a constraint projector, then add one for the
         // coarse version as well
-        if (constrP) {
-            coarseGroup->AddConstraintProjector();
+        if (constraints) {
+            coarseGroup->AddConstraints();
         }
 
         return coarseGroup;
     }
 
-    void PolyCurveGroup::AddConstraintProjector() {
+    void PolyCurveGroup::AddConstraints() {
         int nVerts = NumVertices();
-        Eigen::MatrixXd B(1, nVerts);
-        B.setZero();
+        std::vector<Eigen::Triplet<double>> triplets;
+
         double totalLen = TotalLength();
         for (int i = 0; i < nVerts; i++) {
             double wt = GetCurvePoint(i).DualLength() / totalLen;
-            B(0, i) = wt;
+            triplets.push_back(Eigen::Triplet<double>(0, i, wt));
         }
+        Eigen::SparseMatrix<double> B_sparse;
+        B_sparse.resize(1, nVerts);
+        B_sparse.setFromTriplets(triplets.begin(), triplets.end());
 
-        constrP = new NullSpaceProjector(B);
+        constraints = new NullSpaceProjector(B_sparse);
     }
 
     int PointOnCurve::GlobalIndex() {

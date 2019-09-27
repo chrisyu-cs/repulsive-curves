@@ -68,9 +68,9 @@ namespace LWS {
 
             bvh = CreateEdgeBVHFromCurve(curves);
             tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta);
-            tree->SetBlockTreeMode(BlockTreeMode::MatrixOnly);
+            tree->SetBlockTreeMode(BlockTreeMode::MatrixAndProjector);
 
-            curves->AddConstraintProjector();
+            curves->AddConstraints();
         }
 
         ~PolyCurveNullProjectorDomain() {
@@ -115,11 +115,11 @@ namespace LWS {
         }
 
         MultigridMode GetMode() const {
-            return MultigridMode::MatrixOnly;
+            return MultigridMode::MatrixAndProjector;
         }
 
         NullSpaceProjector* GetConstraintProjector() const {
-            return curves->constrP;
+            return curves->constraints;
         }
     };
 
