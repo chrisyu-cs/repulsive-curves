@@ -63,8 +63,7 @@ namespace LWS {
                 coarseBs[i + 1] = coarseB;
             }
 
-            Eigen::MatrixXd coarse_A = levels[numLevels - 1]->GetFullMatrix();
-            Eigen::VectorXd sol = coarse_A.partialPivLu().solve(coarseB);
+            Eigen::VectorXd sol = levels[numLevels - 1]->DirectSolve(coarseB);
 
             // Propagate solution upward
             for (int i = numLevels - 2; i >= 0; i--) {
@@ -83,28 +82,23 @@ namespace LWS {
 
         // Solve Gx = b, where G is the Sobolev Gram matrix of the top-level curve.
         template<typename Smoother>
-        Eigen::VectorXd VCycleSolve(Eigen::VectorXd b, MultigridMode mode) {
+        Eigen::VectorXd VCycleSolve(Eigen::VectorXd b) {
+            MultigridMode mode = levels[0]->GetMode();
+
             int numLevels = levels.size();
             std::vector<Eigen::VectorXd> residuals(numLevels);
             std::vector<Eigen::VectorXd> solutions(numLevels);
             std::vector<Product::MatrixReplacement<Mult>> hMatrices(numLevels);
 
             for (int i = 0; i < numLevels; i++) {
-                int levelNVerts = levels[i]->NumVertices();
-                solutions[i].setZero(levelNVerts);
-                if (mode == MultigridMode::Barycenter) levelNVerts++;
-                hMatrices[i] = Product::MatrixReplacement<Mult>(levels[i]->GetMultiplier(), levelNVerts);
+                int levelNRows = levels[i]->NumRows();
+                solutions[i].setZero(levelNRows);
+                hMatrices[i] = Product::MatrixReplacement<Mult>(levels[i]->GetMultiplier(), levelNRows);
             }
 
             residuals[0] = b;
             bool done = false;
             int numIters = 0;
-
-            int coarsestRows = levels[numLevels - 1]->NumVertices();
-            Eigen::MatrixXd coarse_A;
-            coarse_A.setZero();
-
-            // int iter = 0;
 
             Eigen::VectorXd initGuess = VCycleInitGuess(b, mode, hMatrices);
             Eigen::VectorXd initResidual = b - hMatrices[0] * initGuess;
@@ -115,8 +109,6 @@ namespace LWS {
                 // Propagate residuals downward
                 for (int i = 0; i < numLevels - 1; i++) {
                     Smoother smoother;
-                    // Eigen::GMRES<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> smoother;
-                    // Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> smoother;
                     smoother.compute(hMatrices[i]);
 
                     smoother.setMaxIterations(12);
@@ -146,28 +138,19 @@ namespace LWS {
 
                 // Assemble full operator on sparsest curve and solve normally
                 solutions[numLevels - 1].setZero(residuals[numLevels - 1].rows());
-                coarse_A = levels[numLevels - 1]->GetFullMatrix();
-                solutions[numLevels - 1] = coarse_A.partialPivLu().solve(residuals[numLevels - 1]);
+                solutions[numLevels - 1] = levels[numLevels - 1]->DirectSolve(residuals[numLevels - 1]);
 
                 Eigen::VectorXd resid_bottom = residuals[numLevels - 1] - hMatrices[numLevels - 1] * solutions[numLevels - 1];
-                // std::cout << iter++ << ", " << (numLevels - 1) << ", " << resid_bottom.lpNorm<Eigen::Infinity>() << std::endl;
 
                 // Propagate solutions upward
                 for (int i = numLevels - 2; i >= 0; i--) {
                     Smoother smoother;
-                    // Eigen::GMRES<Product::MatrixReplacement<Mult>, Eigen::IdentityPreconditioner> smoother;
-                    // Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> smoother;
                     smoother.compute(hMatrices[i]);
                     smoother.setMaxIterations(12);
                     // Compute the new initial guess -- old solution from this level, plus
                     // new solution from prolongation operator
                     Eigen::VectorXd guess = solutions[i] + prolongationOps[i].prolong(solutions[i + 1], mode);
-
-                    // Eigen::VectorXd resid_before = residuals[i] - hMatrices[i] * guess;
-                    // std::cout << iter++ << ", " << i << ", " << resid_before.lpNorm<Eigen::Infinity>() << std::endl;
                     solutions[i] = smoother.solveWithGuess(residuals[i], guess);
-                    // Eigen::VectorXd resid_i = residuals[i] - hMatrices[i] * solutions[i];
-                    // std::cout << iter++ << ", " << i << ", " << resid_i.lpNorm<Eigen::Infinity>() << std::endl;
                 }
 
                 Eigen::VectorXd overallResidual = b - hMatrices[0] * solutions[0];

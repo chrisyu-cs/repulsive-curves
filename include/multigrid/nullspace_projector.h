@@ -36,6 +36,10 @@ namespace LWS {
             Multiply(v, out);
             return out;
         }
+
+        Eigen::VectorXd EvaluateConstraints(Eigen::VectorXd &v) {
+            return B * v;
+        }
     };
 
     /*

@@ -163,16 +163,15 @@ namespace LWS {
       Eigen::MatrixXd gradients;
       gradients.setZero(nVerts, 3);
       tpeSolver->FillGradientVectorBH(tree, gradients);
-      Eigen::VectorXd x(nVerts);
+      Eigen::VectorXd x(nVerts + 1);
       x.setZero();
       x.block(0, 0, nVerts, 1) = gradients.col(0);
       delete tree;
       double bh_end = Utils::currentTimeMilliseconds();
       std::cout << "Gradient w/ Barnes-Hut time = " << (bh_end - bh_start) << " ms" << std::endl;
 
-      curves->AddConstraintProjector();
-      Eigen::VectorXd proj_x;
-      curves->constrP->Multiply(x, proj_x);
+      // curves->AddConstraintProjector();
+      // x = curves->constrP->Multiply(x);
 
       // std::uniform_real_distribution<double> unif(-1, 1);
       // std::default_random_engine re;
@@ -184,9 +183,10 @@ namespace LWS {
       // }
 
       long multigridStart = Utils::currentTimeMilliseconds();
-      PolyCurveHMatrixDomain* domain = new PolyCurveHMatrixDomain(curves, 2, 4, 0.5, 0, BlockTreeMode::MatrixOnly);
-      MultigridHierarchy<PolyCurveHMatrixDomain>* hierarchy = new MultigridHierarchy<PolyCurveHMatrixDomain>(domain, logNumVerts);
-      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<PolyCurveHMatrixDomain>::EigenGMRES>(x, MultigridMode::MatrixOnly);
+      PolyCurveSaddleDomain* domain = new PolyCurveSaddleDomain(curves, 2, 4, 0.5);
+      // PolyCurveHMatrixDomain* domain = new PolyCurveHMatrixDomain(curves, 2, 4, 0.5, 0, BlockTreeMode::MatrixOnly);
+      MultigridHierarchy<PolyCurveSaddleDomain>* hierarchy = new MultigridHierarchy<PolyCurveSaddleDomain>(domain, logNumVerts);
+      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<PolyCurveSaddleDomain>::EigenGMRES>(x);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid assembly + solve time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 
