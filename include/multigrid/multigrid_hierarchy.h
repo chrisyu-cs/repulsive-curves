@@ -113,22 +113,18 @@ namespace LWS {
 
                     smoother.setMaxIterations(12);
                     // Run the smoother on this level to get some intermediate solution
-                    if (numIters == 0) {
-                        if (i == 0) {
-                            solutions[i] = smoother.solveWithGuess(residuals[i], initGuess);
-                        }
-                        else {
-                            solutions[i] = smoother.solve(residuals[i]);
-                        }
+                    if (numIters == 0 && i == 0) {
+                        // On the first level of the first V-cycle, use the initial guess
+                        solutions[i] = smoother.solveWithGuess(residuals[i], initGuess);
+                        Eigen::VectorXd presmoothedResid = b - hMatrices[0] * solutions[0];
+                        double presmoothedRel = presmoothedResid.lpNorm<Eigen::Infinity>() / b.lpNorm<Eigen::Infinity>();
+                        std::cout << "First pre-smoothed relative residual = " << presmoothedRel << std::endl;
                     }
                     else {
-                        if (i == 0) {
-                            solutions[i] = smoother.solveWithGuess(residuals[i], solutions[i]);
-                        }
-                        else {
-                            solutions[i].setZero();
-                            solutions[i] = smoother.solveWithGuess(residuals[i], solutions[i]);
-                        }
+                        // On anything below the first level, zero out the initial guess
+                        if (i != 0) solutions[i].setZero();
+                        // Do pre-smoothing iterations
+                        solutions[i] = smoother.solveWithGuess(residuals[i], solutions[i]);
                     }
                     // On the next level, the right-hand side becomes the restricted    
                     // residual from this level.

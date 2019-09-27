@@ -26,9 +26,9 @@ namespace LWS {
         }
 
         Eigen::MatrixXd GetFullMatrix() const {
-            return static_cast<T const&>(*this).GetFullMatrix() ;
+            return static_cast<T const&>(*this).GetFullMatrix();
         }
-        
+
         Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
             return static_cast<T const&>(*this).DirectSolve(b);
         }
@@ -47,6 +47,79 @@ namespace LWS {
         
         NullSpaceProjector* GetConstraintProjector() const {
             return static_cast<T const&>(*this).GetConstraintProjector();
+        }
+    };
+
+    class PolyCurveNullProjectorDomain : public MultigridDomain<PolyCurveNullProjectorDomain, BlockClusterTree> {
+        public:
+        PolyCurveGroup* curves;
+        BVHNode3D* bvh;
+        BlockClusterTree* tree;
+        double alpha, beta;
+        double sepCoeff;
+        int nVerts;
+
+        PolyCurveNullProjectorDomain(PolyCurveGroup* c, double a, double b, double sep) {
+            curves = c;
+            alpha = a;
+            beta = b;
+            sepCoeff = sep;
+            nVerts = curves->NumVertices();
+
+            bvh = CreateEdgeBVHFromCurve(curves);
+            tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta);
+            tree->SetBlockTreeMode(BlockTreeMode::MatrixOnly);
+
+            curves->AddConstraintProjector();
+        }
+
+        ~PolyCurveNullProjectorDomain() {
+            delete tree;
+            delete bvh;
+        }
+
+        MultigridDomain<PolyCurveNullProjectorDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
+            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp, sparsifyOp);
+            return new PolyCurveNullProjectorDomain(coarsened, alpha, beta, sepCoeff);
+        }
+
+        BlockClusterTree* GetMultiplier() const {
+            return tree;
+        }
+
+        Eigen::MatrixXd GetFullMatrix() const {
+            int rows = nVerts + 1;
+            Eigen::MatrixXd A;
+            A.setZero(rows, rows);
+            SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
+            return A;
+        }
+
+        Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
+            Eigen::VectorXd b_aug(nVerts + 1);
+            b_aug.block(0, 0, nVerts, 1) = b;
+            b_aug(nVerts) = 0;
+
+            Eigen::MatrixXd A = GetFullMatrix();
+            b_aug = A.partialPivLu().solve(b_aug);
+            Eigen::VectorXd x = b_aug.block(0, 0, nVerts, 1);
+            return x;
+        }
+
+        int NumVertices() const {
+            return nVerts;
+        }
+
+        int NumRows() const {
+            return nVerts;
+        }
+
+        MultigridMode GetMode() const {
+            return MultigridMode::MatrixOnly;
+        }
+
+        NullSpaceProjector* GetConstraintProjector() const {
+            return curves->constrP;
         }
     };
 
@@ -115,7 +188,7 @@ namespace LWS {
         }
     };
 
-    class PolyCurveHMatrixDomain : public MultigridDomain<PolyCurveHMatrixDomain, BlockClusterTree> {
+    class PolyCurveGramDomain : public MultigridDomain<PolyCurveGramDomain, BlockClusterTree> {
         public:
         PolyCurveGroup* curves;
         BVHNode3D* bvh;
@@ -123,29 +196,29 @@ namespace LWS {
         double alpha, beta;
         double epsilon;
         double sepCoeff;
-        BlockTreeMode mode;
+        int nVerts;
 
-        PolyCurveHMatrixDomain(PolyCurveGroup* c, double a, double b, double sep, double e, BlockTreeMode m) {
+        PolyCurveGramDomain(PolyCurveGroup* c, double a, double b, double sep, double e) {
             curves = c;
             alpha = a;
             beta = b;
             epsilon = e;
             sepCoeff = sep;
+            nVerts = curves->NumVertices();
 
             bvh = CreateEdgeBVHFromCurve(curves);
             tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta, epsilon);
-            mode = m;
-            tree->SetBlockTreeMode(mode);
+            tree->SetBlockTreeMode(BlockTreeMode::MatrixOnly);
         }
 
-        ~PolyCurveHMatrixDomain() {
+        ~PolyCurveGramDomain() {
             delete tree;
             delete bvh;
         }
 
-        MultigridDomain<PolyCurveHMatrixDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
+        MultigridDomain<PolyCurveGramDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
             PolyCurveGroup* coarsened = curves->Coarsen(prolongOp, sparsifyOp);
-            return new PolyCurveHMatrixDomain(coarsened, alpha, beta, sepCoeff, epsilon, mode);
+            return new PolyCurveGramDomain(coarsened, alpha, beta, sepCoeff, epsilon);
         }
 
         BlockClusterTree* GetMultiplier() const {
@@ -153,15 +226,10 @@ namespace LWS {
         }
 
         Eigen::MatrixXd GetFullMatrix() const {
-            int rows = (mode == BlockTreeMode::Barycenter) ? curves->NumVertices() + 1 : curves->NumVertices();
+            int rows = curves->NumVertices();
             Eigen::MatrixXd A;
             A.setZero(rows, rows);
-            if (mode == BlockTreeMode::Barycenter) {
-                SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
-            }
-            else {
-                SobolevCurves::SobolevGramMatrix(curves, alpha, beta, A, epsilon);
-            }
+            SobolevCurves::SobolevGramMatrix(curves, alpha, beta, A, epsilon);
             return A;
         }
 
@@ -183,7 +251,7 @@ namespace LWS {
         }
 
         NullSpaceProjector* GetConstraintProjector() const {
-            return curves->constrP;
+            return 0;
         }
     };
 

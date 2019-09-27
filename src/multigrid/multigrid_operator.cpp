@@ -9,9 +9,9 @@ namespace LWS {
         Eigen::VectorXd out;
 
         if (mode == MultigridMode::MatrixOnly && lowerP) {
-            std::cout << "[prolong] Barycenter before 1st projection = " << lowerP->EvaluateConstraints(v) << std::endl;
+            // std::cout << "[prolong] Barycenter before 1st projection = " << lowerP->EvaluateConstraints(v) << std::endl;
             v = lowerP->Multiply(v);
-            std::cout << "[prolong] Barycenter before prolongation = " << lowerP->EvaluateConstraints(v) << std::endl;
+            // std::cout << "[prolong] Barycenter before prolongation = " << lowerP->EvaluateConstraints(v) << std::endl;
         }
 
         if (mode == MultigridMode::MatrixOnly) {
@@ -41,9 +41,9 @@ namespace LWS {
         }
 
         if (mode == MultigridMode::MatrixOnly && upperP) {
-            std::cout << "[prolong] Barycenter after prolongation = " << upperP->EvaluateConstraints(out) << std::endl;
+            // std::cout << "[prolong] Barycenter after prolongation = " << upperP->EvaluateConstraints(out) << std::endl;
             out = upperP->Multiply(out);
-            std::cout << "[prolong] Barycenter after 2nd projection = " << upperP->EvaluateConstraints(out) << "\n" << std::endl;
+            // std::cout << "[prolong] Barycenter after 2nd projection = " << upperP->EvaluateConstraints(out) << "\n" << std::endl;
         }
 
         return out;
@@ -53,9 +53,9 @@ namespace LWS {
         Eigen::VectorXd out;
 
         if (mode == MultigridMode::MatrixOnly && upperP) {
-            std::cout << "[restrictWithTranspose] Barycenter before 1st projection = " << upperP->EvaluateConstraints(v) << std::endl;
+            // std::cout << "[restrictWithTranspose] Barycenter before 1st projection = " << upperP->EvaluateConstraints(v) << std::endl;
             v = upperP->Multiply(v);
-            std::cout << "[restrictWithTranspose] Barycenter before restriction = " << upperP->EvaluateConstraints(v) << std::endl;
+            // std::cout << "[restrictWithTranspose] Barycenter before restriction = " << upperP->EvaluateConstraints(v) << std::endl;
         }
 
         if (mode == MultigridMode::MatrixOnly) {
@@ -86,9 +86,9 @@ namespace LWS {
         }
 
         if (mode == MultigridMode::MatrixOnly && lowerP) {
-            std::cout << "[restrictWithTranspose] Barycenter after restriction = " << lowerP->EvaluateConstraints(out) << std::endl;
+            // std::cout << "[restrictWithTranspose] Barycenter after restriction = " << lowerP->EvaluateConstraints(out) << std::endl;
             out = lowerP->Multiply(out);
-            std::cout << "[restrictWithTranspose] Barycenter after 2nd projection = " << lowerP->EvaluateConstraints(out) << "\n" << std::endl;
+            // std::cout << "[restrictWithTranspose] Barycenter after 2nd projection = " << lowerP->EvaluateConstraints(out) << "\n" << std::endl;
         }
 
         return out;

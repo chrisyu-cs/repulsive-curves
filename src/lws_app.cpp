@@ -158,41 +158,35 @@ namespace LWS {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 4;
 
+      using MGDomain = PolyCurveNullProjectorDomain;
+      MGDomain* domain = new MGDomain(curves, 2, 4, 0.5);
+      // MGDomain* domain = new MGDomain(curves, 2, 4, 0.5, 0.1);
+
       double bh_start = Utils::currentTimeMilliseconds();
       LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
+      // Use l2 gradient of TPE as test RHS
       Eigen::MatrixXd gradients;
       gradients.setZero(nVerts, 3);
       tpeSolver->FillGradientVectorBH(tree, gradients);
-      Eigen::VectorXd x(nVerts + 1);
+      
+      // For now, use x-coordinate as scalar function
+      Eigen::VectorXd x(domain->NumRows());
       x.setZero();
       x.block(0, 0, nVerts, 1) = gradients.col(0);
       delete tree;
       double bh_end = Utils::currentTimeMilliseconds();
       std::cout << "Gradient w/ Barnes-Hut time = " << (bh_end - bh_start) << " ms" << std::endl;
 
-      // curves->AddConstraintProjector();
-      // x = curves->constrP->Multiply(x);
-
-      // std::uniform_real_distribution<double> unif(-1, 1);
-      // std::default_random_engine re;
-      // re.seed(42);
-
-      // Eigen::VectorXd x(nVerts);
-      // for (int i = 0; i < nVerts; i++) {
-      //   x(i) = unif(re);
-      // }
+      x = curves->constrP->Multiply(x);
 
       long multigridStart = Utils::currentTimeMilliseconds();
-      PolyCurveSaddleDomain* domain = new PolyCurveSaddleDomain(curves, 2, 4, 0.5);
-      // PolyCurveHMatrixDomain* domain = new PolyCurveHMatrixDomain(curves, 2, 4, 0.5, 0, BlockTreeMode::MatrixOnly);
-      MultigridHierarchy<PolyCurveSaddleDomain>* hierarchy = new MultigridHierarchy<PolyCurveSaddleDomain>(domain, logNumVerts);
-      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<PolyCurveSaddleDomain>::EigenGMRES>(x);
+      MultigridHierarchy<MGDomain>* hierarchy = new MultigridHierarchy<MGDomain>(domain, logNumVerts);
+      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<MGDomain>::EigenGMRES>(x);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid assembly + solve time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 
       long solveStart = Utils::currentTimeMilliseconds();
-      Eigen::MatrixXd A = domain->GetFullMatrix();
-      Eigen::VectorXd ref_sol = A.partialPivLu().solve(x);
+      Eigen::VectorXd ref_sol = domain->DirectSolve(x);
       long solveEnd = Utils::currentTimeMilliseconds();
       std::cout << "Direct assembly + solve time = " << (solveEnd - solveStart) << " ms" << std::endl;
 
@@ -223,19 +217,15 @@ namespace LWS {
       std::cout << "Difference norm = " << diff.norm() << std::endl;
       std::cout << "Multigrid error from ground truth = " << 100 * (diff.norm() / ref_sol.norm()) << " percent" << std::endl;
 
-      double finalResidual = (x - A * sol).lpNorm<Eigen::Infinity>();
-
       double dot = sol.normalized().dot(ref_sol.normalized());
       std::cout << "Dot product between directions = " << dot << std::endl;
-      std::cout << "Multigrid relative residual = " << (finalResidual / x.lpNorm<Eigen::Infinity>()) << std::endl;
 
       Eigen::VectorXd Ax_hier(nVerts);
       Ax_hier.setZero();
       domain->GetMultiplier()->Multiply(x, Ax_hier);
-      Eigen::VectorXd Ax_dense = A * x;
-
-      double mult_rel_err = 100 * (Ax_hier - Ax_dense).norm() / Ax_dense.norm();
-      std::cout << "Hierarchical mult. relative error = " << mult_rel_err << " percent" << std::endl;
+      // Eigen::VectorXd Ax_dense = A * x;
+      // double mult_rel_err = 100 * (Ax_hier - Ax_dense).norm() / Ax_dense.norm();
+      // std::cout << "Hierarchical mult. relative error = " << mult_rel_err << " percent" << std::endl;
 
       delete hierarchy;
     }
