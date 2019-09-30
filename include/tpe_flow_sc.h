@@ -37,13 +37,8 @@ namespace LWS {
         double ComputeAndProjectGradient(Eigen::MatrixXd &gradients);
         double ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
         double ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients);
-        double ProjectGradientIterative(Eigen::MatrixXd &gradients, BlockClusterTree* &blockTree);
-
+        
         void FillVertLengthConstraintMatrix(Eigen::MatrixXd &A, int baseIndex);
-
-        void CompareMatrixVectorProduct();
-        PolyCurveGroup* TestCoarsen(PolyCurveGroup* c);
-
         void ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B);
 
         void SaveCurrentPositions();

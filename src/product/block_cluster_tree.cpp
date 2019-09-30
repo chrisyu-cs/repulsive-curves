@@ -14,6 +14,9 @@ namespace LWS {
         ClusterPair pair{tree, tree};
         unresolvedPairs.push_back(pair);
 
+        nVerts = curves->NumVertices();
+        constraintsSet = false;
+
         while (unresolvedPairs.size() > 0) {
             splitInadmissibleNodes();
         }

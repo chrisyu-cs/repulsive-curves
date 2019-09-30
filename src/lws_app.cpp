@@ -118,19 +118,24 @@ namespace LWS {
     if (io.KeysDown[(int)' '] && io.KeysDownDurationPrev[(int)' '] == 0) {
       cout << "space bar" << endl;
     }
-    if (ImGui::Button("Test derivatives")) {
-      //TestBoundaryQuantities(mesh, geom);
-    }
 
-    if (ImGui::Button("Check MV product")) {
-      tpeSolver->CompareMatrixVectorProduct();
+    if (ImGui::Button("Test map")) {
+      Eigen::MatrixXd vec(18, 1);
+      for (int i = 0; i < 18; i++) {
+        vec(i) = i;
+      }
+
+      std::cout << "vec = \n" << vec << std::endl;
+
+      Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<3>> vecMapped(vec.data() + 1, vec.size() / 3);
+      std::cout << "vecMapped = \n" << vecMapped << std::endl;
     }
 
     if (ImGui::Button("Test multigrid")) {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 4;
 
-      using MGDomain = PolyCurveNullProjectorDomain;
+      using MGDomain = PolyCurveSaddleDomain;
       MGDomain* domain = new MGDomain(curves, 2, 4, 0.5);
       // MGDomain* domain = new MGDomain(curves, 2, 4, 0.5, 0.1);
 
@@ -140,7 +145,7 @@ namespace LWS {
       Eigen::MatrixXd gradients;
       gradients.setZero(nVerts, 3);
       tpeSolver->FillGradientVectorBH(tree, gradients);
-      
+
       // For now, use x-coordinate as scalar function
       Eigen::VectorXd x(domain->NumRows());
       x.setZero();
@@ -150,7 +155,7 @@ namespace LWS {
       std::cout << "Gradient w/ Barnes-Hut time = " << (bh_end - bh_start) << " ms" << std::endl;
 
       // If we've enabled null-space projectors, then project the RHS
-      if (domain->GetMode() == MultigridMode::MatrixAndProjector) x = curves->constraints->Multiply(x);
+      if (domain->GetMode() == MultigridMode::MatrixAndProjector) x = curves->constraints->ProjectToNullspace(x);
 
       long multigridStart = Utils::currentTimeMilliseconds();
       MultigridHierarchy<MGDomain>* hierarchy = new MultigridHierarchy<MGDomain>(domain, logNumVerts);

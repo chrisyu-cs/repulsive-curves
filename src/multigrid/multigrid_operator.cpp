@@ -10,7 +10,7 @@ namespace LWS {
 
         if (mode == MultigridMode::MatrixAndProjector) {
             // std::cout << "[prolong] Barycenter before 1st projection = " << lowerP->EvaluateConstraints(v) << std::endl;
-            v = lowerP->Multiply(v);
+            v = lowerP->ProjectToNullspace(v);
             // std::cout << "[prolong] Barycenter before prolongation = " << lowerP->EvaluateConstraints(v) << std::endl;
         }
 
@@ -42,7 +42,7 @@ namespace LWS {
 
         if (mode == MultigridMode::MatrixAndProjector) {
             // std::cout << "[prolong] Barycenter after prolongation = " << upperP->EvaluateConstraints(out) << std::endl;
-            out = upperP->Multiply(out);
+            out = upperP->ProjectToNullspace(out);
             // std::cout << "[prolong] Barycenter after 2nd projection = " << upperP->EvaluateConstraints(out) << "\n" << std::endl;
         }
 
@@ -54,7 +54,7 @@ namespace LWS {
 
         if (mode == MultigridMode::MatrixAndProjector) {
             // std::cout << "[restrictWithTranspose] Barycenter before 1st projection = " << upperP->EvaluateConstraints(v) << std::endl;
-            v = upperP->Multiply(v);
+            v = upperP->ProjectToNullspace(v);
             // std::cout << "[restrictWithTranspose] Barycenter before restriction = " << upperP->EvaluateConstraints(v) << std::endl;
         }
 
@@ -87,7 +87,7 @@ namespace LWS {
 
         if (mode == MultigridMode::MatrixAndProjector) {
             // std::cout << "[restrictWithTranspose] Barycenter after restriction = " << lowerP->EvaluateConstraints(out) << std::endl;
-            out = lowerP->Multiply(out);
+            out = lowerP->ProjectToNullspace(out);
             // std::cout << "[restrictWithTranspose] Barycenter after 2nd projection = " << lowerP->EvaluateConstraints(out) << "\n" << std::endl;
         }
 
@@ -118,7 +118,7 @@ namespace LWS {
         Eigen::VectorXd out;
 
         if (mode == MultigridMode::MatrixAndProjector) {
-            v = upperP->Multiply(v);
+            v = upperP->ProjectToNullspace(v);
         }
         
         if (mode == MultigridMode::MatrixOnly || mode == MultigridMode::MatrixAndProjector) {
@@ -151,7 +151,7 @@ namespace LWS {
         }
 
         if (mode == MultigridMode::MatrixAndProjector) {
-            out = lowerP->Multiply(out);
+            out = lowerP->ProjectToNullspace(out);
         }
 
         return out;

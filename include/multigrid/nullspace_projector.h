@@ -18,7 +18,7 @@ namespace LWS {
         ~NullSpaceProjector() {}
 
         template<typename V, typename Dest>
-        void Multiply(V &v, Dest &out) {
+        void ProjectToNullspace(V &v, Dest &out) {
             // We want to get (B^T) (B B^T)^{-1} B v, so start from the right
             out = B * v;
             Eigen::SparseMatrix<double> BBT = B * B.transpose();
@@ -34,9 +34,9 @@ namespace LWS {
             out = v - out;
         }
 
-        Eigen::VectorXd Multiply(Eigen::VectorXd &v) {
+        Eigen::VectorXd ProjectToNullspace(Eigen::VectorXd &v) {
             Eigen::VectorXd out(v.rows());
-            Multiply(v, out);
+            ProjectToNullspace(v, out);
             return out;
         }
 

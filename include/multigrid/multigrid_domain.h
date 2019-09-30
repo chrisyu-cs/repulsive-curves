@@ -7,6 +7,7 @@
 #include "product/dense_matrix.h"
 #include "product/test_matrices.h"
 #include "nullspace_projector.h"
+#include "flow/gradient_constraints.h"
 
 #include <Eigen/Core>
 
@@ -141,7 +142,9 @@ namespace LWS {
 
             bvh = CreateEdgeBVHFromCurve(curves);
             tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta);
-            tree->SetBlockTreeMode(BlockTreeMode::Barycenter);
+            tree->SetBlockTreeMode(BlockTreeMode::MatrixAndConstraints);
+            BarycenterConstraint bc(curves);
+            tree->SetConstraints(bc);
         }
 
         ~PolyCurveSaddleDomain() {
