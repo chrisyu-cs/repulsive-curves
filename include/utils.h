@@ -9,6 +9,11 @@ namespace LWS {
 
     using namespace geometrycentral;
 
+    class Utils {
+        public:
+        static long currentTimeMilliseconds();
+    };
+
     Vector3 heVector(surface::VertexPositionGeometry* geom, surface::Halfedge he);
 
     Vector3 vector_max(Vector3 a, Vector3 b);
@@ -41,8 +46,15 @@ namespace LWS {
         A(row, 2) += toAdd.z;
     }
 
-    class Utils {
-        public:
-        static long currentTimeMilliseconds();
-    };
+    inline void MatrixIntoVectorX3(Eigen::MatrixXd &A, Eigen::VectorXd &v) {
+        for (int i = 0; i < A.rows(); i++) {
+            v.block(i * 3, 0, 3, 1) = A.block(i, 0, 1, 3).transpose();
+        }
+    }
+
+    inline void VectorXdIntoMatrix(Eigen::VectorXd &v, Eigen::MatrixXd &A) {
+        for (int i = 0; i < A.rows(); i++) {
+            A.block(i, 0, 1, 3) = v.block(i * 3, 0, 3, 1).transpose();
+        }
+    }
 }

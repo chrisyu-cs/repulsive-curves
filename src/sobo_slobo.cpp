@@ -258,15 +258,59 @@ namespace LWS {
         SobolevCurves::SobolevGramMatrix(loop, alpha, beta, A);
 
         double sumLength = loop->TotalLength();
-        double sumW = 0;
 
         // Fill the bottom row with weights for the constraint
         for (int i = 0; i < nVerts; i++) {
             double areaWeight = loop->GetCurvePoint(i).DualLength() / sumLength;
-            sumW += areaWeight;
             // Fill in bottom row and rightmost column
             A(i, nVerts) = areaWeight;
             A(nVerts, i) = areaWeight;
+        }
+    }
+
+    void SobolevCurves::SobolevPlusBarycenter3X(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
+        int nVerts = loop->NumVertices();
+        Eigen::MatrixXd topLeft;
+        topLeft.setZero(nVerts + 1, nVerts + 1);
+        SobolevPlusBarycenter(loop, alpha, beta, topLeft);
+
+        for (int i = 0; i < nVerts + 1; i++) {
+            for (int j = 0; j < nVerts + 1; j++) {
+                A(3 * i, 3 * j) = topLeft(i, j);
+                A(3 * i + 1, 3 * j + 1) = topLeft(i, j);
+                A(3 * i + 2, 3 * j + 2) = topLeft(i, j);
+            }
+        }
+    }
+
+    void SobolevCurves::AddEdgeLengthConstraints(PolyCurveGroup* curves, Eigen::MatrixXd &A, int baseIndex) {
+        int nVerts = curves->NumVertices();
+        for (int i = 0; i < nVerts; i++) {
+            PointOnCurve pt1 = curves->GetCurvePoint(i);
+            PointOnCurve pt2 = pt1.Next();
+            // This is the gradient of edge length wrt pt1; the gradient wrt pt2 is just negative of this.
+            Vector3 grad1 = pt1.Position() - pt2.Position();
+            grad1 = grad1.normalize();
+
+            int j1 = curves->GlobalIndex(pt1);
+            int j2 = curves->GlobalIndex(pt2);
+            int curRow = baseIndex + i;
+
+            // Write the three gradient entries for pt1 into the row and column
+            A(curRow, 3 * j1    ) = grad1.x;
+            A(curRow, 3 * j1 + 1) = grad1.y;
+            A(curRow, 3 * j1 + 2) = grad1.z;
+            A(3 * j1,     curRow) = grad1.x;
+            A(3 * j1 + 1, curRow) = grad1.y;
+            A(3 * j1 + 2, curRow) = grad1.z;
+
+            // Similarly write the three gradient entries for pt2 into the same row and column
+            A(curRow, 3 * j2    ) = -grad1.x;
+            A(curRow, 3 * j2 + 1) = -grad1.y;
+            A(curRow, 3 * j2 + 2) = -grad1.z;
+            A(3 * j2,     curRow) = -grad1.x;
+            A(3 * j2 + 1, curRow) = -grad1.y;
+            A(3 * j2 + 2, curRow) = -grad1.z;
         }
     }
 

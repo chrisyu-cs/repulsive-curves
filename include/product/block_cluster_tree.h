@@ -18,7 +18,9 @@ namespace LWS {
     enum class BlockTreeMode {
         MatrixOnly,
         MatrixAndProjector,
-        MatrixAndConstraints
+        MatrixAndConstraints,
+        Matrix3Only,
+        Matrix3AndConstraints
     };
 
     class BlockClusterTree : public VectorMultiplier<BlockClusterTree> {
@@ -49,6 +51,10 @@ namespace LWS {
         // by a constraint block.
         template<typename V, typename Dest>
         void MultiplyWithConstraints(V &v, Dest &b) const;
+
+        // Combination of the above two.
+        template<typename V3, typename Dest>
+        void MultiplyWithConstraints3(V3 &v, Dest &b) const;
 
         template<typename T>
         void SetConstraints(GradientConstraints<T> &constraints) {
@@ -88,16 +94,24 @@ namespace LWS {
         else if (mode == BlockTreeMode::MatrixAndProjector) {
             Eigen::VectorXd tmp(v.rows());
             tmp.setZero();
-            curves->constraints->ProjectToNullspace(v, tmp);
+            curves->constraintProjector->ProjectToNullspace(v, tmp);
 
             Eigen::VectorXd tmp2(v.rows());
             tmp2.setZero();
             MultiplyVector(tmp, tmp2);
 
-            curves->constraints->ProjectToNullspace(tmp2, b);
+            curves->constraintProjector->ProjectToNullspace(tmp2, b);
         }
         else if (mode == BlockTreeMode::MatrixAndConstraints) {
             MultiplyWithConstraints(v, b);
+        }
+
+        else if (mode == BlockTreeMode::Matrix3Only) {
+            MultiplyVector3(v, b);
+        }
+
+        else if (mode == BlockTreeMode::Matrix3AndConstraints) {
+            MultiplyWithConstraints3(v, b);
         }
 
         for (int i = 0; i < nVerts; i++) {
@@ -160,5 +174,22 @@ namespace LWS {
         b.block(nVerts, 0, nConstraints, 1) += B * v.block(0, 0, nVerts, 1);
         // Multiply B^T * phi (lagrange multipliers block)
         b.block(0, 0, nVerts, 1) += B.transpose() * v.block(nVerts, 0, nConstraints, 1);
+    }
+
+    template<typename V3, typename Dest>
+    void BlockClusterTree::MultiplyWithConstraints3(V3 &v, Dest &b) const {
+        if (!constraintsSet) {
+            std::cerr << "Called MultiplyWithConstraints3 without calling SetConstraints beforehand" << std::endl;
+            throw 1;
+        }
+        int B_start = nVerts * 3;
+        int nConstraints = B.rows();
+        // Do the multiplication with the top-left block
+        MultiplyVector3(v, b);
+        // Now add the results from the constraint blocks
+        // Multiply B * v
+        b.block(B_start, 0, nConstraints, 1) += B * v.block(0, 0, B_start, 1);
+        // Multiply B^T * phi (lagrange multipliers block)
+        b.block(0, 0, B_start, 1) += B.transpose() * v.block(B_start, 0, nConstraints, 1);
     }
 }

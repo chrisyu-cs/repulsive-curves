@@ -21,7 +21,7 @@ namespace LWS {
         ls_step_threshold = 1e-15;
         backproj_threshold = 1e-3;
 
-        useEdgeLengthConstraint = false;
+        useEdgeLengthConstraint = true;
 
         for (int i = 0; i < g->NumVertices(); i++) {
             PointOnCurve p = g->GetCurvePoint(i);
@@ -326,37 +326,6 @@ namespace LWS {
         }
     }
 
-    void TPEFlowSolverSC::FillVertLengthConstraintMatrix(Eigen::MatrixXd &A, int baseIndex) {
-        int nVerts = curves->NumVertices();
-        for (int i = 0; i < nVerts; i++) {
-            PointOnCurve pt1 = curves->GetCurvePoint(i);
-            PointOnCurve pt2 = pt1.Next();
-            // This is the gradient of edge length wrt pt1; the gradient wrt pt2 is just negative of this.
-            Vector3 grad1 = pt1.Position() - pt2.Position();
-            grad1 = grad1.normalize();
-
-            int j1 = curves->GlobalIndex(pt1);
-            int j2 = curves->GlobalIndex(pt2);
-            int curRow = baseIndex + i;
-
-            // Write the three gradient entries for pt1 into the row and column
-            A(curRow, 3 * j1    ) = grad1.x;
-            A(curRow, 3 * j1 + 1) = grad1.y;
-            A(curRow, 3 * j1 + 2) = grad1.z;
-            A(3 * j1,     curRow) = grad1.x;
-            A(3 * j1 + 1, curRow) = grad1.y;
-            A(3 * j1 + 2, curRow) = grad1.z;
-
-            // Similarly write the three gradient entries for pt2 into the same row and column
-            A(curRow, 3 * j2    ) = -grad1.x;
-            A(curRow, 3 * j2 + 1) = -grad1.y;
-            A(curRow, 3 * j2 + 2) = -grad1.z;
-            A(3 * j2,     curRow) = -grad1.x;
-            A(3 * j2 + 1, curRow) = -grad1.y;
-            A(3 * j2 + 2, curRow) = -grad1.z;
-        }
-    }
-
     double TPEFlowSolverSC::FillLengthConstraintViolations(Eigen::VectorXd &b, int baseIndex) {
         if (!useEdgeLengthConstraint) return 0;
         int nVerts = curves->NumVertices();
@@ -505,11 +474,11 @@ namespace LWS {
             // Duplicate the saddle matrix portion into the larger matrix
             ExpandMatrix3x(A_temp, A);
             // Add rows for edge length constraint
-            FillVertLengthConstraintMatrix(A, 3 * nVerts + 3);
+            SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
             double ss_end = Utils::currentTimeMilliseconds();
 
             std::cout << "  Assemble saddle matrix: " << (ss_end - ss_start) << " ms" << std::endl;
-            
+
             double factor_start = Utils::currentTimeMilliseconds();
             // Factorize it
             lu.compute(A);

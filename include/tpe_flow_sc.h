@@ -38,7 +38,6 @@ namespace LWS {
         double ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
         double ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients);
         
-        void FillVertLengthConstraintMatrix(Eigen::MatrixXd &A, int baseIndex);
         void ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B);
 
         void SaveCurrentPositions();

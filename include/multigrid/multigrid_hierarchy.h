@@ -12,7 +12,6 @@ namespace LWS {
         public:
         std::vector<MultigridDomain<T, Mult>*> levels;
         std::vector<MultigridOperator> prolongationOps;
-        std::vector<MultigridOperator> restrictionOps;
 
         MultigridHierarchy(MultigridDomain<T, Mult>* topLevel, size_t numLevels) {
             levels.push_back(topLevel);
@@ -31,26 +30,19 @@ namespace LWS {
 
         void AddNextLevel() {
             MultigridDomain<T, Mult>* lastLevel = levels[levels.size() - 1];
-            MultigridOperator prolongOp, restrictOp;
-            MultigridDomain<T, Mult>* nextLevel = lastLevel->Coarsen(prolongOp, restrictOp);
-            prolongOp.lowerSize = nextLevel->NumVertices();
-            prolongOp.upperSize = lastLevel->NumVertices();
-            restrictOp.lowerSize = prolongOp.lowerSize;
-            restrictOp.upperSize = prolongOp.upperSize;
+            MultigridOperator prolongOp;
+            MultigridDomain<T, Mult>* nextLevel = lastLevel->Coarsen(prolongOp);
 
             prolongOp.lowerP = nextLevel->GetConstraintProjector();
             prolongOp.upperP = lastLevel->GetConstraintProjector();
-            restrictOp.lowerP = nextLevel->GetConstraintProjector();
-            restrictOp.upperP = lastLevel->GetConstraintProjector();
 
             std::cout << "Added multigrid level with " << nextLevel->NumVertices() << std::endl;
 
             prolongationOps.push_back(prolongOp);
-            restrictionOps.push_back(restrictOp);
             levels.push_back(nextLevel);
         }
 
-        Eigen::VectorXd VCycleInitGuess(Eigen::VectorXd b, MultigridMode mode, std::vector<Product::MatrixReplacement<Mult>> &hMatrices) {
+        Eigen::VectorXd VCycleInitGuess(Eigen::VectorXd b, ProlongationMode mode, std::vector<Product::MatrixReplacement<Mult>> &hMatrices) {
             int numLevels = levels.size();
             Eigen::VectorXd coarseB = b;
 
@@ -83,7 +75,7 @@ namespace LWS {
         // Solve Gx = b, where G is the Sobolev Gram matrix of the top-level curve.
         template<typename Smoother>
         Eigen::VectorXd VCycleSolve(Eigen::VectorXd b) {
-            MultigridMode mode = levels[0]->GetMode();
+            ProlongationMode mode = levels[0]->GetMode();
 
             int numLevels = levels.size();
             std::vector<Eigen::VectorXd> residuals(numLevels);

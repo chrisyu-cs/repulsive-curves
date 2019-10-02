@@ -119,16 +119,49 @@ namespace LWS {
       cout << "space bar" << endl;
     }
 
-    if (ImGui::Button("Test map")) {
-      Eigen::MatrixXd vec(18, 1);
-      for (int i = 0; i < 18; i++) {
-        vec(i) = i;
+    if (ImGui::Button("Test 3x")) {
+      // Get the TPE gradient as a test problem
+      int nVerts = curves->NumVertices();
+      LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
+      Eigen::MatrixXd gradients;
+      gradients.setZero(nVerts, 3);
+      tpeSolver->FillGradientVectorBH(tree, gradients);
+
+      // Reshape the V x 3 matrix into a 3V x 1 vector
+      Eigen::VectorXd gradientsLong(4 * nVerts + 3);
+      gradientsLong.setZero();
+      MatrixIntoVectorX3(gradients, gradientsLong);
+
+      gradientsLong(3 * nVerts) = 42;
+      gradientsLong(3 * nVerts + 1) = 54;
+      gradientsLong(3 * nVerts + 2) = 69;
+
+
+      for (int i = 3 * nVerts + 3; i < gradientsLong.rows(); i++) {
+        gradientsLong(i) = 0.1;
       }
 
-      std::cout << "vec = \n" << vec << std::endl;
+      // Do a hierarchical multiply
+      using TestDomain = MultigridDomain<EdgeLengthSaddleDomain, BlockClusterTree>;
+      TestDomain* domain = new EdgeLengthSaddleDomain(curves, 2, 4, 0.5);
+      MultigridOperator J;
+      TestDomain* coarserDomain = domain->Coarsen(J);
 
-      Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<3>> vecMapped(vec.data() + 1, vec.size() / 3);
-      std::cout << "vecMapped = \n" << vecMapped << std::endl;
+      std::cout << "Long vector size: " << gradientsLong.rows() << std::endl;
+      std::cout << "Vertex prolongation dims: " << J.matrices[0].M.rows() << ", " << J.matrices[0].M.cols() << std::endl;
+      std::cout << "Constraint prolongation dims: " << J.edgeMatrices[0].M.rows() << ", " << J.edgeMatrices[0].M.cols() << std::endl;
+
+      Eigen::VectorXd restricted = J.restrictWithTranspose(gradientsLong, ProlongationMode::Matrix3AndEdgeConstraints);
+
+      std::cout << "Restricted:\n" << restricted.transpose() << std::endl;
+
+      Eigen::VectorXd prolonged = J.prolong(restricted, ProlongationMode::Matrix3AndEdgeConstraints);
+
+      std::cout << "Prolonged:\n" << prolonged.transpose() << std::endl;
+
+
+      delete domain;
+      delete tree;
     }
 
     if (ImGui::Button("Test multigrid")) {
@@ -139,7 +172,7 @@ namespace LWS {
       MGDomain* domain = new MGDomain(curves, 2, 4, 0.5);
       // MGDomain* domain = new MGDomain(curves, 2, 4, 0.5, 0.1);
 
-      double bh_start = Utils::currentTimeMilliseconds();
+      long bh_start = Utils::currentTimeMilliseconds();
       LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
       // Use l2 gradient of TPE as test RHS
       Eigen::MatrixXd gradients;
@@ -151,11 +184,12 @@ namespace LWS {
       x.setZero();
       x.block(0, 0, nVerts, 1) = gradients.col(0);
       delete tree;
-      double bh_end = Utils::currentTimeMilliseconds();
+      long bh_end = Utils::currentTimeMilliseconds();
       std::cout << "Gradient w/ Barnes-Hut time = " << (bh_end - bh_start) << " ms" << std::endl;
 
       // If we've enabled null-space projectors, then project the RHS
-      if (domain->GetMode() == MultigridMode::MatrixAndProjector) x = curves->constraints->ProjectToNullspace(x);
+      if (domain->GetMode() == ProlongationMode::MatrixAndProjector)
+        x = curves->constraintProjector->ProjectToNullspace(x);
 
       long multigridStart = Utils::currentTimeMilliseconds();
       MultigridHierarchy<MGDomain>* hierarchy = new MultigridHierarchy<MGDomain>(domain, logNumVerts);
@@ -205,6 +239,7 @@ namespace LWS {
       // double mult_rel_err = 100 * (Ax_hier - Ax_dense).norm() / Ax_dense.norm();
       // std::cout << "Hierarchical mult. relative error = " << mult_rel_err << " percent" << std::endl;
 
+      delete domain;
       delete hierarchy;
     }
 

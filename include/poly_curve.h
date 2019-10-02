@@ -50,7 +50,8 @@ namespace LWS {
         Vector3 Barycenter();
         Vector3 TotalLengthGradient(int i);
 
-        PolyCurve* Coarsen(Eigen::SparseMatrix<double> &prolongOp, Eigen::SparseMatrix<double> &sparsifyOp);
+        PolyCurve* Coarsen(Eigen::SparseMatrix<double> &prolongOp);
+        void EdgeProlongation(Eigen::SparseMatrix<double> &prolongOp);
     };
 
     class PolyCurveGroup {
@@ -67,8 +68,10 @@ namespace LWS {
         int GlobalIndex(PointOnCurve c);
         Eigen::MatrixXd GetPositionMatrix();
 
-        PolyCurveGroup* Coarsen(MultigridOperator &prolongOps, MultigridOperator &sparsifyOps);
-        void AddConstraints();
-        NullSpaceProjector* constraints;
+        PolyCurveGroup* Coarsen(MultigridOperator &prolongOps);
+        void EdgeProlongation(MultigridOperator &prolongOps);
+
+        void AddConstraintProjector();
+        NullSpaceProjector* constraintProjector;
     };
 }

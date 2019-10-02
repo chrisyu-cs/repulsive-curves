@@ -43,6 +43,14 @@ namespace LWS {
         // extra row for a barycenter constraint.
         static void SobolevPlusBarycenter(PolyCurveGroup* loop, double alpha,
             double beta, Eigen::MatrixXd &A);
+
+        // Fills the global Sobolev-Slobodeckij Gram matrix, plus an
+        // extra row for a barycenter constraint.
+        static void SobolevPlusBarycenter3X(PolyCurveGroup* loop, double alpha,
+            double beta, Eigen::MatrixXd &A);
+
+        // Fills the matrix A with edge length constraints, starting from the row baseIndex.
+        static void AddEdgeLengthConstraints(PolyCurveGroup* curves, Eigen::MatrixXd &A, int baseIndex);
         
         // Computes the inner product of the two given vectors, under the metric
         // whose Gram matrix is given.

@@ -18,8 +18,8 @@ namespace LWS {
         public:
         typedef Mult MultType;
 
-        MultigridDomain<T, Mult>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
-            return static_cast<T const&>(*this).Coarsen(prolongOp, sparsifyOp);
+        MultigridDomain<T, Mult>* Coarsen(MultigridOperator &prolongOp) const {
+            return static_cast<T const&>(*this).Coarsen(prolongOp);
         }
 
         Mult* GetMultiplier() const {
@@ -42,12 +42,82 @@ namespace LWS {
             return static_cast<T const&>(*this).NumRows();
         }
 
-        MultigridMode GetMode() const {
+        ProlongationMode GetMode() const {
             return static_cast<T const&>(*this).GetMode();
         }
         
         NullSpaceProjector* GetConstraintProjector() const {
             return static_cast<T const&>(*this).GetConstraintProjector();
+        }
+    };
+
+    class EdgeLengthSaddleDomain : public MultigridDomain<EdgeLengthSaddleDomain, BlockClusterTree> {
+        public:
+        PolyCurveGroup* curves;
+        BVHNode3D* bvh;
+        BlockClusterTree* tree;
+        double alpha, beta;
+        double sepCoeff;
+        int nVerts;
+
+        EdgeLengthSaddleDomain(PolyCurveGroup* c, double a, double b, double sep) {
+            curves = c;
+            alpha = a;
+            beta = b;
+            sepCoeff = sep;
+            nVerts = curves->NumVertices();
+
+            bvh = CreateEdgeBVHFromCurve(curves);
+            tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta);
+            tree->SetBlockTreeMode(BlockTreeMode::Matrix3AndConstraints);
+
+            EdgeLengthConstraint constraint(curves);
+            tree->SetConstraints(constraint);
+        }
+
+        ~EdgeLengthSaddleDomain() {
+            delete tree;
+            delete bvh;
+        }
+
+        MultigridDomain<EdgeLengthSaddleDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
+            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
+            curves->EdgeProlongation(prolongOp);
+            return new EdgeLengthSaddleDomain(coarsened, alpha, beta, sepCoeff);
+        }
+
+        BlockClusterTree* GetMultiplier() const {
+            return tree;
+        }
+
+        Eigen::MatrixXd GetFullMatrix() const {
+            int rows = nVerts + 1;
+            Eigen::MatrixXd A;
+            A.setZero(4 * nVerts + 3, 4 * nVerts + 3);
+            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A);
+            SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
+            return A;
+        }
+
+        Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
+            Eigen::MatrixXd A = GetFullMatrix();
+            return A.partialPivLu().solve(b);
+        }
+
+        int NumVertices() const {
+            return nVerts;
+        }
+
+        int NumRows() const {
+            return nVerts;
+        }
+
+        ProlongationMode GetMode() const {
+            return ProlongationMode::Matrix3AndEdgeConstraints;
+        }
+
+        NullSpaceProjector* GetConstraintProjector() const {
+            return 0;
         }
     };
 
@@ -71,7 +141,7 @@ namespace LWS {
             tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta);
             tree->SetBlockTreeMode(BlockTreeMode::MatrixAndProjector);
 
-            curves->AddConstraints();
+            curves->AddConstraintProjector();
         }
 
         ~PolyCurveNullProjectorDomain() {
@@ -79,8 +149,8 @@ namespace LWS {
             delete bvh;
         }
 
-        MultigridDomain<PolyCurveNullProjectorDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp, sparsifyOp);
+        MultigridDomain<PolyCurveNullProjectorDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
+            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
             return new PolyCurveNullProjectorDomain(coarsened, alpha, beta, sepCoeff);
         }
 
@@ -115,12 +185,12 @@ namespace LWS {
             return nVerts;
         }
 
-        MultigridMode GetMode() const {
-            return MultigridMode::MatrixAndProjector;
+        ProlongationMode GetMode() const {
+            return ProlongationMode::MatrixAndProjector;
         }
 
         NullSpaceProjector* GetConstraintProjector() const {
-            return curves->constraints;
+            return curves->constraintProjector;
         }
     };
 
@@ -152,8 +222,8 @@ namespace LWS {
             delete bvh;
         }
 
-        MultigridDomain<PolyCurveSaddleDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp, sparsifyOp);
+        MultigridDomain<PolyCurveSaddleDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
+            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
             return new PolyCurveSaddleDomain(coarsened, alpha, beta, sepCoeff);
         }
 
@@ -182,8 +252,8 @@ namespace LWS {
             return nVerts + 1;
         }
 
-        MultigridMode GetMode() const {
-            return MultigridMode::Barycenter;
+        ProlongationMode GetMode() const {
+            return ProlongationMode::Barycenter;
         }
 
         NullSpaceProjector* GetConstraintProjector() const {
@@ -219,8 +289,8 @@ namespace LWS {
             delete bvh;
         }
 
-        MultigridDomain<PolyCurveGramDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp, sparsifyOp);
+        MultigridDomain<PolyCurveGramDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
+            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
             return new PolyCurveGramDomain(coarsened, alpha, beta, sepCoeff, epsilon);
         }
 
@@ -249,8 +319,8 @@ namespace LWS {
             return curves->NumVertices();
         }
 
-        MultigridMode GetMode() const {
-            return MultigridMode::MatrixOnly;
+        ProlongationMode GetMode() const {
+            return ProlongationMode::MatrixOnly;
         }
 
         NullSpaceProjector* GetConstraintProjector() const {
@@ -280,8 +350,8 @@ namespace LWS {
             delete multiplier;
         }
 
-        MultigridDomain<PolyCurveDenseDomain, DenseMatrixMult>* Coarsen(MultigridOperator &prolongOp, MultigridOperator &sparsifyOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp, sparsifyOp);
+        MultigridDomain<PolyCurveDenseDomain, DenseMatrixMult>* Coarsen(MultigridOperator &prolongOp) const {
+            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
             return new PolyCurveDenseDomain(coarsened, alpha, beta, epsilon);
         }
 
@@ -311,8 +381,8 @@ namespace LWS {
             return curves->NumVertices();
         }
 
-        MultigridMode GetMode() const {
-            return MultigridMode::MatrixOnly;
+        ProlongationMode GetMode() const {
+            return ProlongationMode::MatrixOnly;
         }
 
         NullSpaceProjector* GetConstraintProjector() const {

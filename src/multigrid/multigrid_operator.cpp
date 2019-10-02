@@ -5,153 +5,133 @@ namespace LWS {
 
     MultigridOperator::MultigridOperator() {}
 
-    Eigen::VectorXd MultigridOperator::prolong(Eigen::VectorXd v, MultigridMode mode) {
+    Eigen::VectorXd MultigridOperator::prolong(Eigen::VectorXd v, ProlongationMode mode) {
         Eigen::VectorXd out;
 
-        if (mode == MultigridMode::MatrixAndProjector) {
+        if (mode == ProlongationMode::MatrixAndProjector) {
             // std::cout << "[prolong] Barycenter before 1st projection = " << lowerP->EvaluateConstraints(v) << std::endl;
             v = lowerP->ProjectToNullspace(v);
             // std::cout << "[prolong] Barycenter before prolongation = " << lowerP->EvaluateConstraints(v) << std::endl;
         }
 
-        if (mode == MultigridMode::MatrixOnly || mode == MultigridMode::MatrixAndProjector) {
+        if (mode == ProlongationMode::MatrixOnly || mode == ProlongationMode::MatrixAndProjector) {
             if (v.rows() != lowerSize) {
                 std::cerr << "Size mismatch in prolong" << std::endl;
             }
             out.setZero(upperSize);
         }
-        else if (mode == MultigridMode::Barycenter) {
+        else if (mode == ProlongationMode::Barycenter) {
             if (v.rows() != lowerSize + 1) {
                 std::cerr << "Size mismatch in prolong" << std::endl;
             }
             out.setZero(upperSize + 1);
         }
-
-        for (size_t i = 0; i < matrices.size(); i++) {
-            int outputStart = matrices[i].fineOffset;
-            int inputStart = matrices[i].coarseOffset;
-            int outputRows = matrices[i].M.rows();
-            int inputRows = matrices[i].M.cols();
-
-            out.block(outputStart, 0, outputRows, 1) = matrices[i].M * v.block(inputStart, 0, inputRows, 1);
+        else if (mode == ProlongationMode::Matrix3AndEdgeConstraints) {
+            out.setZero(4 * upperSize + 3);
         }
 
-        if (mode == MultigridMode::Barycenter) {
+        if (mode == ProlongationMode::Matrix3AndEdgeConstraints) {
+            prolongVerts3X(v, out);
+            prolongBarycenter3X(v, out);
+            prolongEdgeConstraints(v, out);
+        }
+        else {
+            prolongVerts1X(v, out); 
+        }
+
+        if (mode == ProlongationMode::MatrixAndProjector) {
+            out = upperP->ProjectToNullspace(out);
+        }
+
+        if (mode == ProlongationMode::Barycenter) {
             out(upperSize) = v(lowerSize);
         }
 
-        if (mode == MultigridMode::MatrixAndProjector) {
-            // std::cout << "[prolong] Barycenter after prolongation = " << upperP->EvaluateConstraints(out) << std::endl;
-            out = upperP->ProjectToNullspace(out);
-            // std::cout << "[prolong] Barycenter after 2nd projection = " << upperP->EvaluateConstraints(out) << "\n" << std::endl;
-        }
-
         return out;
     }
 
-    Eigen::VectorXd MultigridOperator::restrictWithTranspose(Eigen::VectorXd v, MultigridMode mode) {
+    Eigen::VectorXd MultigridOperator::restrictWithTranspose(Eigen::VectorXd v, ProlongationMode mode) {
         Eigen::VectorXd out;
 
-        if (mode == MultigridMode::MatrixAndProjector) {
-            // std::cout << "[restrictWithTranspose] Barycenter before 1st projection = " << upperP->EvaluateConstraints(v) << std::endl;
+        if (mode == ProlongationMode::MatrixAndProjector) {
             v = upperP->ProjectToNullspace(v);
-            // std::cout << "[restrictWithTranspose] Barycenter before restriction = " << upperP->EvaluateConstraints(v) << std::endl;
         }
 
-        if (mode == MultigridMode::MatrixOnly || mode == MultigridMode::MatrixAndProjector) {
+        if (mode == ProlongationMode::MatrixOnly || mode == ProlongationMode::MatrixAndProjector) {
             if (v.rows() != upperSize) {
                 std::cerr << "Size mismatch in restrictWithTranspose" << std::endl;
             }
             out.setZero(lowerSize);
         }
-        else if (mode == MultigridMode::Barycenter) {
+        else if (mode == ProlongationMode::Barycenter) {
             if (v.rows() != upperSize + 1) {
                 std::cerr << "Size mismatch in restrictWithTranspose" << std::endl;
             }
             out.setZero(lowerSize + 1);
         }
-
-        for (size_t i = 0; i < matrices.size(); i++) {
-            int outputStart = matrices[i].coarseOffset;
-            int inputStart = matrices[i].fineOffset;
-            int outputRows = matrices[i].M.cols();
-            int inputRows = matrices[i].M.rows();
-
-            //out.block(outputStart, 0, outputRows, 1) = (v.block(inputStart, 0, inputRows, 1).transpose() *  matrices[i].M).transpose();
-            out.block(outputStart, 0, outputRows, 1) = matrices[i].M.transpose() * v.block(inputStart, 0, inputRows, 1);
+        else if (mode == ProlongationMode::Matrix3AndEdgeConstraints) {
+            out.setZero(4 * lowerSize + 3);
+            std::cout << "lowerSize = " << lowerSize << std::endl;
         }
 
-        if (mode == MultigridMode::Barycenter) {
+        if (mode == ProlongationMode::Matrix3AndEdgeConstraints) {
+            restrictVertsTranspose3X(v, out);
+            restrictBarycenter3X(v, out);
+            restrictEdgeConstraintsTranspose(v, out);
+        }
+        else {
+            restrictVertsTranspose1X(v, out);
+        }
+
+        if (mode == ProlongationMode::MatrixAndProjector) {
+            out = lowerP->ProjectToNullspace(out);
+        }
+
+        if (mode == ProlongationMode::Barycenter) {
             out(lowerSize) = v(upperSize);
         }
 
-        if (mode == MultigridMode::MatrixAndProjector) {
-            // std::cout << "[restrictWithTranspose] Barycenter after restriction = " << lowerP->EvaluateConstraints(out) << std::endl;
-            out = lowerP->ProjectToNullspace(out);
-            // std::cout << "[restrictWithTranspose] Barycenter after 2nd projection = " << lowerP->EvaluateConstraints(out) << "\n" << std::endl;
-        }
-
         return out;
     }
 
-    Eigen::VectorXd ApplyPinv(Eigen::SparseMatrix<double> &J, Eigen::VectorXd &x) {
-        Eigen::SparseMatrix<double> JTJ = J.transpose() * J;
-        Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> JTJ_solver;
-        JTJ_solver.analyzePattern(JTJ);
-        JTJ_solver.factorize(JTJ);
-
-        Eigen::VectorXd JT_v = J.transpose() * x;
-        Eigen::VectorXd pinv_v = JTJ_solver.solve(JT_v);
-        return pinv_v;
-    }
-
-    Eigen::MatrixXd ApplyPinv(Eigen::SparseMatrix<double> &J, Eigen::MatrixXd &xs) {
-        Eigen::MatrixXd out(J.cols(), xs.cols());
-        for (int i = 0; i < xs.cols(); i++) {
-            Eigen::VectorXd c_i = xs.col(i);
-            out.col(i) = ApplyPinv(J, c_i);
-        }
-        return out;
-    }
-
-    Eigen::VectorXd MultigridOperator::restrictWithPinv(Eigen::VectorXd v, MultigridMode mode) {
+    Eigen::VectorXd MultigridOperator::restrictWithPinv(Eigen::VectorXd v, ProlongationMode mode) {
         Eigen::VectorXd out;
 
-        if (mode == MultigridMode::MatrixAndProjector) {
+        if (mode == ProlongationMode::MatrixAndProjector) {
             v = upperP->ProjectToNullspace(v);
         }
         
-        if (mode == MultigridMode::MatrixOnly || mode == MultigridMode::MatrixAndProjector) {
+        if (mode == ProlongationMode::MatrixOnly || mode == ProlongationMode::MatrixAndProjector) {
             if (v.rows() != upperSize) {
                 std::cerr << "Size mismatch in restrictWithPinv" << std::endl;
             }
             out.setZero(lowerSize);
         }
-        else if (mode == MultigridMode::Barycenter) {
+        else if (mode == ProlongationMode::Barycenter) {
             if (v.rows() != upperSize + 1) {
                 std::cerr << "Size mismatch in restrictWithPinv" << std::endl;
             }
             out.setZero(lowerSize + 1);
         }
-
-        for (size_t i = 0; i < matrices.size(); i++) {
-            int outputStart = matrices[i].coarseOffset;
-            int inputStart = matrices[i].fineOffset;
-            int outputRows = matrices[i].M.cols();
-            int inputRows = matrices[i].M.rows();
-
-            Eigen::VectorXd vblock = v.block(inputStart, 0, inputRows, 1);
-
-            //out.block(outputStart, 0, outputRows, 1) = (v.block(inputStart, 0, inputRows, 1).transpose() *  matrices[i].M).transpose();
-            out.block(outputStart, 0, outputRows, 1) = ApplyPinv(matrices[i].M, vblock);
+        else if (mode == ProlongationMode::Matrix3AndEdgeConstraints) {
+            out.setZero(4 * lowerSize + 3);
+        }
+        
+        if (mode == ProlongationMode::Matrix3AndEdgeConstraints) {
+            restrictVertsPinv3X(v, out);
+            restrictBarycenter3X(v, out);
+            restrictEdgeConstraintsPinv(v, out);
+        }
+        else {
+            restrictVertsPinv1X(v, out);
         }
 
-        if (mode == MultigridMode::Barycenter) {
-            out(lowerSize) = v(upperSize);
-        }
-
-        if (mode == MultigridMode::MatrixAndProjector) {
+        if (mode == ProlongationMode::MatrixAndProjector) {
             out = lowerP->ProjectToNullspace(out);
+        }
+
+        if (mode == ProlongationMode::Barycenter) {
+            out(lowerSize) = v(upperSize);
         }
 
         return out;

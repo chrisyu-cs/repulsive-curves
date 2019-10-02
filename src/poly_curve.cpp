@@ -199,53 +199,14 @@ namespace LWS {
         return prevEdge + nextEdge;
     }
 
-    PolyCurve* PolyCurve::Coarsen(Eigen::SparseMatrix<double> &prolongOp, Eigen::SparseMatrix<double> &sparsifyOp) {
+    PolyCurve* PolyCurve::Coarsen(Eigen::SparseMatrix<double> &prolongOp) {
         int nVerts = positions.size();
         bool isOddNumber = (nVerts % 2) == 1;
-
         int coarseVerts = (isOddNumber) ? nVerts / 2 + 1 : nVerts / 2;
 
         std::vector<Eigen::Triplet<double>> triplets;
 
-        /*
-        for (int i = 0; i < coarseVerts; i++) {
-            int oldI = 2 * i;
-            if (isOddNumber && i == 0) {
-                triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.75));
-                triplets.push_back(Eigen::Triplet<double>(i, oldI + 1, 0.25));
-            }
-            else if (isOddNumber && i == coarseVerts - 1) {
-                triplets.push_back(Eigen::Triplet<double>(i, oldI - 1, 0.25));
-                triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.75));
-            }
-            else {
-                triplets.push_back(Eigen::Triplet<double>(i, (oldI - 1 + nVerts) % nVerts, 0.25));
-                triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.5));
-                triplets.push_back(Eigen::Triplet<double>(i, (oldI + 1) % nVerts, 0.25));
-            }
-        }
-
-        sparsifyOp.resize(coarseVerts, nVerts);
-        sparsifyOp.setFromTriplets(triplets.begin(), triplets.end());
-
-        Eigen::MatrixXd positionMatrix(nVerts, 3);
-        for (int i = 0; i < nVerts; i++) {
-            SetRow(positionMatrix, i, positions[i]);
-        }
-        Eigen::MatrixXd coarsePosMat = sparsifyOp * positionMatrix;
-
-        sparsifyOp = sparsifyOp.transpose();
-
-        std::vector<Vector3> coarsePositions(coarsePosMat.rows());
-        PolyCurve* p = new PolyCurve(coarsePosMat.rows());
-        for (int i = 0; i < coarseVerts; i++) {
-            p->positions[i] = SelectRow(coarsePosMat, i);
-        }
-        */
-
         // Assemble the prolongation operator
-        triplets.clear();
-
         for (int i = 0; i < nVerts; i++) {
             int oldI = i / 2;
             if (i % 2 == 0) {
@@ -259,9 +220,6 @@ namespace LWS {
 
         prolongOp.resize(nVerts, coarseVerts);
         prolongOp.setFromTriplets(triplets.begin(), triplets.end());
-
-        sparsifyOp.resize(nVerts, coarseVerts);
-        sparsifyOp.setFromTriplets(triplets.begin(), triplets.end());
 
         Eigen::MatrixXd positionMatrix(nVerts, 3);
         for (int i = 0; i < nVerts; i++) {
@@ -278,8 +236,29 @@ namespace LWS {
         return p;
     }
 
+    void PolyCurve::EdgeProlongation(Eigen::SparseMatrix<double> &prolongOp) {
+        int nEdges = positions.size();
+        bool isOddNumber = (nEdges % 2) == 1;
+        int coarseEdges = (isOddNumber) ? nEdges / 2 + 1 : nEdges / 2;
+
+        std::vector<Eigen::Triplet<double>> triplets;
+
+        // Assemble the prolongation operator
+        for (int i = 0; i < nEdges; i++) {
+            int oldI = i / 2;
+            triplets.push_back(Eigen::Triplet<double>(i, oldI, 0.5));
+        }
+
+        if (isOddNumber) {
+            triplets.push_back(Eigen::Triplet<double>(nEdges - 1, (nEdges - 1) / 2, 1));
+        }
+
+        prolongOp.resize(nEdges, coarseEdges);
+        prolongOp.setFromTriplets(triplets.begin(), triplets.end());
+    }
+
     PolyCurveGroup::PolyCurveGroup() {
-        constraints = 0;
+        constraintProjector = 0;
     }
 
     void PolyCurveGroup::AddCurve(PolyCurve* c) {
@@ -389,33 +368,48 @@ namespace LWS {
         return positions;
     }
 
-    PolyCurveGroup* PolyCurveGroup::Coarsen(MultigridOperator &prolongOps, MultigridOperator &sparsifyOps) {
+    PolyCurveGroup* PolyCurveGroup::Coarsen(MultigridOperator &prolongOps) {
         PolyCurveGroup* coarseGroup = new PolyCurveGroup();
         int coarseOffset = 0;
 
         for (PolyCurve* c : curves) {
             Eigen::SparseMatrix<double> prolongation;
-            Eigen::SparseMatrix<double> sparsify;
-            PolyCurve* c_coarsened = c->Coarsen(prolongation, sparsify);
+            PolyCurve* c_coarsened = c->Coarsen(prolongation);
             c_coarsened->offset = coarseOffset;
             // The next curve will have its offset increased by this curve's length
-            coarseOffset += c_coarsened->NumVertices();
+            coarseOffset += prolongation.cols();
 
             coarseGroup->AddCurve(c_coarsened);
             prolongOps.matrices.push_back(IndexedMatrix{prolongation, c->offset, c_coarsened->offset});
-            sparsifyOps.matrices.push_back(IndexedMatrix{sparsify, c->offset, c_coarsened->offset});
         }
 
         // If this already has a constraint projector, then add one for the
         // coarse version as well
-        if (constraints) {
-            coarseGroup->AddConstraints();
+        if (constraintProjector) {
+            coarseGroup->AddConstraintProjector();
         }
+
+        prolongOps.upperSize = NumVertices();
+        prolongOps.lowerSize = coarseGroup->NumVertices();
 
         return coarseGroup;
     }
 
-    void PolyCurveGroup::AddConstraints() {
+    void PolyCurveGroup::EdgeProlongation(MultigridOperator &prolongOps) {
+        int coarseOffset = 0;
+
+        for (PolyCurve* c : curves) {
+            Eigen::SparseMatrix<double> prolongation;
+            c->EdgeProlongation(prolongation);
+            int coarse_off = coarseOffset;
+            // The next curve will have its offset increased by this curve's length
+            coarseOffset += prolongation.cols();
+            prolongOps.edgeMatrices.push_back(IndexedMatrix{prolongation, c->offset, coarse_off});
+        }
+    }
+    
+
+    void PolyCurveGroup::AddConstraintProjector() {
         int nVerts = NumVertices();
         std::vector<Eigen::Triplet<double>> triplets;
 
@@ -428,7 +422,7 @@ namespace LWS {
         B_sparse.resize(1, nVerts);
         B_sparse.setFromTriplets(triplets.begin(), triplets.end());
 
-        constraints = new NullSpaceProjector(B_sparse);
+        constraintProjector = new NullSpaceProjector(B_sparse);
     }
 
     int PointOnCurve::GlobalIndex() {
