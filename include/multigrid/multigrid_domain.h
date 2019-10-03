@@ -7,7 +7,7 @@
 #include "product/dense_matrix.h"
 #include "product/test_matrices.h"
 #include "nullspace_projector.h"
-#include "flow/gradient_constraints.h"
+#include "flow/gradient_constraint_types.h"
 
 #include <Eigen/Core>
 
@@ -109,11 +109,157 @@ namespace LWS {
         }
 
         int NumRows() const {
-            return nVerts;
+            return 4 * nVerts + 3;
         }
 
         ProlongationMode GetMode() const {
             return ProlongationMode::Matrix3AndEdgeConstraints;
+        }
+
+        NullSpaceProjector* GetConstraintProjector() const {
+            return 0;
+        }
+    };
+
+    class EdgeLengthNullProjectorDomain : public MultigridDomain<EdgeLengthNullProjectorDomain, BlockClusterTree> {
+        public:
+        PolyCurveGroup* curves;
+        BVHNode3D* bvh;
+        BlockClusterTree* tree;
+        double alpha, beta;
+        double sepCoeff;
+        int nVerts;
+
+        EdgeLengthNullProjectorDomain(PolyCurveGroup* c, double a, double b, double sep) {
+            curves = c;
+            alpha = a;
+            beta = b;
+            sepCoeff = sep;
+            nVerts = curves->NumVertices();
+
+            bvh = CreateEdgeBVHFromCurve(curves);
+            tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta);
+            tree->SetBlockTreeMode(BlockTreeMode::Matrix3AndProjector);
+
+            EdgeLengthConstraint constraint(curves);
+            curves->AddConstraintProjector(constraint);
+        }
+
+        ~EdgeLengthNullProjectorDomain() {
+            delete tree;
+            delete bvh;
+        }
+
+        MultigridDomain<EdgeLengthNullProjectorDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
+            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
+            EdgeLengthNullProjectorDomain* coarseDomain = new EdgeLengthNullProjectorDomain(coarsened, alpha, beta, sepCoeff);
+            prolongOp.lowerP = coarseDomain->GetConstraintProjector();
+            prolongOp.upperP = GetConstraintProjector();
+            return coarseDomain;
+        }
+
+        BlockClusterTree* GetMultiplier() const {
+            return tree;
+        }
+
+        Eigen::MatrixXd GetFullMatrix() const {
+            int rows = nVerts + 1;
+            Eigen::MatrixXd A;
+            A.setZero(4 * nVerts + 3, 4 * nVerts + 3);
+            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A);
+            SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
+            return A;
+        }
+
+        Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
+            Eigen::VectorXd b_aug(4 * nVerts + 3);
+            int constraintRows = nVerts + 3;
+            b_aug.block(0, 0, b.rows(), 1) = b;
+            b_aug.block(b.rows(), 0, constraintRows, 1).setZero();
+
+            Eigen::MatrixXd A = GetFullMatrix();
+            b_aug = A.partialPivLu().solve(b_aug);
+            return b_aug.block(0, 0, b.rows(), 1);
+        }
+
+        int NumVertices() const {
+            return nVerts;
+        }
+
+        int NumRows() const {
+            return 3 * nVerts;
+        }
+
+        ProlongationMode GetMode() const {
+            return ProlongationMode::Matrix3AndProjector;
+        }
+
+        NullSpaceProjector* GetConstraintProjector() const {
+            return curves->constraintProjector;
+        }
+
+    };
+
+    class Barycenter3Domain : public MultigridDomain<Barycenter3Domain, BlockClusterTree> {
+        public:
+        PolyCurveGroup* curves;
+        BVHNode3D* bvh;
+        BlockClusterTree* tree;
+        double alpha, beta;
+        double sepCoeff;
+        int nVerts;
+
+        Barycenter3Domain(PolyCurveGroup* c, double a, double b, double sep) {
+            curves = c;
+            alpha = a;
+            beta = b;
+            sepCoeff = sep;
+            nVerts = curves->NumVertices();
+
+            bvh = CreateEdgeBVHFromCurve(curves);
+            tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta);
+            tree->SetBlockTreeMode(BlockTreeMode::Matrix3AndConstraints);
+
+            BarycenterConstraint3X constraint(curves);
+            tree->SetConstraints(constraint);
+        }
+
+        ~Barycenter3Domain() {
+            delete tree;
+            delete bvh;
+        }
+
+        MultigridDomain<Barycenter3Domain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
+            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
+            return new Barycenter3Domain(coarsened, alpha, beta, sepCoeff);
+        }
+
+        BlockClusterTree* GetMultiplier() const {
+            return tree;
+        }
+
+        Eigen::MatrixXd GetFullMatrix() const {
+            Eigen::MatrixXd A;
+            A.setZero(3 * nVerts + 3, 3 * nVerts + 3);
+            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A);
+            return A;
+        }
+
+        Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
+            Eigen::MatrixXd A = GetFullMatrix();
+            return A.partialPivLu().solve(b);
+        }
+
+        int NumVertices() const {
+            return nVerts;
+        }
+
+        int NumRows() const {
+            return 3 * nVerts + 3;
+        }
+
+        ProlongationMode GetMode() const {
+            return ProlongationMode::Matrix3AndBarycenter;
         }
 
         NullSpaceProjector* GetConstraintProjector() const {
@@ -141,7 +287,8 @@ namespace LWS {
             tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta);
             tree->SetBlockTreeMode(BlockTreeMode::MatrixAndProjector);
 
-            curves->AddConstraintProjector();
+            BarycenterConstraint constraint(curves);
+            curves->AddConstraintProjector(constraint);
         }
 
         ~PolyCurveNullProjectorDomain() {
@@ -151,7 +298,10 @@ namespace LWS {
 
         MultigridDomain<PolyCurveNullProjectorDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
             PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
-            return new PolyCurveNullProjectorDomain(coarsened, alpha, beta, sepCoeff);
+            PolyCurveNullProjectorDomain* coarseDomain = new PolyCurveNullProjectorDomain(coarsened, alpha, beta, sepCoeff);
+            prolongOp.lowerP = coarseDomain->GetConstraintProjector();
+            prolongOp.upperP = GetConstraintProjector();
+            return coarseDomain;
         }
 
         BlockClusterTree* GetMultiplier() const {

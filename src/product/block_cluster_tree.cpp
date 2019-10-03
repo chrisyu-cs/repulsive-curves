@@ -3,6 +3,10 @@
 
 namespace LWS {
 
+    long BlockClusterTree::illSepTime = 0;
+    long BlockClusterTree::wellSepTime = 0;
+    long BlockClusterTree::traversalTime = 0;
+
     BlockClusterTree::BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e) {
         curves = cg;
         alpha = a;
@@ -91,24 +95,19 @@ namespace LWS {
 
     void BlockClusterTree::AfFullProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
     {
-        std::vector<VertexBody6D> children1;
-        pair.cluster1->accumulateChildren(children1);
-        std::vector<VertexBody6D> children2;
-        pair.cluster2->accumulateChildren(children2);
-        
         double pow_s = (beta - alpha);
 
-        std::vector<double> a_times_one(children1.size());
-        std::vector<Vector3> a_times_v(children1.size());
+        std::vector<double> a_times_one(pair.cluster1->clusterIndices.size());
+        std::vector<Vector3> a_times_v(pair.cluster1->clusterIndices.size());
         
-        for (size_t i = 0; i < children1.size(); i++) {
-            VertexBody6D e1 = children1[i];
+        for (size_t i = 0; i < pair.cluster1->clusterIndices.size(); i++) {
+            int e1index = pair.cluster1->clusterIndices[i];
 
-            for (size_t j = 0; j < children2.size(); j++) {
-                VertexBody6D e2 = children2[j];
+            for (size_t j = 0; j < pair.cluster2->clusterIndices.size(); j++) {
+                int e2index = pair.cluster2->clusterIndices[j];
 
-                PointOnCurve p1 = curves->GetCurvePoint(e1.vertIndex1);
-                PointOnCurve p2 = curves->GetCurvePoint(e2.vertIndex1);
+                PointOnCurve p1 = curves->GetCurvePoint(e1index);
+                PointOnCurve p2 = curves->GetCurvePoint(e2index);
 
                 bool isNeighbors = (p1 == p2 || p1.Next() == p2 || p1 == p2.Next() || p1.Next() == p2.Next());
                 
@@ -126,36 +125,27 @@ namespace LWS {
                 a_times_one[i] += af_ij;
 
                 // We also dot it with v_hat(J).
-                a_times_v[i] += af_ij * SelectRow(v_hat, e2.vertIndex1);
+                a_times_v[i] += af_ij * SelectRow(v_hat, e2index);
             }
 
             // We've computed everything from row i now, so add to the results vector
-            Vector3 toAdd = 2 * (a_times_one[i] * SelectRow(v_hat, e1.vertIndex1) - a_times_v[i]);
-            AddToRow(result, e1.vertIndex1, toAdd);
+            Vector3 toAdd = 2 * (a_times_one[i] * SelectRow(v_hat, e1index) - a_times_v[i]);
+            AddToRow(result, e1index, toAdd);
         }
     }
     
     void BlockClusterTree::AfApproxProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
     {
-        std::vector<VertexBody6D> children1;
-        pair.cluster1->accumulateChildren(children1);
-        std::vector<VertexBody6D> children2;
-        pair.cluster2->accumulateChildren(children2);
+        long traversalStart = Utils::currentTimeMilliseconds();
+        Eigen::VectorXd wf_i;
+        pair.cluster1->fillClusterMassVector(wf_i);
+        Eigen::VectorXd wf_j;
+        pair.cluster2->fillClusterMassVector(wf_j);
+        long traversalEnd = Utils::currentTimeMilliseconds();
+
+        traversalTime += (traversalEnd - traversalStart);
         
         double pow_s = beta - alpha;
-
-        Eigen::VectorXd wf_i;
-        wf_i.setZero(children1.size());
-        Eigen::VectorXd wf_j;
-        wf_j.setZero(children2.size());
-
-        for (size_t i = 0; i < children1.size(); i++) {
-            wf_i[i] = children1[i].mass;
-        }
-
-        for (size_t j = 0; j < children2.size(); j++) {
-            wf_j[j] = children2[j].mass;
-        }
 
         double a_IJ = 1.0 / pow(norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass), pow_s);
         // Evaluate a(I,J) * w_f(J)^T * 1(J)
@@ -164,15 +154,15 @@ namespace LWS {
         // Evaluate a(I,J) * w_f(J)^T * v_hat(J)
         Vector3 a_wf_J{0, 0, 0};
         // Dot w_f(J) with v_hat(J)
-        for (size_t j = 0; j < children2.size(); j++) {
-            a_wf_J += wf_j(j) * SelectRow(v_hat, children2[j].vertIndex1);
+        for (int j = 0; j < wf_j.rows(); j++) {
+            a_wf_J += wf_j(j) * SelectRow(v_hat, pair.cluster2->clusterIndices[j]);
         }
         a_wf_J *= a_IJ;
 
         // Add in the results
-        for (size_t i = 0; i < children1.size(); i++) {
-            Vector3 toAdd = 2 * (wf_i[i] * a_wf_1 * SelectRow(v_hat, children1[i].vertIndex1) - wf_i[i] * a_wf_J);
-            AddToRow(result, children1[i].vertIndex1, toAdd);
+        for (int i = 0; i < wf_i.rows(); i++) {
+            Vector3 toAdd = wf_i[i] * 2 * (a_wf_1 * SelectRow(v_hat, pair.cluster1->clusterIndices[i]) - a_wf_J);
+            AddToRow(result, pair.cluster1->clusterIndices[i], toAdd);
         }
     }
 

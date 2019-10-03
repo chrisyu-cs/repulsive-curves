@@ -383,12 +383,6 @@ namespace LWS {
             prolongOps.matrices.push_back(IndexedMatrix{prolongation, c->offset, c_coarsened->offset});
         }
 
-        // If this already has a constraint projector, then add one for the
-        // coarse version as well
-        if (constraintProjector) {
-            coarseGroup->AddConstraintProjector();
-        }
-
         prolongOps.upperSize = NumVertices();
         prolongOps.lowerSize = coarseGroup->NumVertices();
 
@@ -406,23 +400,6 @@ namespace LWS {
             coarseOffset += prolongation.cols();
             prolongOps.edgeMatrices.push_back(IndexedMatrix{prolongation, c->offset, coarse_off});
         }
-    }
-    
-
-    void PolyCurveGroup::AddConstraintProjector() {
-        int nVerts = NumVertices();
-        std::vector<Eigen::Triplet<double>> triplets;
-
-        double totalLen = TotalLength();
-        for (int i = 0; i < nVerts; i++) {
-            double wt = GetCurvePoint(i).DualLength() / totalLen;
-            triplets.push_back(Eigen::Triplet<double>(0, i, wt));
-        }
-        Eigen::SparseMatrix<double> B_sparse;
-        B_sparse.resize(1, nVerts);
-        B_sparse.setFromTriplets(triplets.begin(), triplets.end());
-
-        constraintProjector = new NullSpaceProjector(B_sparse);
     }
 
     int PointOnCurve::GlobalIndex() {

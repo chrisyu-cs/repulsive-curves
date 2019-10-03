@@ -33,15 +33,13 @@ namespace LWS {
             MultigridOperator prolongOp;
             MultigridDomain<T, Mult>* nextLevel = lastLevel->Coarsen(prolongOp);
 
-            prolongOp.lowerP = nextLevel->GetConstraintProjector();
-            prolongOp.upperP = lastLevel->GetConstraintProjector();
-
             std::cout << "Added multigrid level with " << nextLevel->NumVertices() << std::endl;
 
             prolongationOps.push_back(prolongOp);
             levels.push_back(nextLevel);
         }
 
+        template<typename Smoother>
         Eigen::VectorXd VCycleInitGuess(Eigen::VectorXd b, ProlongationMode mode, std::vector<Product::MatrixReplacement<Mult>> &hMatrices) {
             int numLevels = levels.size();
             Eigen::VectorXd coarseB = b;
@@ -60,7 +58,7 @@ namespace LWS {
             // Propagate solution upward
             for (int i = numLevels - 2; i >= 0; i--) {
                 sol = prolongationOps[i].prolong(sol, mode);
-                Eigen::ConjugateGradient<Product::MatrixReplacement<Mult>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> smoother;
+                Smoother smoother;
                 smoother.compute(hMatrices[i]);
                 smoother.setMaxIterations(24);
                 sol = smoother.solveWithGuess(coarseBs[i], sol);
@@ -75,6 +73,7 @@ namespace LWS {
         // Solve Gx = b, where G is the Sobolev Gram matrix of the top-level curve.
         template<typename Smoother>
         Eigen::VectorXd VCycleSolve(Eigen::VectorXd b) {
+            std::cout << "Starting solve" << std::endl;
             ProlongationMode mode = levels[0]->GetMode();
 
             int numLevels = levels.size();
@@ -92,10 +91,12 @@ namespace LWS {
             bool done = false;
             int numIters = 0;
 
-            Eigen::VectorXd initGuess = VCycleInitGuess(b, mode, hMatrices);
+            Eigen::VectorXd initGuess = VCycleInitGuess<Smoother>(b, mode, hMatrices);
             Eigen::VectorXd initResidual = b - hMatrices[0] * initGuess;
             double initRelative = initResidual.lpNorm<Eigen::Infinity>() / b.lpNorm<Eigen::Infinity>();
             std::cout << "Initial guess relative residual = " << initRelative << std::endl;
+
+            std::cout << "0, " << initRelative << std::endl;
 
             while (!done) {
                 // Propagate residuals downward
@@ -110,7 +111,7 @@ namespace LWS {
                         solutions[i] = smoother.solveWithGuess(residuals[i], initGuess);
                         Eigen::VectorXd presmoothedResid = b - hMatrices[0] * solutions[0];
                         double presmoothedRel = presmoothedResid.lpNorm<Eigen::Infinity>() / b.lpNorm<Eigen::Infinity>();
-                        std::cout << "First pre-smoothed relative residual = " << presmoothedRel << std::endl;
+                        // std::cout << "First pre-smoothed relative residual = " << presmoothedRel << std::endl;
                     }
                     else {
                         // On anything below the first level, zero out the initial guess
@@ -145,8 +146,10 @@ namespace LWS {
                 double residNorm = overallResidual.lpNorm<Eigen::Infinity>() / b.lpNorm<Eigen::Infinity>();
 
                 numIters++;
-                done = (residNorm < 1e-5 || numIters >= 100);
-                std::cerr << "[Iteration " << numIters << "] residual = " << residNorm << "     \r" << std::flush;
+                done = (residNorm < 1e-5 || numIters >= 10);
+
+                std::cout << numIters << ", " << residNorm << std::endl;
+                // std::cerr << "[Iteration " << numIters << "] residual = " << residNorm << "     \r" << std::flush;
             }
 
             std::cout << "\nDid " << numIters << " iterations" << std::endl; 

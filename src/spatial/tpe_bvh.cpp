@@ -87,7 +87,7 @@ namespace LWS {
             }
         }
 
-        BVHNode3D* tree = new BVHNode3D(verts, 0);
+        BVHNode3D* tree = new BVHNode3D(verts, 0, 0);
         tree->recomputeCentersOfMass(curves);
 
         return tree;
@@ -107,19 +107,21 @@ namespace LWS {
             }
         }
 
-        BVHNode3D* tree = new BVHNode3D(verts, 0);
+        BVHNode3D* tree = new BVHNode3D(verts, 0, 0);
         tree->recomputeCentersOfMass(curves);
 
         return tree;
     }
 
-    BVHNode3D::BVHNode3D(std::vector<VertexBody6D> &points, int axis) {
+    BVHNode3D::BVHNode3D(std::vector<VertexBody6D> &points, int axis, BVHNode3D* root) {
         // Split the points into sets somehow
         thresholdTheta = 0.25;
         splitAxis = axis;
 
+        if (!root) bvhRoot = 0;
+        else bvhRoot = root;
+
         if (points.size() == 0) {
-        
             isLeaf = true;
             isEmpty = true;
             totalMass = 0;
@@ -137,6 +139,8 @@ namespace LWS {
             minCoords = body.pt;
             maxCoords = body.pt;
             numElements = 1;
+
+            clusterIndices.push_back(body.vertIndex1);
         }
         else {
             // Reserve space for splitting the points into lesser and greater
@@ -167,12 +171,24 @@ namespace LWS {
 
             // Recursively construct children
             int nextAxis = NextAxis(axis);
-            BVHNode3D* lesserNode = new BVHNode3D(lesserPoints, nextAxis);
-            BVHNode3D* greaterNode = new BVHNode3D(greaterPoints, nextAxis);
+
+            BVHNode3D* nextRoot = (root) ? root : this;
+            BVHNode3D* lesserNode = new BVHNode3D(lesserPoints, nextAxis, nextRoot);
+            BVHNode3D* greaterNode = new BVHNode3D(greaterPoints, nextAxis, nextRoot);
 
             children.push_back(lesserNode);
             children.push_back(greaterNode);
-            
+
+            clusterIndices.insert(clusterIndices.end(), lesserNode->clusterIndices.begin(), lesserNode->clusterIndices.end());
+            clusterIndices.insert(clusterIndices.end(), greaterNode->clusterIndices.begin(), greaterNode->clusterIndices.end());
+
+            if (!root) {
+                fullMasses.setZero(points.size());
+                for (size_t i = 0; i < points.size(); i++) {
+                    fullMasses(i) = points[i].mass;
+                }
+            }
+
             isLeaf = false;
             isEmpty = false;
         }

@@ -5,6 +5,8 @@
 #include "geometrycentral/utilities/vector2.h"
 #include "utils.h"
 
+#include <Eigen/Core>
+
 namespace LWS {
 
     struct BHPlotData {
@@ -18,12 +20,15 @@ namespace LWS {
     class BVHNode3D : public SpatialTree {
         public:
         // Build a BVH of the given points
-        BVHNode3D(std::vector<VertexBody6D> &points, int axis);
+        BVHNode3D(std::vector<VertexBody6D> &points, int axis, BVHNode3D* root);
         virtual ~BVHNode3D();
 
         double totalMass;
         Vector3 centerOfMass;
         Vector3 averageTangent;
+        std::vector<int> clusterIndices;
+        BVHNode3D* bvhRoot;
+        Eigen::VectorXd fullMasses;
 
         void findCurveSegments(std::vector<VertexBody6D> &points, PolyCurveGroup* curves);
 
@@ -49,6 +54,13 @@ namespace LWS {
 
         void accumulateChildren(std::vector<VertexBody6D> &result);
         Vector2 viewspaceBounds(Vector3 point);
+
+        inline void fillClusterMassVector(Eigen::VectorXd &w) {
+            w.setZero(clusterIndices.size());
+            for (size_t i = 0; i < clusterIndices.size(); i++) {
+                w(i) = bvhRoot->fullMasses(clusterIndices[i]);
+            }
+        }
 
         private:
         int numElements;

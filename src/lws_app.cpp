@@ -119,56 +119,105 @@ namespace LWS {
       cout << "space bar" << endl;
     }
 
-    if (ImGui::Button("Test 3x")) {
+    if (ImGui::Button("Benchmark")) {
+      Eigen::VectorXd x(10000);
+      for (int i = 0; i < 10000; i++) {
+        x(i) = i;
+      }
+
+      double sum, dot;
+
+      long sumStart = Utils::currentTimeMilliseconds();
+      for (int i = 0; i < 10000; i++) {
+        sum = x.sum();
+      }
+      long sumEnd = Utils::currentTimeMilliseconds();
+      long prodStart = Utils::currentTimeMilliseconds();
+      for (int i = 0; i < 10000; i++) {
+        dot = x.dot(x);
+      }
+      long prodEnd = Utils::currentTimeMilliseconds();
+
+      std::cout << sum << ", " << dot << std::endl;
+
+      std::cout << "sum time = " << (sumEnd - sumStart) << " ms" << std::endl;
+      std::cout << "product time = " << (prodEnd - prodStart) << " ms" << std::endl;
+    }
+
+    if (ImGui::Button("Test 3x saddle")) {
       // Get the TPE gradient as a test problem
       int nVerts = curves->NumVertices();
+      int logNumVerts = log2(nVerts) - 4;
+
+      long setupStart = Utils::currentTimeMilliseconds();
       LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
       Eigen::MatrixXd gradients;
       gradients.setZero(nVerts, 3);
       tpeSolver->FillGradientVectorBH(tree, gradients);
 
+      using TestDomain = EdgeLengthNullProjectorDomain;
+      TestDomain* domain = new TestDomain(curves, 2, 4, 0.5);
+
       // Reshape the V x 3 matrix into a 3V x 1 vector
-      Eigen::VectorXd gradientsLong(4 * nVerts + 3);
+      Eigen::VectorXd gradientsLong(domain->NumRows());
       gradientsLong.setZero();
       MatrixIntoVectorX3(gradients, gradientsLong);
 
-      gradientsLong(3 * nVerts) = 42;
-      gradientsLong(3 * nVerts + 1) = 54;
-      gradientsLong(3 * nVerts + 2) = 69;
+      EdgeLengthConstraint constraint(curves);
+      Eigen::SparseMatrix<double> B;
+      constraint.FillConstraintMatrix(B);
 
+      if (domain->GetMode() == ProlongationMode::Matrix3AndProjector)
+        gradientsLong = curves->constraintProjector->ProjectToNullspace(gradientsLong);
 
-      for (int i = 3 * nVerts + 3; i < gradientsLong.rows(); i++) {
-        gradientsLong(i) = 0.1;
-      }
+      long setupEnd = Utils::currentTimeMilliseconds();
+      std::cout << "Setup time = " << (setupEnd - setupStart) << " ms" << std::endl;
 
-      // Do a hierarchical multiply
-      using TestDomain = MultigridDomain<EdgeLengthSaddleDomain, BlockClusterTree>;
-      TestDomain* domain = new EdgeLengthSaddleDomain(curves, 2, 4, 0.5);
-      MultigridOperator J;
-      TestDomain* coarserDomain = domain->Coarsen(J);
+      // Multigrid solve
+      long multigridStart = Utils::currentTimeMilliseconds();
+      MultigridHierarchy<TestDomain>* hierarchy = new MultigridHierarchy<TestDomain>(domain, logNumVerts);
+      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<TestDomain>::EigenCG>(gradientsLong);
+      long multigridEnd = Utils::currentTimeMilliseconds();
+      std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 
-      std::cout << "Long vector size: " << gradientsLong.rows() << std::endl;
-      std::cout << "Vertex prolongation dims: " << J.matrices[0].M.rows() << ", " << J.matrices[0].M.cols() << std::endl;
-      std::cout << "Constraint prolongation dims: " << J.edgeMatrices[0].M.rows() << ", " << J.edgeMatrices[0].M.cols() << std::endl;
+      std::cout << "Well-separated cluster time (total) = " << domain->tree->wellSepTime << " ms" << std::endl;
+      std::cout << "Ill-separated cluster time (total) = " << domain->tree->illSepTime << " ms" << std::endl;
+      std::cout << "Time spent on subtree traversals = " << domain->tree->traversalTime << " ms" << std::endl;
 
-      Eigen::VectorXd restricted = J.restrictWithTranspose(gradientsLong, ProlongationMode::Matrix3AndEdgeConstraints);
+      // Direct solve
+      long directStart = Utils::currentTimeMilliseconds();
+      Eigen::VectorXd ref_sol = domain->DirectSolve(gradientsLong);
+      long directEnd = Utils::currentTimeMilliseconds();
+      std::cout << "Direct time = " << (directEnd - directStart) << " ms" << std::endl;
+      Eigen::VectorXd diff = ref_sol - sol;
 
-      std::cout << "Restricted:\n" << restricted.transpose() << std::endl;
+      Eigen::VectorXd constrValues = B * sol.block(0, 0, B.cols(), 1);
+      Eigen::VectorXd ref_constrValues = B * ref_sol.block(0, 0, B.cols(), 1);
 
-      Eigen::VectorXd prolonged = J.prolong(restricted, ProlongationMode::Matrix3AndEdgeConstraints);
+      std::cout << "Final constraint violation = " << constrValues.lpNorm<Eigen::Infinity>() << std::endl;
+      std::cout << "Reference constraint violation = " << ref_constrValues.lpNorm<Eigen::Infinity>() << std::endl;
 
-      std::cout << "Prolonged:\n" << prolonged.transpose() << std::endl;
+      Eigen::MatrixXd comp(sol.rows(), 2);
+      comp.col(0) = sol;
+      comp.col(1) = ref_sol;
 
+      std::cout << "Reference norm = " << ref_sol.norm() << std::endl;
+      std::cout << "Multigrid norm = " << sol.norm() << std::endl;
+      std::cout << "Difference norm = " << diff.norm() << std::endl;
+      std::cout << "Multigrid error from ground truth = " << 100 * (diff.norm() / ref_sol.norm()) << " percent" << std::endl;
 
-      delete domain;
+      double dot = sol.normalized().dot(ref_sol.normalized());
+      std::cout << "Dot product between directions = " << dot << std::endl;
+
       delete tree;
+      delete hierarchy;
     }
 
     if (ImGui::Button("Test multigrid")) {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 4;
 
-      using MGDomain = PolyCurveSaddleDomain;
+      using MGDomain = PolyCurveNullProjectorDomain;
       MGDomain* domain = new MGDomain(curves, 2, 4, 0.5);
       // MGDomain* domain = new MGDomain(curves, 2, 4, 0.5, 0.1);
 
@@ -183,7 +232,6 @@ namespace LWS {
       Eigen::VectorXd x(domain->NumRows());
       x.setZero();
       x.block(0, 0, nVerts, 1) = gradients.col(0);
-      delete tree;
       long bh_end = Utils::currentTimeMilliseconds();
       std::cout << "Gradient w/ Barnes-Hut time = " << (bh_end - bh_start) << " ms" << std::endl;
 
@@ -239,7 +287,7 @@ namespace LWS {
       // double mult_rel_err = 100 * (Ax_hier - Ax_dense).norm() / Ax_dense.norm();
       // std::cout << "Hierarchical mult. relative error = " << mult_rel_err << " percent" << std::endl;
 
-      delete domain;
+      delete tree;
       delete hierarchy;
     }
 

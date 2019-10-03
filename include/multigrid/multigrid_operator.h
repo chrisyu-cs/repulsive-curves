@@ -16,6 +16,8 @@ namespace LWS {
         MatrixOnly,
         MatrixAndProjector,
         Barycenter,
+        Matrix3AndProjector,
+        Matrix3AndBarycenter,
         Matrix3AndEdgeConstraints
     };
     
@@ -55,6 +57,7 @@ namespace LWS {
         Eigen::VectorXd restrictWithPinv(Eigen::VectorXd v, ProlongationMode mode);
 
         private:
+        void checkAndSetOutputSize(Eigen::VectorXd &in, Eigen::VectorXd &out, int upperSize, int lowerSize, ProlongationMode mode);
 
         template<typename V, typename Dest>
         void prolongVerts1X(V &in, Dest &out) {

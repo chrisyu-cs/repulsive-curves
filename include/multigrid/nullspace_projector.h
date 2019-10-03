@@ -3,16 +3,25 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <iostream>
+#include "flow/gradient_constraints.h"
 
 namespace LWS {
 
     class NullSpaceProjector {
         private:
         Eigen::SparseMatrix<double> B;
+        Eigen::SparseMatrix<double> BBT;
+        bool prefactored;
+        Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> BBT_solver;
 
         public:
-        NullSpaceProjector(Eigen::SparseMatrix<double> constraints) {
-            B = constraints;
+        template<typename T>
+        NullSpaceProjector(GradientConstraints<T> &constraints) {
+            constraints.FillConstraintMatrix(B);
+            // Pre-factorize B*B^T
+            Eigen::SparseMatrix<double> BBT = B * B.transpose();
+            BBT_solver.analyzePattern(BBT);
+            BBT_solver.factorize(BBT);
         }
 
         ~NullSpaceProjector() {}
@@ -21,11 +30,7 @@ namespace LWS {
         void ProjectToNullspace(V &v, Dest &out) {
             // We want to get (B^T) (B B^T)^{-1} B v, so start from the right
             out = B * v;
-            Eigen::SparseMatrix<double> BBT = B * B.transpose();
-            // Multiply with (B B^T) inverse            
-            Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> BBT_solver;
-            BBT_solver.analyzePattern(BBT);
-            BBT_solver.factorize(BBT);
+            // Multiply with (B B^T) inverse 
             out = BBT_solver.solve(out);
             // Lastly multiply with B^T
             out = B.transpose() * out;

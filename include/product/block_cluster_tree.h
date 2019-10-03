@@ -20,11 +20,16 @@ namespace LWS {
         MatrixAndProjector,
         MatrixAndConstraints,
         Matrix3Only,
+        Matrix3AndProjector,
         Matrix3AndConstraints
     };
 
     class BlockClusterTree : public VectorMultiplier<BlockClusterTree> {
         public:
+        static long illSepTime;
+        static long wellSepTime;
+        static long traversalTime;
+
         BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e = 0.0);
         // Loop over all currently inadmissible cluster pairs
         // and subdivide them to their children.
@@ -110,6 +115,22 @@ namespace LWS {
             MultiplyVector3(v, b);
         }
 
+        else if (mode == BlockTreeMode::Matrix3AndProjector) {
+            long start = Utils::currentTimeMilliseconds();
+            Eigen::VectorXd tmp(v.rows());
+            tmp.setZero();
+            curves->constraintProjector->ProjectToNullspace(v, tmp);
+            long proj1 = Utils::currentTimeMilliseconds();
+
+            Eigen::VectorXd tmp2(v.rows());
+            tmp2.setZero();
+            MultiplyVector3(tmp, tmp2);
+            long proj2 = Utils::currentTimeMilliseconds();
+
+            curves->constraintProjector->ProjectToNullspace(tmp2, b);
+            long end = Utils::currentTimeMilliseconds();
+        }
+
         else if (mode == BlockTreeMode::Matrix3AndConstraints) {
             MultiplyWithConstraints3(v, b);
         }
@@ -127,15 +148,26 @@ namespace LWS {
 
         SobolevCurves::ApplyDf(curves, v, v_hat);
 
+        Eigen::VectorXd weights(nVerts);
+
         Eigen::MatrixXd b_hat(nVerts, 3);
         b_hat.setZero();
 
+        long illSepStart = Utils::currentTimeMilliseconds();
         for (ClusterPair pair : inadmissiblePairs) {
             AfFullProduct_hat(pair, v_hat, b_hat);
         }
+        long middle = Utils::currentTimeMilliseconds();
         for (ClusterPair pair : admissiblePairs) {
             AfApproxProduct_hat(pair, v_hat, b_hat);
         }
+        long wellSepEnd = Utils::currentTimeMilliseconds();
+
+        long illTime = (middle - illSepStart);
+        long wellTime = (wellSepEnd - middle);
+
+        illSepTime += illTime;
+        wellSepTime += wellTime;
 
         SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
     }

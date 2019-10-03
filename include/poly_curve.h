@@ -4,6 +4,7 @@
 #include <Eigen/Sparse>
 #include "multigrid/multigrid_operator.h"
 #include "multigrid/nullspace_projector.h"
+#include "flow/gradient_constraints.h"
 
 namespace LWS {
     class PolyCurve;
@@ -71,7 +72,11 @@ namespace LWS {
         PolyCurveGroup* Coarsen(MultigridOperator &prolongOps);
         void EdgeProlongation(MultigridOperator &prolongOps);
 
-        void AddConstraintProjector();
         NullSpaceProjector* constraintProjector;
+
+        template<typename T>
+        void AddConstraintProjector(GradientConstraints<T> &constraints) {
+            constraintProjector = new NullSpaceProjector(constraints);
+        }
     };
 }
