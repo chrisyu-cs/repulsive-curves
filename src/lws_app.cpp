@@ -167,6 +167,8 @@ namespace LWS {
       Eigen::SparseMatrix<double> B;
       constraint.FillConstraintMatrix(B);
 
+      Eigen::VectorXd gradientOrig = gradientsLong;
+
       if (domain->GetMode() == ProlongationMode::Matrix3AndProjector)
         gradientsLong = curves->constraintProjector->ProjectToNullspace(gradientsLong);
 
@@ -186,7 +188,7 @@ namespace LWS {
 
       // Direct solve
       long directStart = Utils::currentTimeMilliseconds();
-      Eigen::VectorXd ref_sol = domain->DirectSolve(gradientsLong);
+      Eigen::VectorXd ref_sol = domain->DirectSolve(gradientOrig);
       long directEnd = Utils::currentTimeMilliseconds();
       std::cout << "Direct time = " << (directEnd - directStart) << " ms" << std::endl;
       Eigen::VectorXd diff = ref_sol - sol;
@@ -301,12 +303,19 @@ namespace LWS {
     bool buttonStepTPE = ImGui::Button("Single TPE step");
     bool buttonPlotTPE = ImGui::Button("Plot TPE gradient");
 
+    ImGui::Checkbox("Use multigrid", &LWSOptions::useMultigrid);
+
     if (LWSOptions::runTPE || buttonStepTPE) {
       if (LWSOptions::outputFrames && LWSOptions::frameNum == 0) {
         outputFrame();
       }
-
-      bool good_step = tpeSolver->StepSobolevLS(false);
+      bool good_step;
+      if (LWSOptions::useMultigrid) {
+        good_step = tpeSolver->StepSobolevLSIterative();
+      }
+      else {
+        good_step = tpeSolver->StepSobolevLS(true);
+      }
       UpdateCurvePositions();
       if (!good_step) {
         std::cout << "Stopped because line search could not take a step." << std::endl;

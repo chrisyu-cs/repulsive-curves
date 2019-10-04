@@ -76,6 +76,9 @@ namespace LWS {
 
         template<typename T>
         void AddConstraintProjector(GradientConstraints<T> &constraints) {
+            if (constraintProjector) {
+                delete constraintProjector;
+            }
             constraintProjector = new NullSpaceProjector(constraints);
         }
     };

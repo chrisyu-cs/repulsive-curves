@@ -59,6 +59,7 @@ namespace LWS {
         double alpha, beta;
         double sepCoeff;
         int nVerts;
+        bool isTopLevel;
 
         EdgeLengthSaddleDomain(PolyCurveGroup* c, double a, double b, double sep) {
             curves = c;
@@ -73,9 +74,13 @@ namespace LWS {
 
             EdgeLengthConstraint constraint(curves);
             tree->SetConstraints(constraint);
+            isTopLevel = true;
         }
 
         ~EdgeLengthSaddleDomain() {
+            if (!isTopLevel) {
+                delete curves;
+            }
             delete tree;
             delete bvh;
         }
@@ -83,7 +88,9 @@ namespace LWS {
         MultigridDomain<EdgeLengthSaddleDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
             PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
             curves->EdgeProlongation(prolongOp);
-            return new EdgeLengthSaddleDomain(coarsened, alpha, beta, sepCoeff);
+            EdgeLengthSaddleDomain* sub = new EdgeLengthSaddleDomain(coarsened, alpha, beta, sepCoeff);
+            sub->isTopLevel = false;
+            return sub;
         }
 
         BlockClusterTree* GetMultiplier() const {

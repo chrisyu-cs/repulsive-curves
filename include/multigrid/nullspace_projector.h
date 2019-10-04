@@ -39,6 +39,12 @@ namespace LWS {
             out = v - out;
         }
 
+        template<typename V, typename Dest>
+        void ApplyBPinv(V &v, Dest &out) {
+            out = BBT_solver.solve(v);
+            out = B.transpose() * out;
+        }
+
         Eigen::VectorXd ProjectToNullspace(Eigen::VectorXd &v) {
             Eigen::VectorXd out(v.rows());
             ProjectToNullspace(v, out);

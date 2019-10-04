@@ -10,4 +10,5 @@ namespace LWS {
     bool LWSOptions::runBoundaryFlow;
     bool LWSOptions::runTPE;
     bool LWSOptions::useSobalev;
+    bool LWSOptions::useMultigrid = true;
 }

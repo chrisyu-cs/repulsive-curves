@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "product/dense_matrix.h"
 
+
 namespace LWS {
 
     TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveGroup* g) :
@@ -205,9 +206,12 @@ namespace LWS {
             }
             // Otherwise, accept the current step.
             else {
-                //std::cout << "Took step of size " << delta << " after " << numBacktracks
-                //    << " backtracks, " << numDoubles << " doubles" << std::endl;
-                //std::cout << "Decreased energy by " << decrease << " (target was " << targetDecrease << ")" << std::endl;
+                delta *= 0.25;
+                SetGradientStep(gradient, delta);
+                if (root) {
+                    // Update the centers of mass to reflect the new positions
+                    root->recomputeCentersOfMass(curves);
+                }
                 break;
             }
         }
@@ -560,6 +564,21 @@ namespace LWS {
         return step_size > 0;
     }
 
+    double TPEFlowSolverSC::FillConstraintViolations(Eigen::VectorXd &phi) {
+        int nVerts = curves->NumVertices();
+        Vector3 barycenter = curves->Barycenter();
+
+        // Fill all 3 barycenter coordinates
+        phi(0) = -barycenter.x;
+        phi(1) = -barycenter.y;
+        phi(2) = -barycenter.z;
+
+        // Add length violations to RHS
+        FillLengthConstraintViolations(phi, 3);
+        double maxViolation = phi.lpNorm<Eigen::Infinity>();
+        return maxViolation;
+    }
+
     bool TPEFlowSolverSC::StepSobolevLSIterative() {
         size_t nVerts = curves->NumVertices();
 
@@ -571,23 +590,27 @@ namespace LWS {
         tree_root = CreateBVHFromCurve(curves);
         FillGradientVectorBH(tree_root, vertGradients);
 
-        // Make a block cluster tree
-        BVHNode3D *edgeTree = CreateEdgeBVHFromCurve(curves);
-        BlockClusterTree* blockTree = new BlockClusterTree(curves, edgeTree, 0.25, alpha, beta);
-
-        // Use tree to compute the Sobolev gradient
-        // double dot_acc = ProjectGradientIterative(vertGradients, blockTree);
+        // Set up multigrid stuff
+        using MultigridDomain = EdgeLengthNullProjectorDomain;
+        using MultigridSolver = MultigridHierarchy<MultigridDomain>;
+        MultigridDomain* domain = new MultigridDomain(curves, alpha, beta, 0.5);
+        MultigridSolver* multigrid = new MultigridSolver(domain);
+        
+        // Use multigrid to compute the Sobolev gradient
+        double dot_acc = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients);
 
         // Take a line search step using this gradient
         double ls_start = Utils::currentTimeMilliseconds();
-        // double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
+        double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
         double ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
         // Correct for drift with backprojection
+        step_size = BackprojectMultigridLS<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root);
 
-        delete edgeTree;
-        delete blockTree;
-        return false;
+        delete multigrid;
+        if (tree_root) delete tree_root;
+
+        return step_size > 0;
     }
 }

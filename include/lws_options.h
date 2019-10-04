@@ -13,5 +13,6 @@ namespace LWS {
         static bool runBoundaryFlow;
         static bool runTPE;
         static bool useSobalev;
+        static bool useMultigrid;
     };
 }

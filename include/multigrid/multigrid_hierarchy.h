@@ -7,19 +7,20 @@ namespace LWS {
 
     template<typename T>
     class MultigridHierarchy {
-        using Mult = typename T::MultType;
-
         public:
+        using Mult = typename T::MultType;
         std::vector<MultigridDomain<T, Mult>*> levels;
         std::vector<MultigridOperator> prolongationOps;
 
         MultigridHierarchy(MultigridDomain<T, Mult>* topLevel, size_t numLevels) {
-            levels.push_back(topLevel);
-            std::cout << "Constructing hierarchy with " << numLevels << " levels..." << std::endl;
+            AddLevels(topLevel, numLevels);
+        }
 
-            while (levels.size() < numLevels) {
-                AddNextLevel();
-            }
+        MultigridHierarchy(MultigridDomain<T, Mult>* topLevel) {
+            int nVerts = topLevel->NumVertices();
+            int logNumVerts = log2(nVerts) - 4;
+            logNumVerts = std::max(1, logNumVerts);
+            AddLevels(topLevel, logNumVerts);
         }
 
         ~MultigridHierarchy() {
@@ -28,15 +29,28 @@ namespace LWS {
             }
         }
 
+        void AddLevels(MultigridDomain<T, Mult>* topLevel, size_t numLevels) {
+            levels.push_back(topLevel);
+            while (levels.size() < numLevels) {
+                AddNextLevel();
+            }
+        }
+
         void AddNextLevel() {
             MultigridDomain<T, Mult>* lastLevel = levels[levels.size() - 1];
             MultigridOperator prolongOp;
             MultigridDomain<T, Mult>* nextLevel = lastLevel->Coarsen(prolongOp);
 
-            std::cout << "Added multigrid level with " << nextLevel->NumVertices() << std::endl;
-
             prolongationOps.push_back(prolongOp);
             levels.push_back(nextLevel);
+        }
+
+        inline int NumRows() {
+            return levels[0]->NumRows();
+        }
+
+        inline Mult* GetTopLevelMultiplier() const {
+            return levels[0]->GetMultiplier();
         }
 
         template<typename Smoother>
@@ -73,7 +87,6 @@ namespace LWS {
         // Solve Gx = b, where G is the Sobolev Gram matrix of the top-level curve.
         template<typename Smoother>
         Eigen::VectorXd VCycleSolve(Eigen::VectorXd b) {
-            std::cout << "Starting solve" << std::endl;
             ProlongationMode mode = levels[0]->GetMode();
 
             int numLevels = levels.size();
@@ -94,9 +107,6 @@ namespace LWS {
             Eigen::VectorXd initGuess = VCycleInitGuess<Smoother>(b, mode, hMatrices);
             Eigen::VectorXd initResidual = b - hMatrices[0] * initGuess;
             double initRelative = initResidual.lpNorm<Eigen::Infinity>() / b.lpNorm<Eigen::Infinity>();
-            std::cout << "Initial guess relative residual = " << initRelative << std::endl;
-
-            std::cout << "0, " << initRelative << std::endl;
 
             while (!done) {
                 // Propagate residuals downward
@@ -146,13 +156,12 @@ namespace LWS {
                 double residNorm = overallResidual.lpNorm<Eigen::Infinity>() / b.lpNorm<Eigen::Infinity>();
 
                 numIters++;
-                done = (residNorm < 1e-5 || numIters >= 10);
+                done = (residNorm < 1e-5 || numIters >= 20);
 
-                std::cout << numIters << ", " << residNorm << std::endl;
-                // std::cerr << "[Iteration " << numIters << "] residual = " << residNorm << "     \r" << std::flush;
+                std::cerr << "  * [Iteration " << numIters << "] residual = " << residNorm << "     \r" << std::flush;
             }
 
-            std::cout << "\nDid " << numIters << " iterations" << std::endl; 
+            std::cout << "\n  * Did " << numIters << " iterations" << std::endl; 
             return solutions[0];
         }
 
