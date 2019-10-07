@@ -94,9 +94,26 @@ namespace LWS {
     }
 
     void BlockClusterTree::MultiplyAdmissible(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
-        for (ClusterPair pair : inadmissiblePairs) {
+        for (ClusterPair pair : admissiblePairs) {
             AfApproxProduct(pair, v_hat, b_hat);
         }
+    }
+
+    void BlockClusterTree::MultiplyAdmissibleFast(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
+        int nVerts = curves->NumVertices();
+        Eigen::VectorXd b_tilde;
+        b_tilde.setZero(nVerts);
+
+        Eigen::VectorXd ones;
+        ones.setOnes(nVerts);
+        Eigen::VectorXd h_f = MultiplyAf(ones);
+
+        for (int i = 0; i < 3; i++) {
+            Eigen::VectorXd v_col = v_hat.col(i);
+            b_hat.col(i) = MultiplyAf(v_col);
+        }
+
+        b_hat = 2 * (h_f.asDiagonal() * v_hat - b_hat);
     }
 
     void BlockClusterTree::MultiplyInadmissible(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
@@ -104,10 +121,55 @@ namespace LWS {
             AfFullProduct(pair, v_hat, b_hat);
         }
     }
+
+    Eigen::VectorXd BlockClusterTree::MultiplyAf(Eigen::VectorXd &v) const {
+        tree_root->recursivelyZeroMVFields();
+        Eigen::VectorXd result(v.rows());
+        result.setZero();
+        SetVIs(tree_root, v);
+        SetBIs(tree_root, result);
+        result = tree_root->fullMasses.asDiagonal() * result;
+        return result;
+    }
     
-    void BlockClusterTree::SetVIs(BVHNode3D* root, Eigen::VectorXd &v_hat) {
-        if (root->IsLeaf()) {
-            
+    void BlockClusterTree::SetVIs(BVHNode3D* node, Eigen::VectorXd &v_hat) const {
+        if (node->IsLeaf()) {
+            int index = node->VertexIndex();
+            double w_j = node->totalMass;
+            double v_hat_j = v_hat(index);
+            node->V_I = w_j * v_hat_j;
+        }
+        else {
+            node->V_I = 0;
+            // Start at the roots and propagate upward
+            for (BVHNode3D* child : node->children) {
+                SetVIs(child, v_hat);
+                node->V_I += child->V_I;
+            }
+        }
+    }
+
+    void BlockClusterTree::SetBIs(BVHNode3D* node, Eigen::VectorXd &b_tilde) const {
+        // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
+        for (ClusterPair pair : admissiblePairs) {
+            double pow_s = beta - alpha;
+            double a_IJ = 1.0 / pow(norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass), pow_s);
+            pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
+        }
+
+        // Now recursively propagate downward
+        PropagateBIs(node, 0, b_tilde);
+    }
+
+    void BlockClusterTree::PropagateBIs(BVHNode3D* node, double parent_BI, Eigen::VectorXd &b_tilde) const {
+        node->B_I = parent_BI + node->aIJ_VJ;
+        if (node->IsLeaf()) {
+            b_tilde(node->VertexIndex()) = node->B_I;
+        }
+        else {
+            for (BVHNode3D* child : node->children) {
+                PropagateBIs(child, node->B_I, b_tilde);
+            }
         }
     }
 
@@ -164,7 +226,6 @@ namespace LWS {
         traversalTime += (traversalEnd - traversalStart);
         
         double pow_s = beta - alpha;
-
         double a_IJ = 1.0 / pow(norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass), pow_s);
         // Evaluate a(I,J) * w_f(J)^T * 1(J)
         double a_wf_1 = a_IJ * wf_j.sum();

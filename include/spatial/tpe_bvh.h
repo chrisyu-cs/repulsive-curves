@@ -34,6 +34,22 @@ namespace LWS {
         // by any BVH functions.
         double V_I;
         double B_I;
+        double aIJ_VJ;
+
+        inline void zeroMVFields() {
+            V_I = 0;
+            B_I = 0;
+            aIJ_VJ = 0;
+        }
+
+        inline void recursivelyZeroMVFields() {
+            zeroMVFields();
+            if (!isLeaf) {
+                for (BVHNode3D* child : children) {
+                    child->recursivelyZeroMVFields();
+                }
+            }
+        }
 
         void findCurveSegments(std::vector<VertexBody6D> &points, PolyCurveGroup* curves);
 
@@ -69,6 +85,12 @@ namespace LWS {
 
         inline bool IsLeaf() {
             return isLeaf;
+        }
+        inline bool IsEmpty() {
+            return isEmpty;
+        }
+        inline int VertexIndex() {
+            return body.vertIndex1;
         }
 
         private:

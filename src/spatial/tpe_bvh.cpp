@@ -117,8 +117,9 @@ namespace LWS {
         // Split the points into sets somehow
         thresholdTheta = 0.25;
         splitAxis = axis;
+        zeroMVFields();
 
-        if (!root) bvhRoot = 0;
+        if (!root) bvhRoot = this;
         else bvhRoot = root;
 
         if (points.size() == 0) {

@@ -124,21 +124,22 @@ namespace LWS {
       LWS::BVHNode3D* tree = CreateEdgeBVHFromCurve(curves);
       BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.5, 2, 4);
 
-      Eigen::MatrixXd A;
-      A.setZero(nVerts, nVerts);
-      SobolevCurves::SobolevGramMatrix(curves, 2, 4, A);
-
       LWS::BVHNode3D* vert_tree = CreateBVHFromCurve(curves);
       Eigen::MatrixXd gradients;
       gradients.setZero(nVerts, 3);
       tpeSolver->FillGradientVectorBH(tree, gradients);
       Eigen::VectorXd x = gradients.col(0);
 
+      mult->TestAdmissibleMultiply(x);
       long tree_start = Utils::currentTimeMilliseconds();
       Eigen::VectorXd b_tree;
       b_tree.setZero(nVerts);
       mult->Multiply(x, b_tree);
       long tree_end = Utils::currentTimeMilliseconds();
+
+      Eigen::MatrixXd A;
+      A.setZero(nVerts, nVerts);
+      SobolevCurves::SobolevGramMatrix(curves, 2, 4, A);
 
       long mult_start = Utils::currentTimeMilliseconds();
       Eigen::VectorXd b_mat = A * x;

@@ -5,6 +5,7 @@
 #include "vector_multiplier.h"
 #include "sobo_slobo.h"
 #include "flow/gradient_constraints.h"
+#include "poly_curve.h"
 
 #include "Eigen/Dense"
 
@@ -49,6 +50,7 @@ namespace LWS {
 
         // Multiplies the inadmissible clusters for A * v, storing it in b.
         void MultiplyInadmissible(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
+        void MultiplyAdmissibleFast(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
         // Multiplies the admissible clusters for A * v, storing it in b.
         void MultiplyAdmissible(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
 
@@ -75,7 +77,10 @@ namespace LWS {
         void AfFullProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
         void AfApproxProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
 
-        void SetVIs(BVHNode3D* root, Eigen::VectorXd &v_hat);
+        Eigen::VectorXd MultiplyAf(Eigen::VectorXd &v) const;
+        void SetVIs(BVHNode3D* node, Eigen::VectorXd &v_hat) const;
+        void SetBIs(BVHNode3D* node, Eigen::VectorXd &b_tilde) const;
+        void PropagateBIs(BVHNode3D* node, double parent_BI, Eigen::VectorXd &b_tilde) const;
 
         void CompareBlocks();
 
@@ -83,6 +88,9 @@ namespace LWS {
         Eigen::MatrixXd AfApproxBlock(ClusterPair pair);
 
         void SetBlockTreeMode(BlockTreeMode m);
+
+        template<typename V>
+        void TestAdmissibleMultiply(V &v) const;
 
         private:
         BlockTreeMode mode;
@@ -147,6 +155,44 @@ namespace LWS {
         }
     }
 
+    template<typename V>
+    void BlockClusterTree::TestAdmissibleMultiply(V &v) const {
+        int nVerts = curves->NumVertices();
+        Eigen::MatrixXd v_hat(nVerts, 3);
+        v_hat.setZero();
+
+        SobolevCurves::ApplyDf(curves, v, v_hat);
+        
+        Eigen::MatrixXd b_hat_ref(nVerts, 3);
+        b_hat_ref.setZero();
+        Eigen::MatrixXd b_hat_fast(nVerts, 3);
+        b_hat_fast.setZero();
+
+        MultiplyAdmissible(v_hat, b_hat_ref);
+        MultiplyAdmissibleFast(v_hat, b_hat_fast);
+
+        Eigen::VectorXd b_ref;
+        b_ref.setZero(nVerts);
+        Eigen::VectorXd b_fast;
+        b_fast.setZero(nVerts);
+
+        SobolevCurves::ApplyDfTranspose(curves, b_hat_ref, b_ref);
+        SobolevCurves::ApplyDfTranspose(curves, b_hat_fast, b_fast);
+
+        double normDiff = (b_ref - b_fast).norm();
+        double normTruth = b_ref.norm();
+
+        std::cout << "Admissible blocks reference norm = " << normTruth << std::endl;
+        std::cout << "Admissible blocks fast norm = " << b_fast.norm()  << std::endl;
+
+        double dir_dot = b_ref.dot(b_fast) / (b_ref.norm() * b_fast.norm());
+
+        std::cout << "Admissible blocks multiply error = " << 100 * (normDiff / normTruth) << " percent" << std::endl;
+        std::cout << "Dot product direction = " << dir_dot << std::endl;
+        std::cout << "Norm ratio = " << b_ref.norm() / b_fast.norm() << std::endl;
+
+    }
+
     template<typename V, typename Dest>
     void BlockClusterTree::MultiplyVector(V &v, Dest &b) const {
         int nVerts = curves->NumVertices();
@@ -165,6 +211,7 @@ namespace LWS {
         MultiplyInadmissible(v_hat, b_hat_inadm);
         long middle = Utils::currentTimeMilliseconds();
         MultiplyAdmissible(v_hat, b_hat_adm);
+        // MultiplyAdmissibleFast(v_hat, b_hat_adm);
         long wellSepEnd = Utils::currentTimeMilliseconds();
 
         b_hat_adm += b_hat_inadm;
