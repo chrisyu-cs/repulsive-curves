@@ -93,7 +93,25 @@ namespace LWS {
         mode = m;
     }
 
-    void BlockClusterTree::AfFullProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
+    void BlockClusterTree::MultiplyAdmissible(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
+        for (ClusterPair pair : inadmissiblePairs) {
+            AfApproxProduct(pair, v_hat, b_hat);
+        }
+    }
+
+    void BlockClusterTree::MultiplyInadmissible(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
+        for (ClusterPair pair : inadmissiblePairs) {
+            AfFullProduct(pair, v_hat, b_hat);
+        }
+    }
+    
+    void BlockClusterTree::SetVIs(BVHNode3D* root, Eigen::VectorXd &v_hat) {
+        if (root->IsLeaf()) {
+            
+        }
+    }
+
+    void BlockClusterTree::AfFullProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
     {
         double pow_s = (beta - alpha);
 
@@ -134,7 +152,7 @@ namespace LWS {
         }
     }
     
-    void BlockClusterTree::AfApproxProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
+    void BlockClusterTree::AfApproxProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
     {
         long traversalStart = Utils::currentTimeMilliseconds();
         Eigen::VectorXd wf_i;

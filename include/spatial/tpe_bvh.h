@@ -30,6 +30,11 @@ namespace LWS {
         BVHNode3D* bvhRoot;
         Eigen::VectorXd fullMasses;
 
+        // Fields for use by matrix-vector products; not used
+        // by any BVH functions.
+        double V_I;
+        double B_I;
+
         void findCurveSegments(std::vector<VertexBody6D> &points, PolyCurveGroup* curves);
 
         // Recursively recompute all centers of mass in this tree
@@ -60,6 +65,10 @@ namespace LWS {
             for (size_t i = 0; i < clusterIndices.size(); i++) {
                 w(i) = bvhRoot->fullMasses(clusterIndices[i]);
             }
+        }
+
+        inline bool IsLeaf() {
+            return isLeaf;
         }
 
         private:

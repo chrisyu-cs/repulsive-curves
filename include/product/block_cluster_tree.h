@@ -47,6 +47,11 @@ namespace LWS {
         template<typename V, typename Dest>
         void MultiplyVector(V &v, Dest &b) const;
 
+        // Multiplies the inadmissible clusters for A * v, storing it in b.
+        void MultiplyInadmissible(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
+        // Multiplies the admissible clusters for A * v, storing it in b.
+        void MultiplyAdmissible(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
+
         // Multiplies A * v, where v holds a vector3 at each vertex in a flattened column,
         //  and stores it in b.
         template<typename V3, typename Dest>
@@ -67,8 +72,10 @@ namespace LWS {
             constraintsSet = true;
         }
 
-        void AfFullProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
-        void AfApproxProduct_hat(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
+        void AfFullProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
+        void AfApproxProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
+
+        void SetVIs(BVHNode3D* root, Eigen::VectorXd &v_hat);
 
         void CompareBlocks();
 
@@ -148,20 +155,19 @@ namespace LWS {
 
         SobolevCurves::ApplyDf(curves, v, v_hat);
 
-        Eigen::VectorXd weights(nVerts);
+        Eigen::MatrixXd b_hat_adm(nVerts, 3);
+        b_hat_adm.setZero();
 
-        Eigen::MatrixXd b_hat(nVerts, 3);
-        b_hat.setZero();
+        Eigen::MatrixXd b_hat_inadm(nVerts, 3);
+        b_hat_inadm.setZero();
 
         long illSepStart = Utils::currentTimeMilliseconds();
-        for (ClusterPair pair : inadmissiblePairs) {
-            AfFullProduct_hat(pair, v_hat, b_hat);
-        }
+        MultiplyInadmissible(v_hat, b_hat_inadm);
         long middle = Utils::currentTimeMilliseconds();
-        for (ClusterPair pair : admissiblePairs) {
-            AfApproxProduct_hat(pair, v_hat, b_hat);
-        }
+        MultiplyAdmissible(v_hat, b_hat_adm);
         long wellSepEnd = Utils::currentTimeMilliseconds();
+
+        b_hat_adm += b_hat_inadm;
 
         long illTime = (middle - illSepStart);
         long wellTime = (wellSepEnd - middle);
@@ -169,7 +175,7 @@ namespace LWS {
         illSepTime += illTime;
         wellSepTime += wellTime;
 
-        SobolevCurves::ApplyDfTranspose(curves, b_hat, b);
+        SobolevCurves::ApplyDfTranspose(curves, b_hat_adm, b);
     }
 
     template<typename V3, typename Dest>

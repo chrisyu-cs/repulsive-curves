@@ -119,29 +119,44 @@ namespace LWS {
       cout << "space bar" << endl;
     }
 
-    if (ImGui::Button("Benchmark")) {
-      Eigen::VectorXd x(10000);
-      for (int i = 0; i < 10000; i++) {
-        x(i) = i;
-      }
+    if (ImGui::Button("Test multiply")) {
+      int nVerts = curves->NumVertices();
+      LWS::BVHNode3D* tree = CreateEdgeBVHFromCurve(curves);
+      BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.5, 2, 4);
 
-      double sum, dot;
+      Eigen::MatrixXd A;
+      A.setZero(nVerts, nVerts);
+      SobolevCurves::SobolevGramMatrix(curves, 2, 4, A);
 
-      long sumStart = Utils::currentTimeMilliseconds();
-      for (int i = 0; i < 10000; i++) {
-        sum = x.sum();
-      }
-      long sumEnd = Utils::currentTimeMilliseconds();
-      long prodStart = Utils::currentTimeMilliseconds();
-      for (int i = 0; i < 10000; i++) {
-        dot = x.dot(x);
-      }
-      long prodEnd = Utils::currentTimeMilliseconds();
+      LWS::BVHNode3D* vert_tree = CreateBVHFromCurve(curves);
+      Eigen::MatrixXd gradients;
+      gradients.setZero(nVerts, 3);
+      tpeSolver->FillGradientVectorBH(tree, gradients);
+      Eigen::VectorXd x = gradients.col(0);
 
-      std::cout << sum << ", " << dot << std::endl;
+      long tree_start = Utils::currentTimeMilliseconds();
+      Eigen::VectorXd b_tree;
+      b_tree.setZero(nVerts);
+      mult->Multiply(x, b_tree);
+      long tree_end = Utils::currentTimeMilliseconds();
 
-      std::cout << "sum time = " << (sumEnd - sumStart) << " ms" << std::endl;
-      std::cout << "product time = " << (prodEnd - prodStart) << " ms" << std::endl;
+      long mult_start = Utils::currentTimeMilliseconds();
+      Eigen::VectorXd b_mat = A * x;
+      long mult_end = Utils::currentTimeMilliseconds();
+
+      double norm_diff = (b_mat - b_tree).norm();
+      double norm_mat = b_mat.norm();
+
+      std::cout << "Reference norm = " << norm_mat << std::endl;
+      std::cout << "Tree norm = " << b_tree.norm() << std::endl;
+
+      std::cout << "Multiplication accuracy = " << 100 * (norm_diff / norm_mat) << " percent" << std::endl;
+      std::cout << "Dense time = " << (mult_end - mult_start) << " ms" << std::endl;
+      std::cout << "Tree time = " << (tree_end - tree_start) << " ms" << std::endl;
+
+      delete mult;
+      delete tree;
+      delete vert_tree;
     }
 
     if (ImGui::Button("Test 3x saddle")) {
@@ -503,6 +518,8 @@ int main(int argc, char** argv) {
 
   LWS::LWSApp* app = new LWS::LWSApp();
   LWS::LWSApp::instance = app;
+
+  std::cout << "Using Eigen version " << EIGEN_WORLD_VERSION << "." << EIGEN_MAJOR_VERSION << "." << EIGEN_MINOR_VERSION << std::endl;
 
   // Initialize polyscope
   polyscope::init();
