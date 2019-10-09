@@ -1,6 +1,8 @@
 #include "product/block_cluster_tree.h"
 #include "utils.h"
 
+#include <thread>
+
 namespace LWS {
 
     long BlockClusterTree::illSepTime = 0;
@@ -24,6 +26,9 @@ namespace LWS {
         while (unresolvedPairs.size() > 0) {
             splitInadmissibleNodes();
         }
+        // Premultiply A_f * 1, for reuse in later multiplications with G_f
+        Af_1.setOnes(nVerts);
+        Af_1 = MultiplyAf(Af_1);  
 
         mode = BlockTreeMode::MatrixOnly;
     }
@@ -89,6 +94,18 @@ namespace LWS {
         std::cout << inadmissiblePairs.size() << " inadmissible pairs" << std::endl;
     }
 
+    void BlockClusterTree::PrintAdmissibleClusters(std::ofstream &stream) {
+        for (ClusterPair p : admissiblePairs) {
+            stream << p.cluster1->thisNodeID << ", " << p.cluster2->thisNodeID << std::endl;
+        }
+    }
+
+    void BlockClusterTree::PrintInadmissibleClusters(std::ofstream &stream) {
+        for (ClusterPair p : inadmissiblePairs) {
+            stream << p.cluster1->thisNodeID << ", " << p.cluster2->thisNodeID << std::endl;
+        }
+    }
+
     void BlockClusterTree::SetBlockTreeMode(BlockTreeMode m) {
         mode = m;
     }
@@ -99,81 +116,68 @@ namespace LWS {
         }
     }
 
-    void BlockClusterTree::MultiplyAdmissibleFast(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
-        int nVerts = curves->NumVertices();
-        Eigen::VectorXd b_tilde;
-        b_tilde.setZero(nVerts);
-
-        Eigen::VectorXd ones;
-        ones.setOnes(nVerts);
-        Eigen::VectorXd h_f = MultiplyAf(ones);
-
+    void BlockClusterTree::MultiplyAdmissibleFast(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
         for (int i = 0; i < 3; i++) {
-            Eigen::VectorXd v_col = v_hat.col(i);
-            b_hat.col(i) = MultiplyAf(v_col);
+            b_hat.col(i) = MultiplyAf(v_hat.col(i));
         }
 
-        b_hat = 2 * (h_f.asDiagonal() * v_hat - b_hat);
+        b_hat = 2 * (Af_1.asDiagonal() * v_hat - b_hat);
     }
 
-    void BlockClusterTree::MultiplyInadmissible(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
-        for (ClusterPair pair : inadmissiblePairs) {
-            AfFullProduct(pair, v_hat, b_hat);
-        }
-    }
-
-    Eigen::VectorXd BlockClusterTree::MultiplyAf(Eigen::VectorXd &v) const {
-        tree_root->recursivelyZeroMVFields();
-        Eigen::VectorXd result(v.rows());
-        result.setZero();
-        SetVIs(tree_root, v);
-        SetBIs(tree_root, result);
-        result = tree_root->fullMasses.asDiagonal() * result;
-        return result;
-    }
-    
-    void BlockClusterTree::SetVIs(BVHNode3D* node, Eigen::VectorXd &v_hat) const {
-        if (node->IsLeaf()) {
-            int index = node->VertexIndex();
-            double w_j = node->totalMass;
-            double v_hat_j = v_hat(index);
-            node->V_I = w_j * v_hat_j;
-        }
-        else {
-            node->V_I = 0;
-            // Start at the roots and propagate upward
-            for (BVHNode3D* child : node->children) {
-                SetVIs(child, v_hat);
-                node->V_I += child->V_I;
-            }
+    void BlockClusterTree::MultiplyInadmissible(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int startIndex, int endIndex) const {
+        for (int i = startIndex; i < endIndex; i++) {
+            AfFullProduct(inadmissiblePairs[i], v_hat, b_hat);
         }
     }
 
-    void BlockClusterTree::SetBIs(BVHNode3D* node, Eigen::VectorXd &b_tilde) const {
-        // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
-        for (ClusterPair pair : admissiblePairs) {
-            double pow_s = beta - alpha;
-            double a_IJ = 1.0 / pow(norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass), pow_s);
-            pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
+    void BlockClusterTree::MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int nThreads) const {
+        int nPairs = inadmissiblePairs.size();
+        // How many would be left if we rounded down to the nearest multiple of nThreads
+        int leftovers = nPairs % nThreads;
+        std::vector<int> counts(nThreads);
+        // Split into nThreads roughly equal groups
+        for (int i = 0; i < nThreads; i++) {
+            counts[i] = nPairs / nThreads;
+            // Add the extras from rounding down, so that the totals match up
+            if (i < leftovers) counts[i]++;
         }
 
-        // Now recursively propagate downward
-        PropagateBIs(node, 0, b_tilde);
+        std::vector<Eigen::MatrixXd> out_bs(nThreads);
+
+        for (int i = 0; i < nThreads; i++) {
+            out_bs[i].setZero(b_hat.rows(), b_hat.cols());
+        }
+
+        std::vector<std::thread> threads;
+
+        int startIndex = 0;
+        for (int i = 0; i < nThreads; i++) {
+            int endIndex = startIndex + counts[i];
+            // TODO: parallelize these calls
+            auto multiply = [&, i, startIndex, endIndex]() {
+                // std::cout << "Starting thread for [" << startIndex << ", " << endIndex << ")" << std::endl;
+                // Eigen::MatrixXd output;
+                // output.setZero(out_bs[i].rows(), out_bs[i].cols());
+                MultiplyInadmissible(v_hat, out_bs[i], startIndex, endIndex);
+                // out_bs[i] = output;
+            };
+            threads.push_back(std::thread(multiply));
+
+            startIndex = endIndex;
+        }
+
+        for (int i = 0; i < nThreads; i++) {
+            threads[i].join();
+        }
+
+        // Add up all the result vectors
+        b_hat = out_bs[0];
+        for (int i = 1; i < nThreads; i++) {
+            b_hat += out_bs[i];
+        }
     }
 
-    void BlockClusterTree::PropagateBIs(BVHNode3D* node, double parent_BI, Eigen::VectorXd &b_tilde) const {
-        node->B_I = parent_BI + node->aIJ_VJ;
-        if (node->IsLeaf()) {
-            b_tilde(node->VertexIndex()) = node->B_I;
-        }
-        else {
-            for (BVHNode3D* child : node->children) {
-                PropagateBIs(child, node->B_I, b_tilde);
-            }
-        }
-    }
-
-    void BlockClusterTree::AfFullProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
+    void BlockClusterTree::AfFullProduct(ClusterPair pair, const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
     {
         double pow_s = (beta - alpha);
 
@@ -182,11 +186,12 @@ namespace LWS {
         
         for (size_t i = 0; i < pair.cluster1->clusterIndices.size(); i++) {
             int e1index = pair.cluster1->clusterIndices[i];
+            PointOnCurve p1 = curves->GetCurvePoint(e1index);
+            double l1 = tree_root->bvhRoot->fullMasses(e1index);
 
             for (size_t j = 0; j < pair.cluster2->clusterIndices.size(); j++) {
                 int e2index = pair.cluster2->clusterIndices[j];
 
-                PointOnCurve p1 = curves->GetCurvePoint(e1index);
                 PointOnCurve p2 = curves->GetCurvePoint(e2index);
 
                 bool isNeighbors = (p1 == p2 || p1.Next() == p2 || p1 == p2.Next() || p1.Next() == p2.Next());
@@ -194,11 +199,11 @@ namespace LWS {
                 Vector3 mid1 = (p1.Position() + p1.Next().Position()) / 2;
                 Vector3 mid2 = (p2.Position() + p2.Next().Position()) / 2;
 
-                double l1 = norm(p1.Position() - p1.Next().Position());
-                double l2 = norm(p2.Position() - p2.Next().Position());
+                double l2 = tree_root->bvhRoot->fullMasses(e2index);
 
-                double af_ij = (isNeighbors) ? 0 :
-                    (l1 * l2) / pow(norm(mid1 - mid2), pow_s);
+                // Save on a few operations by only multiplying l2 now,
+                // and multiplying l1 only once, after inner loop
+                double af_ij = (isNeighbors) ? 0 : l2 / pow(norm(mid1 - mid2), pow_s);
 
                 // We dot this row of Af(i, j) with the all-ones vector, which means we
                 // just add up all entries of that row.
@@ -207,6 +212,9 @@ namespace LWS {
                 // We also dot it with v_hat(J).
                 a_times_v[i] += af_ij * SelectRow(v_hat, e2index);
             }
+
+            a_times_one[i] *= l1;
+            a_times_v[i] *= l1;
 
             // We've computed everything from row i now, so add to the results vector
             Vector3 toAdd = 2 * (a_times_one[i] * SelectRow(v_hat, e1index) - a_times_v[i]);

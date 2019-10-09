@@ -30,7 +30,7 @@ namespace LWS {
     Eigen::VectorXd VectorToVectorXd(std::vector<double> &x);
     Eigen::MatrixXd Vector3ToMatrixXd(std::vector<Vector3> &x);
     
-    inline Vector3 SelectRow(Eigen::MatrixXd &A, int row) {
+    inline Vector3 SelectRow(const Eigen::MatrixXd &A, int row) {
         return Vector3{A(row, 0), A(row, 1), A(row, 2)};
     }
 

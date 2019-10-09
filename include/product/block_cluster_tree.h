@@ -8,6 +8,7 @@
 #include "poly_curve.h"
 
 #include "Eigen/Dense"
+#include <fstream>
 
 namespace LWS {
 
@@ -39,6 +40,8 @@ namespace LWS {
         static bool isPairSmallEnough(ClusterPair pair);
 
         void PrintData();
+        void PrintAdmissibleClusters(std::ofstream &stream);
+        void PrintInadmissibleClusters(std::ofstream &stream);
 
         // Multiplies v and stores in b. Dispatches to the specific multiplication case below.
         template<typename V, typename Dest>
@@ -49,8 +52,9 @@ namespace LWS {
         void MultiplyVector(V &v, Dest &b) const;
 
         // Multiplies the inadmissible clusters for A * v, storing it in b.
-        void MultiplyInadmissible(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
-        void MultiplyAdmissibleFast(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
+        void MultiplyInadmissible(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int startIndex, int endIndex) const;
+        void MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int nThreads) const;
+        void MultiplyAdmissibleFast(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
         // Multiplies the admissible clusters for A * v, storing it in b.
         void MultiplyAdmissible(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
 
@@ -74,13 +78,17 @@ namespace LWS {
             constraintsSet = true;
         }
 
-        void AfFullProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
+        void AfFullProduct(ClusterPair pair, const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
         void AfApproxProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
 
-        Eigen::VectorXd MultiplyAf(Eigen::VectorXd &v) const;
-        void SetVIs(BVHNode3D* node, Eigen::VectorXd &v_hat) const;
-        void SetBIs(BVHNode3D* node, Eigen::VectorXd &b_tilde) const;
-        void PropagateBIs(BVHNode3D* node, double parent_BI, Eigen::VectorXd &b_tilde) const;
+        template<typename V>
+        Eigen::VectorXd MultiplyAf(const V &v) const;
+        template<typename V>
+        void SetVIs(BVHNode3D* node, const V &v_hat) const;
+        template<typename Dest>
+        void SetBIs(BVHNode3D* node, Dest &b_tilde) const;
+        template<typename Dest>
+        void PropagateBIs(BVHNode3D* node, double parent_BI, Dest &b_tilde) const;
 
         void CompareBlocks();
 
@@ -93,6 +101,7 @@ namespace LWS {
         void TestAdmissibleMultiply(V &v) const;
 
         private:
+        Eigen::VectorXd Af_1;
         BlockTreeMode mode;
         int nVerts;
         double alpha, beta, separationCoeff;
@@ -105,6 +114,61 @@ namespace LWS {
         bool constraintsSet;
         Eigen::SparseMatrix<double> B;
     };
+
+    template<typename V>
+    Eigen::VectorXd BlockClusterTree::MultiplyAf(const V &v) const {
+        tree_root->recursivelyZeroMVFields();
+        Eigen::VectorXd result(v.rows());
+        result.setZero();
+        SetVIs(tree_root, v);
+        SetBIs(tree_root, result);
+        result = tree_root->fullMasses.asDiagonal() * result;
+        return result;
+    }
+    
+    template<typename V>
+    void BlockClusterTree::SetVIs(BVHNode3D* node, const V &v_hat) const {
+        if (node->IsLeaf()) {
+            int index = node->VertexIndex();
+            double w_j = node->totalMass;
+            double v_hat_j = v_hat(index);
+            node->V_I = w_j * v_hat_j;
+        }
+        else {
+            node->V_I = 0;
+            // Start at the roots and propagate upward
+            for (BVHNode3D* child : node->children) {
+                SetVIs(child, v_hat);
+                node->V_I += child->V_I;
+            }
+        }
+    }
+
+    template<typename Dest>
+    void BlockClusterTree::SetBIs(BVHNode3D* node, Dest &b_tilde) const {
+        // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
+        for (ClusterPair pair : admissiblePairs) {
+            double pow_s = beta - alpha;
+            double a_IJ = 1.0 / pow(norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass), pow_s);
+            pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
+        }
+
+        // Now recursively propagate downward
+        PropagateBIs(node, 0, b_tilde);
+    }
+
+    template<typename Dest>
+    void BlockClusterTree::PropagateBIs(BVHNode3D* node, double parent_BI, Dest &b_tilde) const {
+        node->B_I = parent_BI + node->aIJ_VJ;
+        if (node->IsLeaf()) {
+            b_tilde(node->VertexIndex()) = node->B_I;
+        }
+        else {
+            for (BVHNode3D* child : node->children) {
+                PropagateBIs(child, node->B_I, b_tilde);
+            }
+        }
+    }
 
     template<typename V, typename Dest>
     void BlockClusterTree::Multiply(V &v, Dest &b) const {
@@ -208,10 +272,11 @@ namespace LWS {
         b_hat_inadm.setZero();
 
         long illSepStart = Utils::currentTimeMilliseconds();
-        MultiplyInadmissible(v_hat, b_hat_inadm);
+        // MultiplyInadmissible(v_hat, b_hat_inadm, 0, inadmissiblePairs.size());
+        MultiplyInadmissibleParallel(v_hat, b_hat_inadm, 6);
         long middle = Utils::currentTimeMilliseconds();
-        MultiplyAdmissible(v_hat, b_hat_adm);
-        // MultiplyAdmissibleFast(v_hat, b_hat_adm);
+        // MultiplyAdmissible(v_hat, b_hat_adm);
+        MultiplyAdmissibleFast(v_hat, b_hat_adm);
         long wellSepEnd = Utils::currentTimeMilliseconds();
 
         b_hat_adm += b_hat_inadm;

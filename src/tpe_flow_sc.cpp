@@ -21,6 +21,7 @@ namespace LWS {
         beta = 4;
         ls_step_threshold = 1e-15;
         backproj_threshold = 1e-3;
+        iterNum = 0;
 
         useEdgeLengthConstraint = true;
 
@@ -179,9 +180,7 @@ namespace LWS {
         double sigma = 0.01f;
         double newEnergy = initialEnergy;
 
-        std::cout << "Initial energy " << initialEnergy << std::endl;
-
-        // // PlotEnergyInDirection(gradient, sigma * gradDot);
+        // std::cout << "Initial energy " << initialEnergy << std::endl;
 
         while (delta > ls_step_threshold) {
             SetGradientStep(gradient, delta);
@@ -225,7 +224,7 @@ namespace LWS {
             return 0;
         }
         else {
-            std::cout << "Energy: " << initialEnergy << " -> " << newEnergy << std::endl;
+            std::cout << "  Energy: " << initialEnergy << " -> " << newEnergy << std::endl;
             return delta;
         }
     }
@@ -580,36 +579,52 @@ namespace LWS {
     }
 
     bool TPEFlowSolverSC::StepSobolevLSIterative() {
+        std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
+        long all_start = Utils::currentTimeMilliseconds();
+
         size_t nVerts = curves->NumVertices();
-
         int nRows = matrixNumRows();
-
         SpatialTree *tree_root = 0;
 
         // Assemble the L2 gradient
+        long bh_start = Utils::currentTimeMilliseconds();
         tree_root = CreateBVHFromCurve(curves);
         FillGradientVectorBH(tree_root, vertGradients);
+        long bh_end = Utils::currentTimeMilliseconds();
+        std::cout << "  Barnes-Hut: " << (bh_end - bh_start) << " ms" << std::endl;
 
         // Set up multigrid stuff
+        long mg_setup_start = Utils::currentTimeMilliseconds();
         using MultigridDomain = EdgeLengthNullProjectorDomain;
         using MultigridSolver = MultigridHierarchy<MultigridDomain>;
         MultigridDomain* domain = new MultigridDomain(curves, alpha, beta, 0.5);
         MultigridSolver* multigrid = new MultigridSolver(domain);
-        
+        long mg_setup_end = Utils::currentTimeMilliseconds();
+        std::cout << "  Multigrid setup: " << (mg_setup_end - mg_setup_start) << " ms" << std::endl;
+
         // Use multigrid to compute the Sobolev gradient
+        long mg_start = Utils::currentTimeMilliseconds();
         double dot_acc = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients);
+        long mg_end = Utils::currentTimeMilliseconds();
+        std::cout << "  Multigrid solve: " << (mg_end - mg_start) << " ms" << std::endl;
 
         // Take a line search step using this gradient
-        double ls_start = Utils::currentTimeMilliseconds();
+        long ls_start = Utils::currentTimeMilliseconds();
         double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
-        double ls_end = Utils::currentTimeMilliseconds();
+        long ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
         // Correct for drift with backprojection
+        long bp_start = Utils::currentTimeMilliseconds();
         step_size = BackprojectMultigridLS<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root);
+        long bp_end = Utils::currentTimeMilliseconds();
+        std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
 
         delete multigrid;
         if (tree_root) delete tree_root;
+
+        long all_end = Utils::currentTimeMilliseconds();
+        std::cout << "  Total time: " << (all_end - all_start) << " ms" << std::endl;
 
         return step_size > 0;
     }

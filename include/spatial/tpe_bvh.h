@@ -5,6 +5,7 @@
 #include "geometrycentral/utilities/vector2.h"
 #include "utils.h"
 
+#include <fstream>
 #include <Eigen/Core>
 
 namespace LWS {
@@ -19,6 +20,30 @@ namespace LWS {
 
     class BVHNode3D : public SpatialTree {
         public:
+        static int globalID;
+        int thisNodeID;
+
+        inline void recursivelyAssignIDs() {
+            thisNodeID = globalID++;
+            for (BVHNode3D* child : children) {
+                child->recursivelyAssignIDs();
+            }
+        }
+
+        inline void assignIDs() {
+            globalID = 1;
+            recursivelyAssignIDs();
+        }
+
+        inline void printIDs(std::ofstream &stream, int parentID = 0) {
+            if (parentID > 0) {
+                stream << thisNodeID << ", " << parentID << std::endl;
+            }
+            for (BVHNode3D* child : children) {
+                child->printIDs(stream, thisNodeID);
+            }
+        }
+
         // Build a BVH of the given points
         BVHNode3D(std::vector<VertexBody6D> &points, int axis, BVHNode3D* root);
         virtual ~BVHNode3D();

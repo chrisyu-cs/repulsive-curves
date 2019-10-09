@@ -15,6 +15,7 @@
 #include "multigrid/multigrid_hierarchy.h"
 #include "multigrid/nullspace_projector.h"
 
+#include <limits>
 #include <random>
 
 using namespace geometrycentral;
@@ -119,7 +120,34 @@ namespace LWS {
       cout << "space bar" << endl;
     }
 
+    if (ImGui::Button("Print tree")) {
+      int nVerts = curves->NumVertices();
+      LWS::BVHNode3D* tree = CreateEdgeBVHFromCurve(curves);
+      BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.5, 2, 4);
+
+      mult->PrintData();
+
+      tree->assignIDs();
+
+      std::ofstream treefile;
+      treefile.open("tree-indices.csv");
+      tree->printIDs(treefile);
+      treefile.close();
+
+      std::ofstream admfile;
+      admfile.open("admissible-clusters.csv");
+      mult->PrintAdmissibleClusters(admfile);
+      admfile.close();
+
+      std::ofstream inadmfile;
+      inadmfile.open("inadmissible-clusters.csv");
+      mult->PrintInadmissibleClusters(inadmfile);
+      inadmfile.close();
+    }
+
     if (ImGui::Button("Test multiply")) {
+      std::cout << "Machine epsilon: " << std::numeric_limits<double>::epsilon() << std::endl;
+
       int nVerts = curves->NumVertices();
       LWS::BVHNode3D* tree = CreateEdgeBVHFromCurve(curves);
       BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.5, 2, 4);

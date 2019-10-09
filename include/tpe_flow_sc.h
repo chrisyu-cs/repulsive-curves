@@ -2,7 +2,6 @@
 
 #include "tpe_energy_sc.h"
 #include "sobo_slobo.h"
-#include "mesh_helpers.h"
 #include "poly_curve.h"
 #include "spatial/tpe_bvh.h"
 #include "product/block_cluster_tree.h"
@@ -61,6 +60,7 @@ namespace LWS {
         int matrixNumRows();
 
         private:
+        int iterNum;
         double ls_step_threshold;
         double backproj_threshold;
         CoordinateLUs coord_lus;
@@ -122,7 +122,7 @@ namespace LWS {
 
             // Add length violations to RHS
             double maxViolation = FillConstraintViolations(phi);
-            std::cout << "  Constraint " << maxBefore << " -> " << maxViolation << std::endl;
+            std::cout << "  Constraint: " << maxBefore << " -> " << maxViolation << std::endl;
 
             if (maxViolation < backproj_threshold) {
                 return true;

@@ -8,9 +8,7 @@
 #include "geometrycentral/surface/halfedge_mesh.h"
 #include "geometrycentral/surface/polygon_soup_mesh.h"
 
-#include "vertexderivatives.h"
 #include "lws_options.h"
-#include "mesh_helpers.h"
 #include "tpe_energy_sc.h"
 #include "tpe_flow_sc.h"
 #include "Eigen/SparseLU"

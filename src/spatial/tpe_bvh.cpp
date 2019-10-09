@@ -3,6 +3,8 @@
 
 namespace LWS {
 
+    int BVHNode3D::globalID = 0;
+
     inline double GetCoordFromBody(VertexBody6D body, int axis) {
         switch (axis) {
             case 0: return body.pt.position.x;

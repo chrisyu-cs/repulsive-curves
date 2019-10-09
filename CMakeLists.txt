@@ -69,14 +69,12 @@ add_subdirectory(deps/polyscope)
 set(SRCS 
   src/lws_app.cpp
   src/lws_options.cpp
-  src/mesh_helpers.cpp
   src/poly_curve.cpp
   src/multigrid/multigrid_operator.cpp
   src/sobo_slobo.cpp
   src/tpe_energy_sc.cpp
   src/tpe_flow_sc.cpp
   src/utils.cpp
-  src/vertexderivatives.cpp
   src/vert_jacobian.cpp
   src/product/block_cluster_tree.cpp
   src/product/dense_matrix.cpp
