@@ -74,66 +74,6 @@ namespace LWS {
         positions[v] = pos;
     }
 
-    Vector3 PolyCurve::BisectorNormal(int index) {
-        int prev = PrevVertex(index);
-        int next = NextVertex(index);
-
-        Vector3 v1 = Position(prev);
-        Vector3 v2 = Position(index);
-        Vector3 v3 = Position(next);
-
-        Vector3 e1 = (v2 - v1);
-        Vector3 e2 = (v3 - v2);
-
-        Vector3 up{0, 1, 0};
-
-        Vector3 n1 = cross(up, e1);
-        n1 = n1.normalize();
-        Vector3 n2 = cross(up, e2);
-        n2 = n2.normalize();
-
-        // Return the angle bisector normal
-        Vector3 normal = n1 + n2;
-        normal = normal.normalize();
-        return normal;
-    }
-
-    Vector3 PolyCurve::LengthWeightedNormal(int index) {
-        int prev = PrevVertex(index);
-        int next = NextVertex(index);
-
-        Vector3 v1 = Position(prev);
-        Vector3 v2 = Position(index);
-        Vector3 v3 = Position(next);
-
-        Vector3 e1 = (v2 - v1);
-        Vector3 e2 = (v3 - v2);
-        double w1 = norm(e1);
-        double w2 = norm(e2);
-
-        Vector3 up{0, 1, 0};
-
-        Vector3 n1 = cross(up, e1);
-        n1 = n1.normalize();
-        Vector3 n2 = cross(up, e2);
-        n2 = n2.normalize();
-
-        // Weight normals by length
-        Vector3 normal = (w1 * n1 + w2 * n2) / (w1 + w2);
-        normal = normal.normalize();
-        return normal;
-    }
-
-    Vector3 PolyCurve::EdgeNormal(int index) {
-        int next = NextVertex(index);
-
-        Vector3 edgeVec = Position(next) - Position(index);
-        Vector3 up{0, 1, 0};
-        Vector3 normal = cross(up, edgeVec);
-        normal = normal.normalize();
-        return normal;
-    }
-
     Vector3 PolyCurve::VertexTangent(int index) {
         Vector3 prev = Position(PrevVertex(index));
         Vector3 next = Position(NextVertex(index));

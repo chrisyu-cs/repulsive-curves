@@ -42,9 +42,6 @@ namespace LWS {
         Vector3 Position(int v);
         void SetPosition(int v, Vector3 pos);
 
-        Vector3 BisectorNormal(int index);
-        Vector3 LengthWeightedNormal(int index);
-        Vector3 EdgeNormal(int index);
         Vector3 VertexTangent(int index);
         double TotalLength();
         double DualLength(int i);
@@ -62,7 +59,7 @@ namespace LWS {
         void AddCurve(PolyCurve* c);
         int NumVertices();
         void BoundingCube(Vector3 &center, double &width);
-        PointOnCurve GetCurvePoint(int v); 
+        PointOnCurve GetCurvePoint(int v);
         Vector3 Barycenter();
         double TotalLength();
         int NextIndexInCurve(int v);
@@ -71,7 +68,6 @@ namespace LWS {
 
         PolyCurveGroup* Coarsen(MultigridOperator &prolongOps);
         void EdgeProlongation(MultigridOperator &prolongOps);
-
         NullSpaceProjector* constraintProjector;
 
         template<typename T>

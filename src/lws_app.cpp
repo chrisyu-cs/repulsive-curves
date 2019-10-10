@@ -15,6 +15,8 @@
 #include "multigrid/multigrid_hierarchy.h"
 #include "multigrid/nullspace_projector.h"
 
+#include "poly_curve_network.h"
+
 #include <limits>
 #include <random>
 
@@ -437,7 +439,9 @@ namespace LWS {
 
     VertexData<size_t> indices = mesh->getVertexIndices();
 
+    std::vector<Vector3> all_positions;
     std::vector<Vector3> positions;
+    std::vector<std::array<size_t, 2>> all_edges;
 
     for (BoundaryLoop b : mesh->boundaryLoops()) {
       positions.clear();
@@ -449,6 +453,10 @@ namespace LWS {
       do {
         Vector3 v = geom->vertexPositions[he.vertex()];
         positions.push_back(v);
+        all_positions.push_back(v);
+        size_t index = indices[he.vertex()];
+        size_t next_index = indices[he.next().vertex()];
+        all_edges.push_back({index, next_index});
         // std::cout << i++ << ", " << v << std::endl;
         he = he.next();
       }
@@ -458,6 +466,8 @@ namespace LWS {
       curves->AddCurve(pc);
       std::cout << "Added boundary curve of length " << pc->NumVertices() << std::endl;
     }
+
+    PolyCurveNetwork network(all_positions, all_edges);
 
     surfaceName = polyscope::guessNiceNameFromPath(filename);
   }
