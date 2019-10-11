@@ -69,7 +69,6 @@ add_subdirectory(deps/polyscope)
 set(SRCS 
   src/lws_app.cpp
   src/lws_options.cpp
-  src/poly_curve.cpp
   src/poly_curve_network.cpp
   src/multigrid/multigrid_operator.cpp
   src/sobo_slobo.cpp
@@ -82,8 +81,6 @@ set(SRCS
   src/product/test_matrices.cpp
   src/spatial/spatial_tree.cpp
   src/spatial/tpe_bvh.cpp
-  src/spatial/tpe_kdtree.cpp
-  src/spatial/tpe_octree.cpp
   src/spatial/vertex_body.cpp
 	# add any other source files here
 )

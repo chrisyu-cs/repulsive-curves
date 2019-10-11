@@ -21,7 +21,10 @@ namespace LWS
         inline Vector3 Vector();
         inline Vector3 Tangent();
         inline double Length();
+        inline Vector3 Midpoint();
         inline Vector3 Normal(int index);
+        inline int GlobalIndex();
+        inline bool IsNeighbors(CurveEdge* other);
     };
 
     struct CurveVertex {
@@ -31,13 +34,16 @@ namespace LWS
         bool operator ==(const CurveVertex &other);
         bool operator !=(const CurveVertex &other);
 
-        inline size_t numEdges();
+        inline int numEdges();
+        inline CurveEdge* edge(int i);
         inline CurveEdge* edge(size_t i);
         inline Vector3 Position();
         inline void SetPosition(Vector3 pos);
         inline Vector3 Tangent();
         inline double DualLength();
         inline int GlobalIndex();
+        inline Vector3 TotalLengthGradient();
+        inline bool IsNeighbors(CurveVertex* other);
     };
 
     class PolyCurveNetwork {
@@ -63,6 +69,10 @@ namespace LWS
             return nVerts;
         }
 
+        inline int NumEdges() {
+            return edges.size();
+        }
+
         inline int NumComponents() {
             return verticesByComponent.size();
         }
@@ -71,14 +81,22 @@ namespace LWS
             return vertices[i];
         }
 
+        inline CurveVertex* GetVertex(size_t i) {
+            return vertices[i];
+        }
+
         inline CurveEdge* GetEdge(int i) {
+            return edges[i];
+        }
+
+        inline CurveEdge* GetEdge(size_t i) {
             return edges[i];
         }
 
         void BoundingCube(Vector3 &center, double &width);
         Vector3 Barycenter();
         double TotalLength();
-        PolyCurveNetwork* Coarsen(MultigridOperator &op);
+        PolyCurveNetwork* Coarsen(MultigridOperator &op, bool doEdgeMatrix = false);
 
         NullSpaceProjector* constraintProjector;
         template<typename T>
@@ -126,8 +144,28 @@ namespace LWS
         return norm(nextVert->Position() - prevVert->Position());
     }
 
-    inline size_t CurveVertex::numEdges() {
+    inline Vector3 CurveEdge::Midpoint() {
+        return (nextVert->Position() + prevVert->Position()) / 2;
+    }
+
+    inline int CurveEdge::GlobalIndex() {
+        return id;
+    }
+
+    inline bool CurveEdge::IsNeighbors(CurveEdge* other) {
+        bool shared = (nextVert == other->nextVert) ||
+            (nextVert == other->prevVert) ||
+            (prevVert == other->nextVert) ||
+            (prevVert == other->prevVert);
+        return shared && (other != this);
+    }
+
+    inline int CurveVertex::numEdges() {
         return curve->adjacency[id].size();
+    }
+
+    inline CurveEdge* CurveVertex::edge(int i) {
+        return curve->adjacency[id][i];
     }
 
     inline CurveEdge* CurveVertex::edge(size_t i) {
@@ -144,7 +182,7 @@ namespace LWS
 
     inline Vector3 CurveVertex::Tangent() {
         Vector3 tangent{0, 0, 0};
-        for (size_t i = 0; i < numEdges(); i++) {
+        for (int i = 0; i < numEdges(); i++) {
             tangent += edge(i)->Tangent();
         }
         tangent = tangent.normalize();
@@ -153,7 +191,7 @@ namespace LWS
     
     inline double CurveVertex::DualLength() {
         double length = 0;
-        for (size_t i = 0; i < numEdges(); i++) {
+        for (int i = 0; i < numEdges(); i++) {
             length += edge(i)->Length();
         }
         return length / numEdges();
@@ -161,6 +199,29 @@ namespace LWS
 
     inline int CurveVertex::GlobalIndex() {
         return id;
+    }
+
+    inline Vector3 CurveVertex::TotalLengthGradient() {
+        Vector3 total{0, 0, 0};
+        // Moving vertex i only affects the lengths of the two edges
+        // on either side of i.
+        for (int e = 0; e < numEdges(); e++) {
+            CurveEdge* e_i = edge(e);
+            // Directions are away from the neighboring vertices.
+            Vector3 inward = Position() - e_i->Opposite(this)->Position();
+            // Magnitudes are 1, since length changes at 1 unit / unit.
+            inward.normalize();
+            total += inward;
+        }
+        return total;
+    }
+
+    inline bool CurveVertex::IsNeighbors(CurveVertex* other) {
+        for (int i = 0; i < numEdges(); i++) {
+            CurveEdge* e_i = edge(i);
+            if (e_i->Opposite(this) == other) return true;
+        }
+        return false;
     }
 
 } // namespace LWS

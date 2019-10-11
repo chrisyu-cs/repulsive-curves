@@ -139,17 +139,18 @@ namespace LWS {
         } 
     }
 
-    Vector3 HatGradientOnEdge(PointOnCurve edgeStart, PointOnCurve vertex) {
-        PointOnCurve edgeEnd = edgeStart.Next();
+    Vector3 HatGradientOnEdge(CurveEdge* edge, CurveVertex* vertex) {
+        CurveVertex* edgeStart = edge->prevVert;
+        CurveVertex* edgeEnd = edge->nextVert;
 
         if (vertex == edgeStart) {
-            Vector3 towardsVertex = edgeStart.Position() - edgeEnd.Position();
+            Vector3 towardsVertex = edgeStart->Position() - edgeEnd->Position();
             double length = norm(towardsVertex);
             // 1 over length times normalized edge vector towards the vertex
             return towardsVertex / (length * length);
         }
         else if (vertex == edgeEnd) {
-            Vector3 towardsVertex = edgeEnd.Position() - edgeStart.Position();
+            Vector3 towardsVertex = edgeEnd->Position() - edgeStart->Position();
             double length = norm(towardsVertex);
             return towardsVertex / (length * length);
         }
@@ -158,34 +159,34 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::AddEdgePairContribution(PolyCurveGroup* loop, double alpha, double beta,
-    PointOnCurve s, PointOnCurve t, Eigen::MatrixXd &A) {
-
-        PointOnCurve endpoints[4] = {s, s.Next(), t, t.Next()};
-        double len1 = norm(s.Position() - s.Next().Position());
-        double len2 = norm(t.Position() - t.Next().Position());
-        Vector3 mid1 = (s.Position() + s.Next().Position()) / 2;
-        Vector3 mid2 = (t.Position() + t.Next().Position()) / 2;
+    void SobolevCurves::AddEdgePairContribution(PolyCurveNetwork* loop, double alpha, double beta,
+    CurveEdge* s, CurveEdge* t, Eigen::MatrixXd &A) {
+        CurveVertex* endpoints[4] = {s->prevVert, s->nextVert, t->prevVert, t->nextVert};
+        double len1 = s->Length();
+        double len2 = t->Length();
+        Vector3 mid1 = s->Midpoint();
+        Vector3 mid2 = t->Midpoint();
         double denom = pow(norm(mid1 - mid2), beta - alpha);
 
-        for (PointOnCurve u : endpoints) {
-            for (PointOnCurve v : endpoints) {
+        for (CurveVertex* u : endpoints) {
+            for (CurveVertex* v : endpoints) {
                 Vector3 u_hat_s = HatGradientOnEdge(s, u);
                 Vector3 u_hat_t = HatGradientOnEdge(t, u);
                 Vector3 v_hat_s = HatGradientOnEdge(s, v);
                 Vector3 v_hat_t = HatGradientOnEdge(t, v);
 
                 double numer = dot(u_hat_s - u_hat_t, v_hat_s - v_hat_t);
-                int index_u = loop->GlobalIndex(u);
-                int index_v = loop->GlobalIndex(v);
+                int index_u = u->GlobalIndex();
+                int index_v = v->GlobalIndex();
 
                 A(index_u, index_v) += (numer / denom) * len1 * len2;
             }
         }
     }
 
-    double HatMidpoint(PointOnCurve edgeStart, PointOnCurve vertex) {
-        PointOnCurve edgeEnd = edgeStart.Next();
+    double HatMidpoint(CurveEdge* edge, CurveVertex* vertex) {
+        CurveVertex* edgeStart = edge->prevVert;
+        CurveVertex* edgeEnd = edge->nextVert;
 
         if (vertex == edgeStart) {
             return 0.5;
@@ -198,61 +199,59 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::AddEdgePairContributionLow(PolyCurveGroup* loop, double alpha, double beta,
-    PointOnCurve s, PointOnCurve t, Eigen::MatrixXd &A) {
+    void SobolevCurves::AddEdgePairContributionLow(PolyCurveNetwork* loop, double alpha, double beta,
+    CurveEdge* s, CurveEdge* t, Eigen::MatrixXd &A) {
 
-        PointOnCurve endpoints[4] = {s, s.Next(), t, t.Next()};
+        CurveVertex* endpoints[4] = {s->prevVert, s->nextVert, t->prevVert, t->nextVert};
 
-        double len1 = norm(s.Position() - s.Next().Position());
-        double len2 = norm(t.Position() - t.Next().Position());
-        Vector3 mid_s = (s.Position() + s.Next().Position()) / 2;
-        Vector3 mid_t = (t.Position() + t.Next().Position()) / 2;
+        double len1 = s->Length();
+        double len2 = t->Length();
+        Vector3 mid_s = s->Midpoint();
+        Vector3 mid_t = t->Midpoint();
         double denom = pow(norm(mid_s - mid_t), 2);
 
-        Vector3 tangent_s = (s.Next().Position() - s.Position()).normalize();
+        Vector3 tangent_s = s->Tangent();
 
         double kf_st = TPESC::tpe_Kf_pts(mid_s, mid_t, tangent_s, alpha, beta);
 
-        for (PointOnCurve u : endpoints) {
-            Vector3 tangent_u = (u.Next().Position() - u.Position()).normalize();
-            
-            for (PointOnCurve v : endpoints) {
+        for (CurveVertex* u : endpoints) {
+            for (CurveVertex* v : endpoints) {
                 double u_s = HatMidpoint(s, u);
                 double u_t = HatMidpoint(t, u);
                 double v_s = HatMidpoint(s, v);
                 double v_t = HatMidpoint(t, v);
 
                 double numer = (u_s - u_t) * (v_s - v_t);
-                int index_u = loop->GlobalIndex(u);
-                int index_v = loop->GlobalIndex(v);
+                int index_u = u->GlobalIndex();
+                int index_v = v->GlobalIndex();
 
                 A(index_u, index_v) += (numer / denom) * kf_st * len1 * len2;
             }
         }
     }
 
-    void SobolevCurves::SobolevGramMatrix(PolyCurveGroup* curves, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
+    void SobolevCurves::SobolevGramMatrix(PolyCurveNetwork* curves, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
         double out[4][4];
-        int nVerts = curves->NumVertices();
+        int nEdges = curves->NumEdges();
 
         int numTerms = 0;
 
-        for (int i = 0; i < nVerts; i++) {
-            PointOnCurve pc_i = curves->GetCurvePoint(i);
+        for (int i = 0; i < nEdges; i++) {
+            CurveEdge* pc_i = curves->GetEdge(i);
             
-            for (int j = 0; j < nVerts; j++) {
-                PointOnCurve pc_j = curves->GetCurvePoint(j);
+            for (int j = 0; j < nEdges; j++) {
+                CurveEdge* pc_j = curves->GetEdge(j);
                 // if (pc_i == pc_j) continue;
-                if (pc_i == pc_j || pc_i.Next() == pc_j || pc_i == pc_j.Next() || pc_i.Next() == pc_j.Next()) continue;
+                if (pc_i == pc_j || pc_i->IsNeighbors(pc_j)) continue;
 
                 AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
                 // AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
             }
-            A(i, i) += diagEps * pc_i.DualLength();
+            A(i, i) += diagEps * curves->GetVertex(i)->DualLength();
         }
     }
 
-    void SobolevCurves::SobolevPlusBarycenter(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
+    void SobolevCurves::SobolevPlusBarycenter(PolyCurveNetwork* loop, double alpha, double beta, Eigen::MatrixXd &A) {
         int nVerts = loop->NumVertices();
         // Fill the top-left block with the gram matrix
         SobolevCurves::SobolevGramMatrix(loop, alpha, beta, A);
@@ -261,14 +260,14 @@ namespace LWS {
 
         // Fill the bottom row with weights for the constraint
         for (int i = 0; i < nVerts; i++) {
-            double areaWeight = loop->GetCurvePoint(i).DualLength() / sumLength;
+            double areaWeight = loop->GetVertex(i)->DualLength() / sumLength;
             // Fill in bottom row and rightmost column
             A(i, nVerts) = areaWeight;
             A(nVerts, i) = areaWeight;
         }
     }
 
-    void SobolevCurves::SobolevPlusBarycenter3X(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
+    void SobolevCurves::SobolevPlusBarycenter3X(PolyCurveNetwork* loop, double alpha, double beta, Eigen::MatrixXd &A) {
         int nVerts = loop->NumVertices();
         Eigen::MatrixXd topLeft;
         topLeft.setZero(nVerts + 1, nVerts + 1);
@@ -283,17 +282,18 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::AddEdgeLengthConstraints(PolyCurveGroup* curves, Eigen::MatrixXd &A, int baseIndex) {
-        int nVerts = curves->NumVertices();
-        for (int i = 0; i < nVerts; i++) {
-            PointOnCurve pt1 = curves->GetCurvePoint(i);
-            PointOnCurve pt2 = pt1.Next();
+    void SobolevCurves::AddEdgeLengthConstraints(PolyCurveNetwork* curves, Eigen::MatrixXd &A, int baseIndex) {
+        int nEdges = curves->NumEdges();
+        for (int i = 0; i < nEdges; i++) {
+            CurveEdge* e_i = curves->GetEdge(i);
+            CurveVertex* pt1 = e_i->prevVert;
+            CurveVertex* pt2 = e_i->nextVert;
             // This is the gradient of edge length wrt pt1; the gradient wrt pt2 is just negative of this.
-            Vector3 grad1 = pt1.Position() - pt2.Position();
+            Vector3 grad1 = pt1->Position() - pt2->Position();
             grad1 = grad1.normalize();
 
-            int j1 = curves->GlobalIndex(pt1);
-            int j2 = curves->GlobalIndex(pt2);
+            int j1 = pt1->GlobalIndex();
+            int j2 = pt2->GlobalIndex();
             int curRow = baseIndex + i;
 
             // Write the three gradient entries for pt1 into the row and column
@@ -340,18 +340,21 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::DfMatrix(PolyCurveGroup* loop, Eigen::MatrixXd &out) {
+    void SobolevCurves::DfMatrix(PolyCurveNetwork* loop, Eigen::MatrixXd &out) {
         int nVerts = loop->NumVertices();
-        out.setZero(nVerts * 3, nVerts);
+        int nEdges = loop->NumEdges();
+        // Maps from 1 scalar per vertex to a 3-vector per edge
+        out.setZero(nEdges * 3, nVerts);
         
-        for (int i = 0; i < nVerts; i++) {
-            PointOnCurve p1 = loop->GetCurvePoint(i);
-            int i1 = loop->GlobalIndex(p1);
-            PointOnCurve p2 = p1.Next();
-            int i2 = loop->GlobalIndex(p2);
+        for (int i = 0; i < nEdges; i++) {
+            CurveEdge* e_i = loop->GetEdge(i);
+            CurveVertex* p1 = e_i->prevVert;
+            int i1 = p1->GlobalIndex();
+            CurveVertex* p2 = e_i->nextVert;
+            int i2 = p2->GlobalIndex();
 
             // Positive weight on the second vertex, negative on the first
-            Vector3 e12 = (p2.Position() - p1.Position());
+            Vector3 e12 = (p2->Position() - p1->Position());
             double length = norm(e12);
 
             Vector3 weight = e12 / (length * length);
@@ -364,54 +367,7 @@ namespace LWS {
             out(3 * i1 + 2, i2) = weight.z;
         }
     }
-
-    void SobolevCurves::FillAfMatrix(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A) {
-        int nVerts = loop->NumVertices();
-        double pow_s = (beta - alpha);
-
-        for (int i = 0; i < nVerts; i++) {
-            PointOnCurve p_i = loop->GetCurvePoint(i);
-            Vector3 mid_i = (p_i.Position() + p_i.Next().Position()) / 2;
-            for (int j = 0; j < nVerts; j++) {
-                PointOnCurve p_j = loop->GetCurvePoint(j);
-                if (p_i == p_j || p_i.Next() == p_j || p_i == p_j.Next() || p_i.Next() == p_j.Next()) continue;
-                Vector3 mid_j = (p_j.Position() + p_j.Next().Position()) / 2;
-
-                A(i, j) = (p_i.DualLength() * p_j.DualLength()) / pow(norm(mid_i - mid_j), pow_s);
-            }
-        }
-    }
-
-    void SobolevCurves::ApplyGramMatrix(PolyCurveGroup* loop, Eigen::VectorXd &as, double alpha, double beta, Eigen::VectorXd &out) {
-        int n = as.rows();
-        Eigen::MatrixXd Df_v(n, 3);
-        Df_v.setZero();
-
-        ApplyDf(loop, as, Df_v);
-
-        Eigen::MatrixXd Af;
-        Af.setZero(n, n);
-
-        FillAfMatrix(loop, alpha, beta, Af);
-
-        Eigen::MatrixXd Af_Df_v(n, 3);
-        Af_Df_v.setZero();
-        Af_Df_v = Af * Df_v;
-
-        Eigen::VectorXd ones;
-        ones.setOnes(n);
-        Eigen::VectorXd Af_1 = Af * ones;
-
-        /*
-        for (int i = 0; i < n; i++) {
-            Df_v[i] = Af_1(i) * Df_v(i) - Af_Df_v(i);
-        }
-        */
-        Df_v = Af_1.asDiagonal() * Df_v - Af_Df_v;
-
-        ApplyDfTranspose(loop, Df_v, out);
-    }
-
+    
     void SobolevCurves::MultiplyComponents(Eigen::MatrixXd &A, std::vector<Vector3> &x, std::vector<Vector3> &out) {
         int n = x.size();
         Eigen::VectorXd xVec;

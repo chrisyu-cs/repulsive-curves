@@ -29,13 +29,4 @@ namespace LWS {
     PosTan postan_min(PosTan v1, PosTan v2) {
         return PosTan{vector_min(v1.position, v2.position), vector_min(v1.tangent, v2.tangent)};
     }
- 
-    BodyType VertexBody6D::type() {
-        if (vertIndex2 < 0) {
-            return BodyType::Vertex;
-        }
-        else {
-            return BodyType::Edge;
-        }
-    }
 }

@@ -3,7 +3,7 @@
 namespace LWS {
 
     TPEPointType TangentMassPoint::type() {
-        if (curvePt.curve) {
+        if (curvePt) {
             return TPEPointType::Point;
         }
         else {
@@ -11,10 +11,10 @@ namespace LWS {
         }
     }
 
-    double TPESC::tpe_Kf(PointOnCurve i, PointOnCurve j, double alpha, double beta) {
+    double TPESC::tpe_Kf(CurveVertex* i, CurveVertex* j, double alpha, double beta) {
         if (i == j) return 0;
-        Vector3 disp = i.Position() - j.Position();
-        Vector3 T_i = i.Tangent();
+        Vector3 disp = i->Position() - j->Position();
+        Vector3 T_i = i->Tangent();
 
         Vector3 normal_proj = disp - dot(disp, T_i) * T_i;
         double numer = pow(norm(normal_proj), alpha);
@@ -30,10 +30,10 @@ namespace LWS {
         return numer / denom;
     }
 
-    double TPESC::tpe_pair(PointOnCurve i, PointOnCurve j, double alpha, double beta) {
+    double TPESC::tpe_pair(CurveVertex* i, CurveVertex* j, double alpha, double beta) {
         double kfxy = tpe_Kf(i, j, alpha, beta);
-        double l_x = i.DualLength();
-        double l_y = j.DualLength();
+        double l_x = i->DualLength();
+        double l_y = j->DualLength();
         return l_x * l_y * kfxy;
     }
 
@@ -42,44 +42,32 @@ namespace LWS {
         return l_x * l_y * kfxy;
     }
 
-    double TPESC::tpe_total(PolyCurve* loop, double alpha, double beta) {
-        int nVerts = loop->NumVertices();
-        double sumEnergy = 0;
-
-        for (int i = 0; i < nVerts; i++) {
-            for (int j = 0; j < nVerts; j++) {
-                sumEnergy += tpe_pair(PointOnCurve{i, loop}, PointOnCurve{j, loop}, alpha, beta);
-            }
-        }
-        return sumEnergy;
-    }
-
-    double TPESC::tpe_total(PolyCurveGroup* curves, double alpha, double beta) {
+    double TPESC::tpe_total(PolyCurveNetwork* curves, double alpha, double beta) {
         int nVerts = curves->NumVertices();
         double sumEnergy = 0;
 
         for (int i = 0; i < nVerts; i++) {
             for (int j = 0; j < nVerts; j++) {
-                PointOnCurve pt_i = curves->GetCurvePoint(i);
-                PointOnCurve pt_j = curves->GetCurvePoint(j);
+                CurveVertex* pt_i = curves->GetVertex(i);
+                CurveVertex* pt_j = curves->GetVertex(j);
                 sumEnergy += tpe_pair(pt_i, pt_j, alpha, beta);
             }
         }
         return sumEnergy;
     }
 
-    Vector3 TPESC::proj_normal_plane(PointOnCurve i, PointOnCurve j) {
-        Vector3 disp = i.Position() - j.Position();
-        Vector3 T_i = i.Tangent();
+    Vector3 TPESC::proj_normal_plane(CurveVertex* i, CurveVertex* j) {
+        Vector3 disp = i->Position() - j->Position();
+        Vector3 T_i = i->Tangent();
         return disp - dot(disp, T_i) * T_i;
     }
     
-    Vector3 TPESC::tpe_grad_Kf(PointOnCurve i, PointOnCurve j, double alpha, double beta, PointOnCurve wrt) {
+    Vector3 TPESC::tpe_grad_Kf(CurveVertex* i, CurveVertex* j, double alpha, double beta, CurveVertex* wrt) {
         if (i == j) return Vector3{0, 0, 0};
 
         // Get positions and displacement vectors
-        Vector3 disp = i.Position() - j.Position();
-        Vector3 T_i = i.Tangent();
+        Vector3 disp = i->Position() - j->Position();
+        Vector3 T_i = i->Tangent();
         // Normalized displacement direction
         Vector3 unit_disp = disp;
         unit_disp = unit_disp.normalize();
@@ -106,9 +94,9 @@ namespace LWS {
         return total;
     }
     
-    Vector3 TPESC::tpe_grad_Kf(TangentMassPoint i, PointOnCurve j, double alpha, double beta, PointOnCurve wrt) {
+    Vector3 TPESC::tpe_grad_Kf(TangentMassPoint i, CurveVertex* j, double alpha, double beta, CurveVertex* wrt) {
         // Get positions and displacement vectors
-        Vector3 disp = i.point - j.Position();
+        Vector3 disp = i.point - j->Position();
         Vector3 T_i = i.tangent;
         // Normalized displacement direction
         Vector3 unit_disp = disp;
@@ -123,6 +111,7 @@ namespace LWS {
 
         // Derivative of numerator
         Vector3 deriv_A = grad_norm_proj_alpha(i, j, alpha, beta, wrt);
+
         // Derivative of denominator
         Vector3 deriv_B{0, 0, 0};
         if (i.type() == TPEPointType::Point && wrt == i.curvePt) {
@@ -138,10 +127,10 @@ namespace LWS {
         return (deriv_A * B - A * deriv_B) / (B * B);
     }
     
-    Vector3 TPESC::tpe_grad_Kf(PointOnCurve i, TangentMassPoint j, double alpha, double beta, PointOnCurve wrt) {
+    Vector3 TPESC::tpe_grad_Kf(CurveVertex* i, TangentMassPoint j, double alpha, double beta, CurveVertex* wrt) {
         // Get positions and displacement vectors
-        Vector3 disp = i.Position() - j.point;
-        Vector3 T_i = i.Tangent();
+        Vector3 disp = i->Position() - j.point;
+        Vector3 T_i = i->Tangent();
         // Normalized displacement direction
         Vector3 unit_disp = disp;
         unit_disp = unit_disp.normalize();
@@ -170,7 +159,7 @@ namespace LWS {
         return (deriv_A * B - A * deriv_B) / (B * B);
     }
 
-    Vector3 TPESC::tpe_grad(PointOnCurve x, PointOnCurve y, double alpha, double beta, PointOnCurve wrt) {
+    Vector3 TPESC::tpe_grad(CurveVertex* x, CurveVertex* y, double alpha, double beta, CurveVertex* wrt) {
         // Computes the gradient of the kernel (K_f(x, y) dx dy) with respect to
         // the position of the vertex "wrt".
         
@@ -178,8 +167,8 @@ namespace LWS {
         Vector3 grad_Kf = tpe_grad_Kf(x, y, alpha, beta, wrt);
         double Kf = tpe_Kf(x, y, alpha, beta);
 
-        double l_x = x.DualLength();
-        double l_y = y.DualLength();
+        double l_x = x->DualLength();
+        double l_y = y->DualLength();
 
         // d/dy of area(x)
         Vector3 grad_lx = length_wrt_vert(x, wrt);
@@ -193,16 +182,16 @@ namespace LWS {
         return grad_Kf * l_x * l_y + Kf * prod_rule;
     }
 
-    Vector3 TPESC::tpe_grad(TangentMassPoint x, PointOnCurve y, double alpha, double beta, PointOnCurve wrt) {
+    Vector3 TPESC::tpe_grad(TangentMassPoint x, CurveVertex* y, double alpha, double beta, CurveVertex* wrt) {
         // Computes the gradient of the kernel (K_f(x, y) dx dy) with respect to
         // the position of the vertex "wrt".
         
         // First get the gradient of K_f(x, y)
         Vector3 grad_Kf = tpe_grad_Kf(x, y, alpha, beta, wrt);
-        double Kf = tpe_Kf_pts(x.point, y.Position(), x.tangent, alpha, beta);
+        double Kf = tpe_Kf_pts(x.point, y->Position(), x.tangent, alpha, beta);
 
         double l_x = x.mass;
-        double l_y = y.DualLength();
+        double l_y = y->DualLength();
 
         // Area gradient for x depends on whether the mass point is distant
         Vector3 grad_lx{0, 0, 0};
@@ -211,11 +200,11 @@ namespace LWS {
         }
         else if (x.type() == TPEPointType::Edge) {
             if (wrt == x.curvePt) {
-                grad_lx = (x.curvePt.Position() - x.curvePt2.Position());
+                grad_lx = (x.curvePt->Position() - x.curvePt2->Position());
                 grad_lx = grad_lx.normalize();
             }
             else if (wrt == x.curvePt2) {
-                grad_lx = (x.curvePt2.Position() - x.curvePt.Position());
+                grad_lx = (x.curvePt2->Position() - x.curvePt->Position());
                 grad_lx = grad_lx.normalize();
             }
         }
@@ -228,13 +217,13 @@ namespace LWS {
         return grad_Kf * l_x * l_y + Kf * prod_rule;
     }
 
-    Vector3 TPESC::tpe_grad(PointOnCurve x, TangentMassPoint y, double alpha, double beta, PointOnCurve wrt) {
+    Vector3 TPESC::tpe_grad(CurveVertex* x, TangentMassPoint y, double alpha, double beta, CurveVertex* wrt) {
         // Here, y is a mass point (e.g. from Barnes-Hut), so gradients of y are assumed to be zero.
         // First get the gradient of K_f(x, y)
         Vector3 grad_Kf = tpe_grad_Kf(x, y, alpha, beta, wrt);
-        double Kf = tpe_Kf_pts(x.Position(), y.point, x.Tangent(), alpha, beta);
+        double Kf = tpe_Kf_pts(x->Position(), y.point, x->Tangent(), alpha, beta);
 
-        double l_x = x.DualLength();
+        double l_x = x->DualLength();
         double l_y = y.mass;
 
         // d/dy of area(x)
@@ -246,11 +235,11 @@ namespace LWS {
         }
         else if (y.type() == TPEPointType::Edge) {
             if (wrt == y.curvePt) {
-                grad_ly = (y.curvePt.Position() - y.curvePt2.Position());
+                grad_ly = (y.curvePt->Position() - y.curvePt2->Position());
                 grad_ly = grad_ly.normalize();
             }
             else if (wrt == y.curvePt2) {
-                grad_ly = (y.curvePt2.Position() - y.curvePt.Position());
+                grad_ly = (y.curvePt2->Position() - y.curvePt->Position());
                 grad_ly = grad_ly.normalize();
             }
         }
@@ -262,9 +251,9 @@ namespace LWS {
         return grad_Kf * l_x * l_y + Kf * prod_rule;
     }
 
-    Vector3 TPESC::grad_norm_proj_alpha(PointOnCurve i, PointOnCurve j, double alpha, double beta, PointOnCurve wrt) {
-        Vector3 disp = i.Position() - j.Position();
-        Vector3 T_i = i.Tangent();
+    Vector3 TPESC::grad_norm_proj_alpha(CurveVertex* i, CurveVertex* j, double alpha, double beta, CurveVertex* wrt) {
+        Vector3 disp = i->Position() - j->Position();
+        Vector3 T_i = i->Tangent();
         // Projection onto normal plane
         Vector3 normal_proj = disp - dot(disp, T_i) * T_i;
         double proj_len = norm(normal_proj);
@@ -299,8 +288,8 @@ namespace LWS {
         return total;
     }
 
-    Vector3 TPESC::grad_norm_proj_alpha(TangentMassPoint i, PointOnCurve j, double alpha, double beta, PointOnCurve wrt) {
-        Vector3 disp = i.point - j.Position();
+    Vector3 TPESC::grad_norm_proj_alpha(TangentMassPoint i, CurveVertex* j, double alpha, double beta, CurveVertex* wrt) {
+        Vector3 disp = i.point - j->Position();
         Vector3 T_i = i.tangent;
         // Projection onto normal plane
         Vector3 normal_proj = disp - dot(disp, T_i) * T_i;
@@ -336,9 +325,9 @@ namespace LWS {
         return alpha_deriv * deriv_N_proj.LeftMultiply(proj_normalized);
     }
 
-    Vector3 TPESC::grad_norm_proj_alpha(PointOnCurve i, TangentMassPoint j, double alpha, double beta, PointOnCurve wrt) {
-        Vector3 disp = i.Position() - j.point;
-        Vector3 T_i = i.Tangent();
+    Vector3 TPESC::grad_norm_proj_alpha(CurveVertex* i, TangentMassPoint j, double alpha, double beta, CurveVertex* wrt) {
+        Vector3 disp = i->Position() - j.point;
+        Vector3 T_i = i->Tangent();
         // Projection onto normal plane
         Vector3 normal_proj = disp - dot(disp, T_i) * T_i;
         double proj_len = norm(normal_proj);
@@ -373,20 +362,20 @@ namespace LWS {
         return alpha_deriv * deriv_N_proj.LeftMultiply(proj_normalized);
     }
 
-    Vector3 TPESC::grad_norm_proj_num(PointOnCurve i, PointOnCurve j, double alpha, double beta, PointOnCurve wrt, double h) {
-        Vector3 origPos = wrt.Position();
+    Vector3 TPESC::grad_norm_proj_num(CurveVertex* i, CurveVertex* j, double alpha, double beta, CurveVertex* wrt, double h) {
+        Vector3 origPos = wrt->Position();
         double orig = pow(norm(proj_normal_plane(i, j)), alpha);
 
-        wrt.SetPosition(origPos + Vector3{h, 0, 0});
+        wrt->SetPosition(origPos + Vector3{h, 0, 0});
         double xVal = pow(norm(proj_normal_plane(i, j)), alpha);
 
-        wrt.SetPosition(origPos + Vector3{0, h, 0});
+        wrt->SetPosition(origPos + Vector3{0, h, 0});
         double yVal = pow(norm(proj_normal_plane(i, j)), alpha);
 
-        wrt.SetPosition(origPos + Vector3{0, 0, h});
+        wrt->SetPosition(origPos + Vector3{0, 0, h});
         double zVal = pow(norm(proj_normal_plane(i, j)), alpha);
 
-        wrt.SetPosition(origPos);
+        wrt->SetPosition(origPos);
 
         double xDeriv = (xVal - orig) / h;
         double yDeriv = (yVal - orig) / h;
@@ -395,10 +384,10 @@ namespace LWS {
         return Vector3{xDeriv, yDeriv, zDeriv};
     }
 
-    VertJacobian TPESC::grad_tangent_proj(PointOnCurve i, PointOnCurve j, PointOnCurve wrt) {
+    VertJacobian TPESC::grad_tangent_proj(CurveVertex* i, CurveVertex* j, CurveVertex* wrt) {
         // Differentiate the inner product
-        Vector3 disp = i.Position() - j.Position();
-        Vector3 T_i = i.Tangent();
+        Vector3 disp = i->Position() - j->Position();
+        Vector3 T_i = i->Tangent();
         double disp_dot_T = dot(disp, T_i);
 
         Vector3 inner_deriv_A_B{0, 0, 0};
@@ -419,9 +408,9 @@ namespace LWS {
         return deriv_A_B + A_deriv_B;
     }
 
-    VertJacobian TPESC::grad_tangent_proj(TangentMassPoint i, PointOnCurve j, PointOnCurve wrt) {
+    VertJacobian TPESC::grad_tangent_proj(TangentMassPoint i, CurveVertex* j, CurveVertex* wrt) {
         // Differentiate the inner product
-        Vector3 disp = i.point - j.Position();
+        Vector3 disp = i.point - j->Position();
         Vector3 T_i = i.tangent;
         double disp_dot_T = dot(disp, T_i);
 
@@ -440,10 +429,10 @@ namespace LWS {
         return deriv_A_B + A_deriv_B;
     }
 
-    VertJacobian TPESC::grad_tangent_proj(PointOnCurve i, TangentMassPoint j, PointOnCurve wrt) {
+    VertJacobian TPESC::grad_tangent_proj(CurveVertex* i, TangentMassPoint j, CurveVertex* wrt) {
         // Differentiate the inner product
-        Vector3 disp = i.Position() - j.point;
-        Vector3 T_i = i.Tangent();
+        Vector3 disp = i->Position() - j.point;
+        Vector3 T_i = i->Tangent();
         double disp_dot_T = dot(disp, T_i);
 
         Vector3 inner_deriv_A_B{0, 0, 0};
@@ -461,20 +450,20 @@ namespace LWS {
         return deriv_A_B + A_deriv_B;
     }
 
-    VertJacobian TPESC::grad_tangent_proj_num(PointOnCurve i, PointOnCurve j, PointOnCurve wrt, double h) {
-        Vector3 origPos = wrt.Position();
-        Vector3 origTangent = dot(i.Position() - j.Position(), i.Tangent()) * i.Tangent();
+    VertJacobian TPESC::grad_tangent_proj_num(CurveVertex* i, CurveVertex* j, CurveVertex* wrt, double h) {
+        Vector3 origPos = wrt->Position();
+        Vector3 origTangent = dot(i->Position() - j->Position(), i->Tangent()) * i->Tangent();
 
-        wrt.SetPosition(origPos + Vector3{h, 0, 0});
-        Vector3 xTangent = dot(i.Position() - j.Position(), i.Tangent()) * i.Tangent();
+        wrt->SetPosition(origPos + Vector3{h, 0, 0});
+        Vector3 xTangent = dot(i->Position() - j->Position(), i->Tangent()) * i->Tangent();
 
-        wrt.SetPosition(origPos + Vector3{0, h, 0});
-        Vector3 yTangent = dot(i.Position() - j.Position(), i.Tangent()) * i.Tangent();
+        wrt->SetPosition(origPos + Vector3{0, h, 0});
+        Vector3 yTangent = dot(i->Position() - j->Position(), i->Tangent()) * i->Tangent();
 
-        wrt.SetPosition(origPos + Vector3{0, 0, h});
-        Vector3 zTangent = dot(i.Position() - j.Position(), i.Tangent()) * i.Tangent();
+        wrt->SetPosition(origPos + Vector3{0, 0, h});
+        Vector3 zTangent = dot(i->Position() - j->Position(), i->Tangent()) * i->Tangent();
 
-        wrt.SetPosition(origPos);
+        wrt->SetPosition(origPos);
 
         Vector3 xDeriv = (xTangent - origTangent) / h;
         Vector3 yDeriv = (yTangent - origTangent) / h;
@@ -484,13 +473,14 @@ namespace LWS {
     }
     
 
-    VertJacobian TPESC::edge_tangent_wrt_vert(PointOnCurve tangentVert, PointOnCurve wrtVert) {
+    VertJacobian TPESC::edge_tangent_wrt_vert(CurveEdge* edge, CurveVertex* wrtVert) {
         // get positions
-        PointOnCurve nextVert = tangentVert.Next();
-        Vector3 v_h = tangentVert.Position();
-        Vector3 v_i = nextVert.Position();
+        CurveVertex* prevVert = edge->prevVert;
+        CurveVertex* nextVert = edge->nextVert;
+        Vector3 v_h = prevVert->Position();
+        Vector3 v_i = nextVert->Position();
 
-        if (wrtVert != tangentVert && wrtVert != nextVert) {
+        if (wrtVert != prevVert && wrtVert != nextVert) {
             Vector3 zero{0, 0, 0};
             return VertJacobian{zero, zero, zero};
         }
@@ -506,35 +496,34 @@ namespace LWS {
         VertJacobian deriv = (deriv_A_B - A_deriv_B) * (1.0 / (v_norm * v_norm));
 
         // If we're differentiating the tail vertex, the derivative is negative
-        if (wrtVert == tangentVert) return -1 * deriv;
+        if (wrtVert == prevVert) return -1 * deriv;
         // Otherwise we're differentiating the head vertex, and the derivative is positive
         else return deriv;
     }
 
-    VertJacobian TPESC::vertex_tangent_wrt_vert(PointOnCurve tangentVert, PointOnCurve wrtVert) {
-        if (!tangentVert.curve || !wrtVert.curve) {
+    VertJacobian TPESC::vertex_tangent_wrt_vert(CurveVertex* tangentVert, CurveVertex* wrtVert) {
+        if (!tangentVert || !wrtVert) {
             return VertJacobian{Vector3{0, 0, 0}, Vector3{0, 0, 0}, Vector3{0, 0, 0}};
         }
 
-        PointOnCurve prevVert = tangentVert.Prev();
-        PointOnCurve nextVert = tangentVert.Next();
+        if (tangentVert->numEdges() != 2) {
+            std::cerr << "TODO: handle junction case" << std::endl;
+            return VertJacobian{Vector3{0, 0, 0}, Vector3{0, 0, 0}, Vector3{0, 0, 0}};
+        }
 
-        Vector3 f_h = prevVert.Position();
-        Vector3 f_i = tangentVert.Position();
-        Vector3 f_j = nextVert.Position();
+        CurveEdge* prevEdge = tangentVert->edge(0);
+        CurveEdge* nextEdge = tangentVert->edge(1);
 
-        Vector3 prevTangent = f_i - f_h;
-        prevTangent = prevTangent.normalize();
-        Vector3 nextTangent = f_j - f_i;
-        nextTangent = nextTangent.normalize();
+        Vector3 prevTangent = prevEdge->Tangent();
+        Vector3 nextTangent = nextEdge->Tangent();
 
         Vector3 sumTangents = prevTangent + nextTangent;
         double normSum = norm(sumTangents);
         Vector3 vertTangent = sumTangents;
         vertTangent = vertTangent.normalize();
 
-        VertJacobian derivSumTs = edge_tangent_wrt_vert(prevVert, wrtVert)
-            + edge_tangent_wrt_vert(tangentVert, wrtVert);
+        VertJacobian derivSumTs = edge_tangent_wrt_vert(prevEdge, wrtVert)
+            + edge_tangent_wrt_vert(nextEdge, wrtVert);
 
         Vector3 derivNorm = derivSumTs.LeftMultiply(vertTangent);
         VertJacobian deriv_A_B = derivSumTs * normSum;
@@ -544,34 +533,31 @@ namespace LWS {
     }
 
 
-    Vector3 TPESC::length_wrt_vert(PointOnCurve lengthVert, PointOnCurve wrt) {
+    Vector3 TPESC::length_wrt_vert(CurveVertex* lengthVert, CurveVertex* wrt) {
         // If differentiating wrt self, need to consider both side
         if (lengthVert == wrt) {
-            Vector3 next = lengthVert.Next().Position();
-            Vector3 prev = lengthVert.Prev().Position();
-            Vector3 center = lengthVert.Position();
-
-            // Gradient is half the sum of unit vectors along both outgoing edges
-            Vector3 forward = next - center;
-            forward = forward.normalize();
-            Vector3 reverse = prev - center;
-            reverse = reverse.normalize();
-
-            return -0.5 * (forward + reverse);
+            Vector3 sumDirections{0, 0, 0};
+            Vector3 center = lengthVert->Position();
+            for (int e = 0; e < lengthVert->numEdges(); e++) {
+                Vector3 other = lengthVert->edge(e)->Opposite(lengthVert)->Position();
+                Vector3 outward = other - center;
+                outward = outward.normalize();
+                sumDirections += outward;
+            }
+            // Gradient is half the sum of unit vectors along outgoing edges
+            return -0.5 * sumDirections;
         }
         // Otherwise, only consider the one edge between other and vert
         else {
-            if (lengthVert.Next() == wrt) {
-                Vector3 forward = lengthVert.Next().Position() - lengthVert.Position();
-                forward = forward.normalize();
-                return forward / 2;
+            for (int e = 0; e < lengthVert->numEdges(); e++) {
+                CurveVertex* other = lengthVert->edge(e)->Opposite(lengthVert);
+                if (other == wrt) {
+                    Vector3 outward = other->Position() - lengthVert->Position();
+                    outward = outward.normalize();
+                    return outward / 2;
+                }
             }
-            else if (lengthVert.Prev() == wrt) {
-                Vector3 back = lengthVert.Prev().Position() - lengthVert.Position();
-                back = back.normalize();
-                return back / 2;
-            }
-            else return Vector3{0, 0, 0};
+            return Vector3{0, 0, 0};
         }
     }
 

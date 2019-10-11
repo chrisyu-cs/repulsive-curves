@@ -3,8 +3,6 @@
 #include <Eigen/Core>
 #include <Eigen/Sparse>
 
-#include "poly_curve.h"
-
 namespace LWS {
     class TestMatrices {
         public:
@@ -13,6 +11,6 @@ namespace LWS {
         static Eigen::MatrixXd LaplacianSaddle1D(int rows);
         static Eigen::MatrixXd CurveLaplacian(int rows);
         
-        static Eigen::MatrixXd CurveMetricLaplacian(PolyCurveGroup* curves, double epsilon);
+        // static Eigen::MatrixXd CurveMetricLaplacian(PolyCurveGroup* curves, double epsilon);
     };
 }

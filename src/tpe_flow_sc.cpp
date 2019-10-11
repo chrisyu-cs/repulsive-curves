@@ -5,18 +5,18 @@
 
 namespace LWS {
 
-    TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveGroup* g) :
+    TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveNetwork* g) :
     originalPositions(g->NumVertices()),
     l2gradients(g->NumVertices() + 1, 3),
     vertGradients(g->NumVertices() + 1, 3),
     vertConstraints(g->NumVertices() + 1, 3),
-    initialLengths(g->NumVertices())
+    initialLengths(g->NumEdges())
     {
         l2gradients.setZero();
         vertGradients.setZero();
         vertConstraints.setZero();
 
-        curves = g;
+        curveNetwork = g;
         alpha = 2;
         beta = 4;
         ls_step_threshold = 1e-15;
@@ -25,11 +25,9 @@ namespace LWS {
 
         useEdgeLengthConstraint = true;
 
-        for (int i = 0; i < g->NumVertices(); i++) {
-            PointOnCurve p = g->GetCurvePoint(i);
-            Vector3 p1 = p.Position();
-            Vector3 p2 = p.Next().Position();
-            initialLengths[i] = norm(p1 - p2);
+        for (int i = 0; i < g->NumEdges(); i++) {
+            CurveEdge* p = g->GetEdge(i);
+            initialLengths[i] = p->Length();
         }
     }
 
@@ -39,17 +37,17 @@ namespace LWS {
     }
 
     inline double TPEFlowSolverSC::CurrentEnergyDirect() {
-        return TPESC::tpe_total(curves, alpha, beta);
+        return TPESC::tpe_total(curveNetwork, alpha, beta);
     }
 
     double TPEFlowSolverSC::CurrentEnergyBH(SpatialTree *root) {
-        int nVerts = curves->NumVertices();
+        int nVerts = curveNetwork->NumVertices();
         double fullSum = 0;
         // Loop over all vertices and add up energy contributions
         for (int i = 0; i < nVerts; i++) {
-            PointOnCurve i_pt = curves->GetCurvePoint(i);
+            CurveVertex* i_pt = curveNetwork->GetVertex(i);
             double vertSum = 0;
-            root->accumulateVertexEnergy(vertSum, i_pt, curves, alpha, beta);
+            root->accumulateVertexEnergy(vertSum, i_pt, curveNetwork, alpha, beta);
             fullSum += vertSum;
         }
         return fullSum;
@@ -57,34 +55,42 @@ namespace LWS {
 
     void TPEFlowSolverSC::FillGradientSingle(Eigen::MatrixXd &gradients, int i, int j) {
         if (i == j) return;
-        PointOnCurve i_pt = curves->GetCurvePoint(i);
-        PointOnCurve j_pt = curves->GetCurvePoint(j);
+        CurveVertex* i_pt = curveNetwork->GetVertex(i);
+        CurveVertex* j_pt = curveNetwork->GetVertex(j);
 
-        PointOnCurve i_prev = i_pt.Prev();
-        PointOnCurve i_next = i_pt.Next();
-        
-        PointOnCurve j_prev = j_pt.Prev();
-        PointOnCurve j_next = j_pt.Next();
+        // Add i and neighbors of i
+        std::vector<CurveVertex*> i_pts;
+        i_pts.push_back(i_pt);
+        for (int e = 0; e < i_pt->numEdges(); e++) {
+            i_pts.push_back(i_pt->edge(e)->Opposite(i_pt));
+        }
 
-        AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_prev));
-        AddToRow(gradients, curves->GlobalIndex(i_pt), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_pt));
-        AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_next));
+        // Add j and neighbors of j
+        std::vector<CurveVertex*> j_pts;
+        j_pts.push_back(j_pt);
+        for (int e = 0; e < j_pt->numEdges(); e++) {
+            j_pts.push_back(j_pt->edge(e)->Opposite(j_pt));
+        }
 
-        // If j_prev is not already included in one of the above 3
-        if (j_prev != i_prev && j_prev != i_pt && j_prev != i_next)
-            AddToRow(gradients, curves->GlobalIndex(j_prev), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_prev));
-
-        // If j_pt is not already included in one of the above 3
-        if (j_pt != i_prev && j_pt != i_pt && j_pt != i_next)
-            AddToRow(gradients, curves->GlobalIndex(j_pt), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_pt));
-
-        // If j_next is not already included in one of the above 3
-        if (j_next != i_prev && j_next != i_pt && j_next != i_next)
-            AddToRow(gradients, curves->GlobalIndex(j_next), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_next));
+        // Differentiate wrt neighbors of i
+        for (CurveVertex* i_n : i_pts) {
+            AddToRow(gradients, i_n->GlobalIndex(), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_n));
+        }
+        // Differentiate wrt neighbors of j
+        for (CurveVertex* j_n : j_pts) {
+            bool noOverlap = true;
+            // Only compute this derivative if j_n is not already included in one of the previous pairs
+            for (CurveVertex* i_n : i_pts) {
+                if (i_n == j_n) noOverlap = false;
+            }
+            if (noOverlap) {
+                AddToRow(gradients, j_n->GlobalIndex(), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_n));
+            }
+        }
     }
 
     void TPEFlowSolverSC::FillGradientVectorDirect(Eigen::MatrixXd &gradients) {
-        int nVerts = curves->NumVertices();
+        int nVerts = curveNetwork->NumVertices();
         // Fill with zeros, so that the constraint entries are 0
         gradients.setZero();
         // Fill vertex entries with accumulated gradients
@@ -102,61 +108,61 @@ namespace LWS {
         // We can restructure the computation as follows:
         // for each single 1-ring (i, i_prev, i_next), accumulate the
         // contributions from the gradients of both terms (i, j) and (j, i).
-        int nVerts = curves->NumVertices();
+        int nVerts = curveNetwork->NumVertices();
         gradients.setZero();
 
         for (int i = 0; i < nVerts; i++) {
-            PointOnCurve i_pt = curves->GetCurvePoint(i);
-            root->accumulateTPEGradient(gradients, i_pt, curves, alpha, beta);
+            CurveVertex* i_pt = curveNetwork->GetVertex(i);
+            root->accumulateTPEGradient(gradients, i_pt, curveNetwork, alpha, beta);
         }
     }
 
     void TPEFlowSolverSC::FillConstraintVector(Eigen::MatrixXd &gradients) {
-        int nVerts = curves->NumVertices();
+        int nVerts = curveNetwork->NumVertices();
 
         for (int i = 0; i < gradients.rows(); i++) {
             SetRow(gradients, i, Vector3{0, 0, 0});
         }
 
         for (int i = 0; i < nVerts; i++) {
-            PointOnCurve i_pt = curves->GetCurvePoint(i);
-            Vector3 len_grad = i_pt.curve->TotalLengthGradient(i_pt.pIndex);
-            SetRow(gradients, curves->GlobalIndex(i_pt), len_grad);
+            CurveVertex* i_pt = curveNetwork->GetVertex(i);
+            Vector3 len_grad = i_pt->TotalLengthGradient();
+            SetRow(gradients, i_pt->GlobalIndex(), len_grad);
         }
     }
 
     bool TPEFlowSolverSC::StepNaive(double h) {
         // Takes a fixed time step h using the L2 gradient
-        int nVerts = curves->NumVertices();
+        int nVerts = curveNetwork->NumVertices();
         Eigen::MatrixXd gradients(nVerts, 3);
         gradients.setZero();
         FillGradientVectorDirect(gradients);
 
         for (int i = 0; i < nVerts; i++) {
-            PointOnCurve pt = curves->GetCurvePoint(i);
-            pt.SetPosition(pt.Position() - h * SelectRow(gradients, i));
+            CurveVertex* pt = curveNetwork->GetVertex(i);
+            pt->SetPosition(pt->Position() - h * SelectRow(gradients, i));
         }
         return true;
     }
 
     void TPEFlowSolverSC::SaveCurrentPositions() {
-        for (int i = 0; i < curves->NumVertices(); i++) {
-            originalPositions[i] = curves->GetCurvePoint(i).Position();
+        for (int i = 0; i < curveNetwork->NumVertices(); i++) {
+            originalPositions[i] = curveNetwork->GetVertex(i)->Position();
         }
     }
 
     void TPEFlowSolverSC::RestoreOriginalPositions() {
-        for (int i = 0; i < curves->NumVertices(); i++) {
-            curves->GetCurvePoint(i).SetPosition(originalPositions[i]);
+        for (int i = 0; i < curveNetwork->NumVertices(); i++) {
+            curveNetwork->GetVertex(i)->SetPosition(originalPositions[i]);
         }
     }
 
     void TPEFlowSolverSC::SetGradientStep(Eigen::MatrixXd gradient, double delta) {
         // Write the new vertex positions to the mesh
         // Step every vertex by the gradient times delta
-        for (int i = 0; i < curves->NumVertices(); i++) {
+        for (int i = 0; i < curveNetwork->NumVertices(); i++) {
             Vector3 vertGrad = SelectRow(gradient, i);
-            curves->GetCurvePoint(i).SetPosition(originalPositions[i] - delta * vertGrad);
+            curveNetwork->GetVertex(i)->SetPosition(originalPositions[i] - delta * vertGrad);
         }
     }
 
@@ -186,7 +192,7 @@ namespace LWS {
             SetGradientStep(gradient, delta);
             if (root) {
                 // Update the centers of mass to reflect the new positions
-                root->recomputeCentersOfMass(curves);
+                root->recomputeCentersOfMass(curveNetwork);
             }
             newEnergy = CurrentEnergy(root);
 
@@ -209,7 +215,7 @@ namespace LWS {
                 SetGradientStep(gradient, delta);
                 if (root) {
                     // Update the centers of mass to reflect the new positions
-                    root->recomputeCentersOfMass(curves);
+                    root->recomputeCentersOfMass(curveNetwork);
                 }
                 break;
             }
@@ -237,7 +243,7 @@ namespace LWS {
             SetGradientStep(gradient, delta);
             if (root) {
                 // Update the centers of mass to reflect the new positions
-                root->recomputeCentersOfMass(curves);
+                root->recomputeCentersOfMass(curveNetwork);
             }
 
             bool backprojSuccess = BackprojectConstraints(lu);
@@ -255,7 +261,7 @@ namespace LWS {
     }
 
     bool TPEFlowSolverSC::StepLS() {
-        int nVerts = curves->NumVertices();
+        int nVerts = curveNetwork->NumVertices();
         Eigen::MatrixXd gradients(nVerts, 3);
         gradients.setZero();
         FillGradientVectorDirect(gradients);
@@ -263,7 +269,7 @@ namespace LWS {
     }
 
     double TPEFlowSolverSC::ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients) {
-        int nVerts = curves->NumVertices();
+        int nVerts = curveNetwork->NumVertices();
         Eigen::VectorXd b;
         b.setZero(matrixNumRows());
 
@@ -331,16 +337,14 @@ namespace LWS {
 
     double TPEFlowSolverSC::FillLengthConstraintViolations(Eigen::VectorXd &b, int baseIndex) {
         if (!useEdgeLengthConstraint) return 0;
-        int nVerts = curves->NumVertices();
+        int nVerts = curveNetwork->NumVertices();
 
         double maxViolation = 0;
 
-        for (int i = 0; i < nVerts; i++) {
+        for (int i = 0; i < curveNetwork->NumEdges(); i++) {
             // Compute current segment length
-            PointOnCurve p = curves->GetCurvePoint(i);
-            Vector3 p1 = p.Position();
-            Vector3 p2 = p.Next().Position();
-            double curDist = norm(p1 - p2);
+            CurveEdge* p = curveNetwork->GetEdge(i);
+            double curDist = p->Length();
 
             double negError = initialLengths[i] - curDist;
             b(baseIndex + i) = negError;
@@ -351,11 +355,11 @@ namespace LWS {
     }
 
     bool TPEFlowSolverSC::BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
-        int nVerts = curves->NumVertices();
+        int nVerts = curveNetwork->NumVertices();
         Eigen::VectorXd b;
         b.setZero(matrixNumRows());
 
-        Vector3 barycenter = curves->Barycenter();
+        Vector3 barycenter = curveNetwork->Barycenter();
 
         if (useEdgeLengthConstraint) {
             // If using per-edge length constraints, matrix has all coordinates merged,
@@ -375,8 +379,8 @@ namespace LWS {
             // Apply correction
             for (int i = 0; i < nVerts; i++) {
                 Vector3 correction{corr(3 * i), corr(3 * i + 1), corr(3 * i + 2)};
-                PointOnCurve pt = curves->GetCurvePoint(i);
-                pt.SetPosition(pt.Position() + correction);
+                CurveVertex* pt = curveNetwork->GetVertex(i);
+                pt->SetPosition(pt->Position() + correction);
             }
 
             return maxViolation < backproj_threshold;
@@ -399,8 +403,8 @@ namespace LWS {
             // Apply the correction
             for (int i = 0; i < nVerts; i++) {
                 Vector3 correction{corr_x(i), corr_y(i), corr_z(i)};
-                PointOnCurve pt = curves->GetCurvePoint(i);
-                pt.SetPosition(pt.Position() + correction);
+                CurveVertex* pt = curveNetwork->GetVertex(i);
+                pt->SetPosition(pt->Position() + correction);
             }
 
             return true;
@@ -409,13 +413,13 @@ namespace LWS {
 
     int TPEFlowSolverSC::matrixNumRows() {
         if (useEdgeLengthConstraint) {
-            int nVerts = curves->NumVertices();
+            int nVerts = curveNetwork->NumVertices();
             // 3V rows for all vertex values; 3 rows for barycenter constraint; V rows for edge length constraints
-            return 3 * nVerts + 3 + nVerts;
+            return 3 * nVerts + 3 + curveNetwork->NumEdges();
         }
         else {
             // V rows for vertex values by coordinate; 1 row for barycenter constraints by coordinate
-            return curves->NumVertices() + 1;
+            return curveNetwork->NumVertices() + 1;
         }
     }
 
@@ -427,7 +431,7 @@ namespace LWS {
 
     double TPEFlowSolverSC::ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
         int nRows = matrixNumRows();
-        size_t nVerts = curves->NumVertices();
+        size_t nVerts = curveNetwork->NumVertices();
 
         for (int i = 0; i < gradients.rows(); i++) {
             l2gradients.row(i) = gradients.row(i);
@@ -438,7 +442,7 @@ namespace LWS {
             double ss_start = Utils::currentTimeMilliseconds();
             // Fill the Sobo-Slobo matrix, one entry per vertex
             A.setZero(nRows, nRows);
-            SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
+            SobolevCurves::SobolevPlusBarycenter(curveNetwork, alpha, beta, A);
             double ss_end = Utils::currentTimeMilliseconds();
 
             std::cout << "  Assemble saddle matrix: " << (ss_end - ss_start) << " ms" << std::endl;
@@ -472,12 +476,12 @@ namespace LWS {
             A.setZero(nRows, nRows);
             // A_temp is a smaller saddle matrix (one row for each gradient entry, only gradient + barycenter, with coordinates lumped together)
             A_temp.setZero(nVerts + 1, nVerts + 1);
-            SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A_temp);
+            SobolevCurves::SobolevPlusBarycenter(curveNetwork, alpha, beta, A_temp);
 
             // Duplicate the saddle matrix portion into the larger matrix
             ExpandMatrix3x(A_temp, A);
             // Add rows for edge length constraint
-            SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
+            SobolevCurves::AddEdgeLengthConstraints(curveNetwork, A, 3 * nVerts + 3);
             double ss_end = Utils::currentTimeMilliseconds();
 
             std::cout << "  Assemble saddle matrix: " << (ss_end - ss_start) << " ms" << std::endl;
@@ -510,7 +514,7 @@ namespace LWS {
     bool TPEFlowSolverSC::StepSobolevLS(bool useBH) {
         long start = Utils::currentTimeMilliseconds();
 
-        size_t nVerts = curves->NumVertices();
+        size_t nVerts = curveNetwork->NumVertices();
 
         int nRows = matrixNumRows();
 
@@ -519,7 +523,7 @@ namespace LWS {
 
         // Barnes-Hut for gradient accumulation
         if (useBH) {
-            tree_root = CreateBVHFromCurve(curves);
+            tree_root = CreateBVHFromCurve(curveNetwork);
             FillGradientVectorBH(tree_root, vertGradients);
         }
         else {
@@ -531,7 +535,7 @@ namespace LWS {
 
         std::cout << "  Assemble gradient: " << (grad_end - grad_start) << " ms" << std::endl;
 
-        double length1 = curves->TotalLength();
+        double length1 = curveNetwork->TotalLength();
 
         Eigen::MatrixXd A;
         Eigen::PartialPivLU<Eigen::MatrixXd> lu;
@@ -555,7 +559,7 @@ namespace LWS {
             delete tree_root;
         }
 
-        double length2 = curves->TotalLength();
+        double length2 = curveNetwork->TotalLength();
         std::cout << "Length " << length1 << " -> " << length2 << std::endl;
         long end = Utils::currentTimeMilliseconds();
         std::cout << "Time = " << (end - start) << " ms" << std::endl;
@@ -564,8 +568,8 @@ namespace LWS {
     }
 
     double TPEFlowSolverSC::FillConstraintViolations(Eigen::VectorXd &phi) {
-        int nVerts = curves->NumVertices();
-        Vector3 barycenter = curves->Barycenter();
+        int nVerts = curveNetwork->NumVertices();
+        Vector3 barycenter = curveNetwork->Barycenter();
 
         // Fill all 3 barycenter coordinates
         phi(0) = -barycenter.x;
@@ -582,13 +586,13 @@ namespace LWS {
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
         long all_start = Utils::currentTimeMilliseconds();
 
-        size_t nVerts = curves->NumVertices();
+        size_t nVerts = curveNetwork->NumVertices();
         int nRows = matrixNumRows();
         SpatialTree *tree_root = 0;
 
         // Assemble the L2 gradient
         long bh_start = Utils::currentTimeMilliseconds();
-        tree_root = CreateBVHFromCurve(curves);
+        tree_root = CreateBVHFromCurve(curveNetwork);
         FillGradientVectorBH(tree_root, vertGradients);
         long bh_end = Utils::currentTimeMilliseconds();
         std::cout << "  Barnes-Hut: " << (bh_end - bh_start) << " ms" << std::endl;
@@ -597,7 +601,7 @@ namespace LWS {
         long mg_setup_start = Utils::currentTimeMilliseconds();
         using MultigridDomain = EdgeLengthNullProjectorDomain;
         using MultigridSolver = MultigridHierarchy<MultigridDomain>;
-        MultigridDomain* domain = new MultigridDomain(curves, alpha, beta, 0.5);
+        MultigridDomain* domain = new MultigridDomain(curveNetwork, alpha, beta, 0.5);
         MultigridSolver* multigrid = new MultigridSolver(domain);
         long mg_setup_end = Utils::currentTimeMilliseconds();
         std::cout << "  Multigrid setup: " << (mg_setup_end - mg_setup_start) << " ms" << std::endl;

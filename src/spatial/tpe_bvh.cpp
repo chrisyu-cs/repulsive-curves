@@ -45,48 +45,40 @@ namespace LWS {
         }
     }
 
-    inline VertexBody6D vertToBody(PolyCurveGroup* curves, PolyCurve* curve, int i) {
-        PointOnCurve p = curve->GetCurvePoint(i);
-        Vector3 pos = p.Position();
-        Vector3 tangent = p.Tangent();
+    inline VertexBody6D vertToBody(PolyCurveNetwork* curves, int i) {
+        CurveVertex* p = curves->GetVertex(i);
+        Vector3 pos = p->Position();
+        Vector3 tangent = p->Tangent();
 
         PosTan ptan{pos, tangent};
-        double mass = p.DualLength();
-        int globalIndex = curves->GlobalIndex(p);
+        double mass = p->DualLength();
+        int globalIndex = p->GlobalIndex();
 
-        return VertexBody6D{ptan, mass, globalIndex, -1};
+        return VertexBody6D{ptan, mass, globalIndex, BodyType::Vertex};
     }
 
-    inline VertexBody6D edgeToBody(PolyCurveGroup* curves, PolyCurve* curve, int i) {
-        PointOnCurve p1 = curve->GetCurvePoint(i);
-        PointOnCurve p2 = p1.Next();
+    inline VertexBody6D edgeToBody(PolyCurveNetwork* curves, int i) {
+        CurveEdge* edge = curves->GetEdge(i);
 
-        Vector3 x1 = p1.Position();
-        Vector3 x2 = p2.Position();
-
-        Vector3 pos = (x1 + x2) / 2;
-        double mass = norm(x2 - x1);
-        Vector3 tangent = (x2 - x1) / mass;
+        Vector3 pos = edge->Midpoint();
+        double mass = edge->Length();
+        Vector3 tangent = edge->Tangent();
 
         PosTan ptan{pos, tangent};
-        int gIndex1 = curves->GlobalIndex(p1);
-        int gIndex2 = curves->GlobalIndex(p2);
+        int gIndex1 = edge->GlobalIndex();
 
-        return VertexBody6D{ptan, mass, gIndex1, gIndex2};
+        return VertexBody6D{ptan, mass, gIndex1, BodyType::Edge};
     }
 
-    BVHNode3D* CreateBVHFromCurve(PolyCurveGroup *curves) {
-        std::vector<VertexBody6D> verts(curves->NumVertices());
+    BVHNode3D* CreateBVHFromCurve(PolyCurveNetwork *curves) {
+        int nVerts = curves->NumVertices();
+        std::vector<VertexBody6D> verts(nVerts);
 
         // Loop over all the vertices
-        for (size_t i = 0; i < curves->curves.size(); i++) {
-            PolyCurve* curve = curves->curves[i];
-            size_t nVerts = curve->NumVertices();
-            for (size_t v = 0; v < nVerts; v++) {
-                VertexBody6D curBody = vertToBody(curves, curve, v);
-                // Put vertex body into full list
-                verts[curBody.vertIndex1] = curBody;
-            }
+        for (int i = 0; i < nVerts; i++) {
+            VertexBody6D curBody = vertToBody(curves, i);
+            // Put vertex body into full list
+            verts[curBody.elementIndex] = curBody;
         }
 
         BVHNode3D* tree = new BVHNode3D(verts, 0, 0);
@@ -95,18 +87,15 @@ namespace LWS {
         return tree;
     }
 
-    BVHNode3D* CreateEdgeBVHFromCurve(PolyCurveGroup *curves) {
-        std::vector<VertexBody6D> verts(curves->NumVertices());
+    BVHNode3D* CreateEdgeBVHFromCurve(PolyCurveNetwork *curves) {
+        int nEdges = curves->NumEdges();
+        std::vector<VertexBody6D> verts(nEdges);
 
         // Loop over all the vertices
-        for (size_t i = 0; i < curves->curves.size(); i++) {
-            PolyCurve* curve = curves->curves[i];
-            size_t nVerts = curve->NumVertices();
-            for (size_t v = 0; v < nVerts; v++) {
-                VertexBody6D curBody = edgeToBody(curves, curve, v);
-                // Put vertex body into full list
-                verts[curBody.vertIndex1] = curBody;
-            }
+        for (int i = 0; i < nEdges; i++) {
+            VertexBody6D curBody = edgeToBody(curves, i);
+            // Put vertex body into full list
+            verts[curBody.elementIndex] = curBody;
         }
 
         BVHNode3D* tree = new BVHNode3D(verts, 0, 0);
@@ -143,7 +132,7 @@ namespace LWS {
             maxCoords = body.pt;
             numElements = 1;
 
-            clusterIndices.push_back(body.vertIndex1);
+            clusterIndices.push_back(body.elementIndex);
         }
         else {
             // Reserve space for splitting the points into lesser and greater
@@ -203,9 +192,11 @@ namespace LWS {
         }
     }
 
-    void BVHNode3D::findCurveSegments(std::vector<VertexBody6D> &points, PolyCurveGroup* curves) {
+    void BVHNode3D::findCurveSegments(std::vector<VertexBody6D> &points, PolyCurveNetwork* curves) {
         // Trace out all of the connected curve segments contained
         // within the given point set.
+        std::cerr << "findCurveSegments not implemented" << std::endl;
+        throw 1;
     }
 
     double BVHNode3D::AxisSplittingPlane(std::vector<VertexBody6D> &points, int axis) {
@@ -236,27 +227,22 @@ namespace LWS {
         return splitPoint;
     }
 
-    void BVHNode3D::setLeafData(PolyCurveGroup* curves) {
-        if (body.type() == BodyType::Vertex) {
-            PointOnCurve p = curves->GetCurvePoint(body.vertIndex1);
-
-            body.mass = p.DualLength();
-            body.pt.position = p.Position();
-            body.pt.tangent = p.Tangent();
+    void BVHNode3D::setLeafData(PolyCurveNetwork* curves) {
+        if (body.type == BodyType::Vertex) {
+            CurveVertex* p = curves->GetVertex(body.elementIndex);
+            body.mass = p->DualLength();
+            body.pt.position = p->Position();
+            body.pt.tangent = p->Tangent();
         }
-        else if (body.type() == BodyType::Edge) {
-            PointOnCurve p1 = curves->GetCurvePoint(body.vertIndex1);
-            PointOnCurve p2 = curves->GetCurvePoint(body.vertIndex2);
-
-            Vector3 x1 = p1.Position();
-            Vector3 x2 = p2.Position();
+        else if (body.type == BodyType::Edge) {
+            CurveEdge* p1 = curves->GetEdge(body.elementIndex);
 
             // Mass of an edge is its length
-            body.mass = norm(x2 - x1);
+            body.mass = p1->Length();
             // Use midpoint as center of mass
-            body.pt.position = (x1 + x2) / 2;
+            body.pt.position = p1->Midpoint();
             // Tangent direction is normalized edge vector
-            body.pt.tangent = (x2 - x1) / body.mass;
+            body.pt.tangent = p1->Tangent();
         }
 
         totalMass = body.mass;
@@ -267,7 +253,7 @@ namespace LWS {
         maxCoords = minCoords;
     }
 
-    void BVHNode3D::recomputeCentersOfMass(PolyCurveGroup* curves) {
+    void BVHNode3D::recomputeCentersOfMass(PolyCurveNetwork* curves) {
         if (isEmpty) {
             totalMass = 0;
             numElements = 0;
@@ -372,28 +358,28 @@ namespace LWS {
         // return (nodeRadius() / d) < thresholdTheta;
     }
 
-    void BVHNode3D::accumulateVertexEnergy(double &result, PointOnCurve &i_pt,
-    PolyCurveGroup* curves, double alpha, double beta) {
+    void BVHNode3D::accumulateVertexEnergy(double &result, CurveVertex* &i_pt,
+    PolyCurveNetwork* curves, double alpha, double beta) {
         if (isEmpty) {
             return;
         }
         else if (isLeaf) {
             // If this is a leaf, then it only has one element in it, so just use it
-            if (body.type() == BodyType::Vertex) {
+            if (body.type == BodyType::Vertex) {
                 // If the element is a vertex, just get that vertex
-                PointOnCurve j = curves->GetCurvePoint(body.vertIndex1);
+                CurveVertex* j = curves->GetVertex(body.elementIndex);
                 // Don't sum if it's the same vertex
                 if (j == i_pt) return;
                 // Add contribution to energy at i from vertex j
                 result += TPESC::tpe_pair(i_pt, j, alpha, beta);
             }
-            else if (body.type() == BodyType::Edge) {
+            else if (body.type == BodyType::Edge) {
                 // Otherwise the element is an edge, so we use its midpoint (stored in the body)
-                result += TPESC::tpe_pair_pts(i_pt.Position(), body.pt.position, i_pt.Tangent(), i_pt.DualLength(), body.mass, alpha, beta);
+                result += TPESC::tpe_pair_pts(i_pt->Position(), body.pt.position, i_pt->Tangent(), i_pt->DualLength(), body.mass, alpha, beta);
             }
         }
         else {
-            if (shouldUseCell(i_pt.Position())) {
+            if (shouldUseCell(i_pt->Position())) {
                 // This cell is far enough away that we can treat it as a single body
                 result += bodyEnergyEvaluation(i_pt, alpha, beta);
             }
@@ -408,87 +394,95 @@ namespace LWS {
         }
     }
 
-    double BVHNode3D::bodyEnergyEvaluation(PointOnCurve &i_pt, double alpha, double beta) {
+    double BVHNode3D::bodyEnergyEvaluation(CurveVertex* &i_pt, double alpha, double beta) {
         Vector3 tangent = averageTangent;
         tangent = tangent.normalize();
-        return TPESC::tpe_pair_pts(i_pt.Position(), centerOfMass, tangent, i_pt.DualLength(), totalMass, alpha, beta);
+        return TPESC::tpe_pair_pts(i_pt->Position(), centerOfMass, tangent, i_pt->DualLength(), totalMass, alpha, beta);
     }
 
-    void BVHNode3D::accumulateTPEGradient(Eigen::MatrixXd &gradients, PointOnCurve &i_pt,
-    PolyCurveGroup* curves, double alpha, double beta) {
+    void BVHNode3D::accumulateTPEGradient(Eigen::MatrixXd &gradients, CurveVertex* &i_pt,
+    PolyCurveNetwork* curves, double alpha, double beta) {
         if (isEmpty) {
             return;
         }
         else if (isLeaf) {
             // With a vertex, we add gradient terms the same way as usual
-            if (body.type() == BodyType::Vertex) {
+            if (body.type == BodyType::Vertex) {
                 // If this is a leaf, then it only has one vertex in it, so just use it
-                PointOnCurve j = curves->GetCurvePoint(body.vertIndex1);
+                CurveVertex* j_pt = curves->GetVertex(body.elementIndex);
                 // Don't sum if it's the same vertex
-                if (j == i_pt) return;
+                if (j_pt == i_pt) return;
 
-                PointOnCurve i_prev = i_pt.Prev();
-                PointOnCurve i_next = i_pt.Next();
-
-                PointOnCurve j_prev = j.Prev();
-                PointOnCurve j_next = j.Next();
-
-                // Differentiate both terms for previous, middle, and next
-                AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(i_pt, j, alpha, beta, i_prev));
-                AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(i_pt, j, alpha, beta, i_pt));
-                AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(i_pt, j, alpha, beta, i_next));
-                // Avoid double-counting on the reverse terms with these checks
-                if (i_prev != j_prev && i_prev != j && i_prev != j_next) {
-                    AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(j, i_pt, alpha, beta, i_prev));
+                // Add i and neighbors of i
+                std::vector<CurveVertex*> i_pts;
+                i_pts.push_back(i_pt);
+                for (int e = 0; e < i_pt->numEdges(); e++) {
+                    i_pts.push_back(i_pt->edge(e)->Opposite(i_pt));
                 }
-                if (i_pt != j_prev && i_pt != j && i_pt != j_next) {
-                    AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(j, i_pt, alpha, beta, i_pt));
+
+                // Add j and neighbors of j
+                std::vector<CurveVertex*> j_pts;
+                j_pts.push_back(j_pt);
+                for (int e = 0; e < j_pt->numEdges(); e++) {
+                    j_pts.push_back(j_pt->edge(e)->Opposite(j_pt));
                 }
-                if (i_next != j_prev && i_next != j && i_next != j_next) {
-                    AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(j, i_pt, alpha, beta, i_next));
+
+                for (CurveVertex* i_n : i_pts) {
+                    AddToRow(gradients, i_n->GlobalIndex(), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_n));
+                    bool noOverlap = true;
+                    // Avoid double-counting on the reverse terms with these checks
+                    for (CurveVertex* j_n : j_pts) {
+                        if (i_n == j_n) noOverlap = false;
+                    }
+                    if (noOverlap) {
+                        AddToRow(gradients, i_n->GlobalIndex(), TPESC::tpe_grad(j_pt, i_pt, alpha, beta, i_n));
+                    }
                 }
             }
             // With an edge, we have to pass in a TangentMassPoint instead
-            else if (body.type() == BodyType::Edge) {
+            else if (body.type == BodyType::Edge) {
                 Vector3 tangent = body.pt.tangent;
                 tangent = tangent.normalize();
+                CurveEdge* e = curves->GetEdge(body.elementIndex);
+                CurveVertex* j1 = e->prevVert;
+                CurveVertex* j2 = e->nextVert;
 
-                PointOnCurve j1 = curves->GetCurvePoint(body.vertIndex1);
-                PointOnCurve j2 = curves->GetCurvePoint(body.vertIndex2);
-
-                PointOnCurve i_prev = i_pt.Prev();
-                PointOnCurve i_next = i_pt.Next();
+                // Add i and neighbors of i
+                std::vector<CurveVertex*> i_pts;
+                i_pts.push_back(i_pt);
+                for (int e = 0; e < i_pt->numEdges(); e++) {
+                    i_pts.push_back(i_pt->edge(e)->Opposite(i_pt));
+                }
 
                 TangentMassPoint jm{tangent, body.mass, body.pt.position, j1, j2};
 
                 if (i_pt != j1 && i_pt != j2) {
-                    AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(i_pt, jm, alpha, beta, i_prev));
-                    AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(i_pt, jm, alpha, beta, i_pt));
-                    AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(i_pt, jm, alpha, beta, i_next));
-
-                    AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(jm, i_pt, alpha, beta, i_prev));
-                    AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(jm, i_pt, alpha, beta, i_pt));
-                    AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(jm, i_pt, alpha, beta, i_next));
+                    for (CurveVertex* i_n : i_pts) {
+                        AddToRow(gradients, i_n->GlobalIndex(), TPESC::tpe_grad(i_pt, jm, alpha, beta, i_n));
+                        AddToRow(gradients, i_n->GlobalIndex(), TPESC::tpe_grad(jm, i_pt, alpha, beta, i_n));
+                    }
                 }
             }
         }
         else {
-            if (shouldUseCell(i_pt.Position())) {
+            if (shouldUseCell(i_pt->Position())) {
                 Vector3 tangent = averageTangent;
                 tangent = tangent.normalize();
                 // This cell is far enough away that we can treat it as a single body
-                TangentMassPoint j{tangent, totalMass, centerOfMass, PointOnCurve{0, 0}, PointOnCurve{0, 0}};
+                TangentMassPoint j{tangent, totalMass, centerOfMass, 0, 0};
 
-                PointOnCurve i_prev = i_pt.Prev();
-                PointOnCurve i_next = i_pt.Next();
+                // Add i and neighbors of i
+                std::vector<CurveVertex*> i_pts;
+                i_pts.push_back(i_pt);
+                for (int e = 0; e < i_pt->numEdges(); e++) {
+                    i_pts.push_back(i_pt->edge(e)->Opposite(i_pt));
+                }
 
                 // Differentiate both terms for previous, middle, and next
-                AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(i_pt, j, alpha, beta, i_prev));
-                AddToRow(gradients, curves->GlobalIndex(i_prev), TPESC::tpe_grad(j, i_pt, alpha, beta, i_prev));
-                AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(i_pt, j, alpha, beta, i_pt));
-                AddToRow(gradients, curves->GlobalIndex(i_pt),   TPESC::tpe_grad(j, i_pt, alpha, beta, i_pt));
-                AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(i_pt, j, alpha, beta, i_next));
-                AddToRow(gradients, curves->GlobalIndex(i_next), TPESC::tpe_grad(j, i_pt, alpha, beta, i_next));
+                for (CurveVertex* i_n : i_pts) {
+                    AddToRow(gradients, i_n->GlobalIndex(), TPESC::tpe_grad(i_pt, j, alpha, beta, i_n));
+                    AddToRow(gradients, i_n->GlobalIndex(), TPESC::tpe_grad(j, i_pt, alpha, beta, i_n));
+                }
             }
             else {
                 // Otherwise we continue recursively traversing the tree
@@ -501,68 +495,18 @@ namespace LWS {
         }
     }
 
-    Vector3 BVHNode3D::bodyForceEvaluation(PointOnCurve &i_pt, double alpha, double beta) {
+    Vector3 BVHNode3D::bodyForceEvaluation(CurveVertex* &i_pt, double alpha, double beta) {
         // TODO: placeholder
         return Vector3{0, 0, 0};
     }
 
-    void BVHNode3D::testGradientSingle(std::vector<BHPlotData> &out, PointOnCurve i_pt,
-    PolyCurveGroup* curves, double alpha, double beta) {
-        if (isEmpty) {
-            return;
-        }
-        else if (isLeaf) {
-            // In this case, no error is possible
-            return;
-        }
-        else {
-            if (shouldUseCell(i_pt.Position())) {
-                Vector3 tangent = averageTangent;
-                tangent = tangent.normalize();
-                // This cell is far enough away that we can treat it as a single body
-                TangentMassPoint j{tangent, totalMass, centerOfMass, PointOnCurve{0, 0}, PointOnCurve{0, 0}};
-
-                PointOnCurve i_prev = i_pt.Prev();
-                PointOnCurve i_next = i_pt.Next();
-
-                Vector3 approx{0, 0, 0};
-                approx += TPESC::tpe_grad(i_pt, j, alpha, beta, i_pt);
-                approx += TPESC::tpe_grad(j, i_pt, alpha, beta, i_pt);
-
-                Vector3 exact = exactGradient(i_pt, curves, alpha, beta);
-
-                double normDiff = norm(approx - exact);
-                double pctDiff = 100 * (normDiff / norm(exact));
-                double gradNorm = norm(exact);
-
-                Vector2 bounds = viewspaceBounds(i_pt.Position());
-                double d = norm(centerOfMass - i_pt.Position());
-
-                double radialTheta = bounds.x / d;
-                double linearTheta = bounds.y / d;
-                double minWidth = fmin(bounds.x, bounds.y);
-                double maxWidth = fmax(bounds.x, bounds.y);
-
-                out.push_back(BHPlotData{fmax(radialTheta, linearTheta), pctDiff, gradNorm, minWidth, maxWidth});
-            }
-            else {
-                // Otherwise we continue recursively traversing the tree
-                for (size_t i = 0; i < children.size(); i++) {
-                    if (children[i]) {
-                        children[i]->testGradientSingle(out, i_pt, curves, alpha, beta);
-                    }
-                }
-            }
-        }
-    }
-
-    Vector3 BVHNode3D::exactGradient(PointOnCurve i_pt, PolyCurveGroup* curves, double alpha, double beta) {
+    Vector3 BVHNode3D::exactGradient(CurveVertex* i_pt, PolyCurveNetwork* curves, double alpha, double beta) {
         if (isEmpty) {
             return Vector3{0, 0, 0};
         }
         else if (isLeaf) {
             // If this is a leaf, then it only has one vertex in it, so just use it
-            PointOnCurve j_pt = curves->GetCurvePoint(body.vertIndex1);
+            CurveVertex* j_pt = curves->GetVertex(body.elementIndex);
             // Don't sum if it's the same vertex
             if (j_pt == i_pt) return Vector3{0, 0, 0};
 

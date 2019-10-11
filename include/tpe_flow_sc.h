@@ -2,7 +2,6 @@
 
 #include "tpe_energy_sc.h"
 #include "sobo_slobo.h"
-#include "poly_curve.h"
 #include "spatial/tpe_bvh.h"
 #include "product/block_cluster_tree.h"
 
@@ -19,7 +18,7 @@ namespace LWS {
 
     class TPEFlowSolverSC {
         public:
-        TPEFlowSolverSC(PolyCurveGroup* p);
+        TPEFlowSolverSC(PolyCurveNetwork* p);
         double CurrentEnergy(SpatialTree *root = 0);
         inline double CurrentEnergyDirect();
         double CurrentEnergyBH(SpatialTree *root);
@@ -64,7 +63,7 @@ namespace LWS {
         double ls_step_threshold;
         double backproj_threshold;
         CoordinateLUs coord_lus;
-        PolyCurveGroup* curves;
+        PolyCurveNetwork* curveNetwork;
         std::vector<Vector3> originalPositions;
         Eigen::MatrixXd l2gradients;
         Eigen::MatrixXd vertGradients;
@@ -85,7 +84,7 @@ namespace LWS {
         MatrixIntoVectorX3(gradients, gradients3x);
         // Project this vector into the constraint null-space:
         // we really want to solve PGPx = Pb
-        gradients3x = curves->constraintProjector->ProjectToNullspace(gradients3x);
+        gradients3x = curveNetwork->constraintProjector->ProjectToNullspace(gradients3x);
         // Solve PGPx = Pb using multigrid
         Eigen::VectorXd sobolevGradients = solver->template VCycleSolve<Smoother>(gradients3x);
 
@@ -99,13 +98,13 @@ namespace LWS {
     MultigridHierarchy<Domain>* solver, SpatialTree* root) {
         double delta = initGuess;
         Eigen::MatrixXd correction(gradient.rows(), gradient.cols());
-        int nVerts = curves->NumVertices();
+        int nVerts = curveNetwork->NumVertices();
 
         while (delta > ls_step_threshold) {
             SetGradientStep(gradient, delta);
             if (root) {
                 // Update the centers of mass to reflect the new positions
-                root->recomputeCentersOfMass(curves);
+                root->recomputeCentersOfMass(curveNetwork);
             }
 
             Eigen::VectorXd phi(nVerts + 3);
@@ -115,9 +114,9 @@ namespace LWS {
             // Compute and apply the correction
             BackprojectMultigrid<Domain, Smoother>(phi, solver, correction);
             for (int i = 0; i < nVerts; i++) {
-                PointOnCurve p = curves->GetCurvePoint(i);
-                Vector3 cur = p.Position();
-                p.SetPosition(cur + SelectRow(correction, i));
+                CurveVertex* p = curveNetwork->GetVertex(i);
+                Vector3 cur = p->Position();
+                p->SetPosition(cur + SelectRow(correction, i));
             }
 
             // Add length violations to RHS
@@ -140,11 +139,11 @@ namespace LWS {
     void TPEFlowSolverSC::BackprojectMultigrid(Eigen::VectorXd &phi, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output) {
         // Flatten the gradient matrix into a long vector
         Eigen::VectorXd B_pinv_phi(solver->NumRows());
-        curves->constraintProjector->ApplyBPinv(phi, B_pinv_phi);
+        curveNetwork->constraintProjector->ApplyBPinv(phi, B_pinv_phi);
         Product::MatrixReplacement<typename MultigridHierarchy<Domain>::Mult> multiplier(solver->GetTopLevelMultiplier(), solver->NumRows());
         Eigen::VectorXd GB_phi = multiplier * B_pinv_phi;
         // Solve Gv = b by solving PGPv = Pb
-        GB_phi = curves->constraintProjector->ProjectToNullspace(GB_phi);
+        GB_phi = curveNetwork->constraintProjector->ProjectToNullspace(GB_phi);
         Eigen::VectorXd v = solver->template VCycleSolve<Smoother>(GB_phi);
         v = B_pinv_phi - v;
         VectorXdIntoMatrix(v, output);

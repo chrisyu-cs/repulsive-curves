@@ -44,27 +44,6 @@ namespace LWS {
     std::cout << "Wrote screenshot to " << fname << std::endl;
   }
 
-  void LWSApp::plotBHError(double alpha, double beta) {
-    BVHNode3D* bvh = CreateBVHFromCurve(curves);
-    std::vector<BHPlotData> data;
-    for (int i = 0; i < curves->NumVertices(); i++) {
-      bvh->testGradientSingle(data, curves->GetCurvePoint(i), curves, alpha, beta);
-    }
-
-    std::ofstream outFile("plot.csv");
-
-    for (size_t i = 0; i < data.size(); i++) {
-      std::cout << data[i].theta << ", " << data[i].error << ", " << data[i].gradientNorm << ", " << data[i].minWidth << ", " << data[i].maxWidth << std::endl;
-      outFile << data[i].theta << ", " << data[i].error << ", " << data[i].gradientNorm << ", " << data[i].minWidth << ", " << data[i].maxWidth << std::endl;
-    }
-
-    std::cout << "Wrote data points to plot.csv" << std::endl;
-
-    outFile.close();
-
-    delete bvh;
-  }
-
   void printMatrix(Eigen::MatrixXd &G, int precision) {
     std::cout.precision(precision);
     for (int i = 0; i < G.rows(); i++) {
@@ -152,13 +131,16 @@ namespace LWS {
 
       int nVerts = curves->NumVertices();
       LWS::BVHNode3D* tree = CreateEdgeBVHFromCurve(curves);
+      std::cout << "Made edge BVH" << std::endl;
       BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.5, 2, 4);
+      std::cout << "Made BCT" << std::endl;
 
       LWS::BVHNode3D* vert_tree = CreateBVHFromCurve(curves);
       Eigen::MatrixXd gradients;
       gradients.setZero(nVerts, 3);
       tpeSolver->FillGradientVectorBH(tree, gradients);
       Eigen::VectorXd x = gradients.col(0);
+      std::cout << "Filled BH gradient vector" << std::endl;
 
       mult->TestAdmissibleMultiply(x);
       long tree_start = Utils::currentTimeMilliseconds();
@@ -166,6 +148,7 @@ namespace LWS {
       b_tree.setZero(nVerts);
       mult->Multiply(x, b_tree);
       long tree_end = Utils::currentTimeMilliseconds();
+      std::cout << "Tree time = " << (tree_end - tree_start) << " ms" << std::endl;
 
       Eigen::MatrixXd A;
       A.setZero(nVerts, nVerts);
@@ -174,6 +157,7 @@ namespace LWS {
       long mult_start = Utils::currentTimeMilliseconds();
       Eigen::VectorXd b_mat = A * x;
       long mult_end = Utils::currentTimeMilliseconds();
+      std::cout << "Dense time = " << (mult_end - mult_start) << " ms" << std::endl;
 
       double norm_diff = (b_mat - b_tree).norm();
       double norm_mat = b_mat.norm();
@@ -182,9 +166,6 @@ namespace LWS {
       std::cout << "Tree norm = " << b_tree.norm() << std::endl;
 
       std::cout << "Multiplication accuracy = " << 100 * (norm_diff / norm_mat) << " percent" << std::endl;
-      std::cout << "Dense time = " << (mult_end - mult_start) << " ms" << std::endl;
-      std::cout << "Tree time = " << (tree_end - tree_start) << " ms" << std::endl;
-
       delete mult;
       delete tree;
       delete vert_tree;
@@ -203,6 +184,8 @@ namespace LWS {
 
       using TestDomain = EdgeLengthNullProjectorDomain;
       TestDomain* domain = new TestDomain(curves, 2, 4, 0.5);
+
+      std::cout << "Made domain" << std::endl;
 
       // Reshape the V x 3 matrix into a 3V x 1 vector
       Eigen::VectorXd gradientsLong(domain->NumRows());
@@ -311,7 +294,7 @@ namespace LWS {
       double barycenter = 0;
       double totalLen = curves->TotalLength();
       for (int i = 0; i < nVerts; i++) {
-        double weight =  curves->GetCurvePoint(i).DualLength() / totalLen;
+        double weight =  curves->GetVertex(i)->DualLength() / totalLen;
         barycenterRef += ref_sol(i) * weight;
         barycenter += sol(i) * weight;
       }
@@ -373,10 +356,6 @@ namespace LWS {
       }
     }
 
-    if (ImGui::Button("Plot BH error")) {
-      plotBHError(3, 6);
-    }
-
     if (ImGui::Button("Curve to OBJ")) {
       std::cout << "TODO" << std::endl;
     }
@@ -388,14 +367,13 @@ namespace LWS {
     ImGui::End();
   }
 
-  void LWSApp::centerLoopBarycenter(PolyCurveGroup* curves) {
+  void LWSApp::centerLoopBarycenter(PolyCurveNetwork* curves) {
     Vector3 center = curves->Barycenter();
+    int nVerts = curves->NumVertices();
 
-    for (PolyCurve* loop : curves->curves) {
-      int nVerts = loop->NumVertices();
-      for (int i = 0; i < nVerts; i++) {
-        loop->positions[i] = loop->positions[i] - center;
-      }
+    for (int i = 0; i < nVerts; i++) {
+      CurveVertex* v = curves->GetVertex(i);
+      v->SetPosition(v->Position() - center);
     }
 
     UpdateCurvePositions();
@@ -411,16 +389,14 @@ namespace LWS {
   void LWSApp::UpdateCurvePositions() {
     // Update the positions on the space curve
     polyscope::CurveNetwork* curveNetwork = polyscope::getCurveNetwork(surfaceName);
-    std::vector<glm::vec3> curve_vecs(curves->NumVertices());
+    size_t nVerts = curves->NumVertices();
+    std::vector<glm::vec3> curve_vecs(nVerts);
 
-    for (size_t i = 0; i < curves->curves.size(); i++)
+    for (size_t i = 0; i < nVerts; i++)
     {
-      PolyCurve* c = curves->curves[i];
-      int nVerts = c->NumVertices();
-      for (int j = 0; j < nVerts; j++) {
-        Vector3 v = c->positions[j];
-        curve_vecs[c->offset + j] = glm::vec3{v.x, v.y, v.z};
-      }
+      CurveVertex* v_i = curves->GetVertex(i);
+      Vector3 v = v_i->Position();
+      curve_vecs[v_i->GlobalIndex()] = glm::vec3{v.x, v.y, v.z};
     }
 
     curveNetwork->updateNodePositions(curve_vecs);
@@ -428,10 +404,7 @@ namespace LWS {
   }
 
   void LWSApp::processFileOBJ(std::string filename) {
-    if (!curves) {
-      curves = new PolyCurveGroup();
-    }
-
+    if (curves) delete curves;
     std::cout << "Make curves for " << filename << std::endl;
 
     std::tie(mesh, geom) = loadMesh(filename);
@@ -440,61 +413,49 @@ namespace LWS {
     VertexData<size_t> indices = mesh->getVertexIndices();
 
     std::vector<Vector3> all_positions;
-    std::vector<Vector3> positions;
     std::vector<std::array<size_t, 2>> all_edges;
 
     for (BoundaryLoop b : mesh->boundaryLoops()) {
-      positions.clear();
       Halfedge he = b.halfedge().twin();
       Halfedge start = b.halfedge().twin();
 
-      // int i = 0;
-
       do {
         Vector3 v = geom->vertexPositions[he.vertex()];
-        positions.push_back(v);
         all_positions.push_back(v);
         size_t index = indices[he.vertex()];
         size_t next_index = indices[he.next().vertex()];
         all_edges.push_back({index, next_index});
-        // std::cout << i++ << ", " << v << std::endl;
         he = he.next();
       }
       while (he != start);
-
-      PolyCurve* pc = new PolyCurve(positions);
-      curves->AddCurve(pc);
-      std::cout << "Added boundary curve of length " << pc->NumVertices() << std::endl;
+      std::cout << "Processed boundary curve of length " << b.degree() << std::endl;
     }
 
-    PolyCurveNetwork network(all_positions, all_edges);
+    curves = new PolyCurveNetwork(all_positions, all_edges);
 
     surfaceName = polyscope::guessNiceNameFromPath(filename);
   }
 
-  void LWSApp::DisplayCurves(PolyCurveGroup* curves, std::string name) {
-    size_t nVerts = curves->NumVertices();
+  void LWSApp::DisplayCurves(PolyCurveNetwork* curves, std::string name) {
+
+    std::cout << "Making curve object" << std::endl;
     std::vector<glm::vec3> nodes;
     std::vector<std::array<size_t, 2>> edges;
     
-    for (size_t i = 0; i < curves->curves.size(); i++) {
-      PolyCurve* c = curves->curves[i];
-      int nVerts = c->NumVertices();
+    for (int i = 0; i < curves->NumVertices(); i++) {
       // Add interior edges and vertices
-      for (int i = 0; i < nVerts; i++) {
-        nodes.push_back(glm::vec3{c->positions[i].x, c->positions[i].y, c->positions[i].z});
-        size_t v_i = c->offset + i;
-        if (i > 0) {
-          edges.push_back({v_i - 1, v_i});
-        }
-      }
-      // Close loop
-      edges.push_back({size_t(c->offset + nVerts - 1), size_t(c->offset)});
+      Vector3 p = curves->GetVertex(i)->Position();
+      nodes.push_back(glm::vec3{p.x, p.y, p.z});
+    }
+    for (int i = 0; i < curves->NumEdges(); i++) {
+      CurveEdge* e = curves->GetEdge(i);
+      edges.push_back({(size_t)e->prevVert->GlobalIndex(), (size_t)e->nextVert->GlobalIndex()});
     }
 
     polyscope::registerCurveNetwork(name, nodes, edges);
     polyscope::getCurveNetwork(name)->radius *= 5;
 
+    std::cout << "Registered curve object" << std::endl;
     centerLoopBarycenter(curves);
   }
 

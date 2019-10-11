@@ -76,22 +76,20 @@ namespace LWS {
             }
         }
 
-        void findCurveSegments(std::vector<VertexBody6D> &points, PolyCurveGroup* curves);
+        void findCurveSegments(std::vector<VertexBody6D> &points, PolyCurveNetwork* curves);
 
         // Recursively recompute all centers of mass in this tree
-        virtual void recomputeCentersOfMass(PolyCurveGroup* curves);
+        virtual void recomputeCentersOfMass(PolyCurveNetwork* curves);
         // Compute the total energy contribution from a single vertex
-        virtual void accumulateVertexEnergy(double &result, PointOnCurve &i_pt, PolyCurveGroup* curves, double alpha, double beta);
-        virtual void accumulateTPEGradient(Eigen::MatrixXd &gradients, PointOnCurve &i_pt, 
-            PolyCurveGroup* curves, double alpha, double beta);
+        virtual void accumulateVertexEnergy(double &result, CurveVertex* &i_pt, PolyCurveNetwork* curves, double alpha, double beta);
+        virtual void accumulateTPEGradient(Eigen::MatrixXd &gradients, CurveVertex* &i_pt, 
+            PolyCurveNetwork* curves, double alpha, double beta);
         int NumElements();
         
-        virtual double bodyEnergyEvaluation(PointOnCurve &i_pt, double alpha, double beta);
-        virtual Vector3 bodyForceEvaluation(PointOnCurve &i_pt, double alpha, double beta);
+        virtual double bodyEnergyEvaluation(CurveVertex* &i_pt, double alpha, double beta);
+        virtual Vector3 bodyForceEvaluation(CurveVertex* &i_pt, double alpha, double beta);
 
-        Vector3 exactGradient(PointOnCurve basePoint, PolyCurveGroup* curves, double alpha, double beta);
-        void testGradientSingle(std::vector<BHPlotData> &out, PointOnCurve basePoint,
-            PolyCurveGroup* curves, double alpha, double beta);
+        Vector3 exactGradient(CurveVertex* basePoint, PolyCurveNetwork* curves, double alpha, double beta);
 
         PosTan minBound();
         PosTan maxBound();
@@ -115,7 +113,7 @@ namespace LWS {
             return isEmpty;
         }
         inline int VertexIndex() {
-            return body.vertIndex1;
+            return body.elementIndex;
         }
 
         private:
@@ -123,7 +121,7 @@ namespace LWS {
         bool shouldUseCell(Vector3 vertPos);
         double AxisSplittingPlane(std::vector<VertexBody6D> &points, int axis);
         inline double nodeRadius();
-        void setLeafData(PolyCurveGroup* curves);
+        void setLeafData(PolyCurveNetwork* curves);
 
         int splitAxis;
         double splitPoint;
@@ -135,6 +133,6 @@ namespace LWS {
         double thresholdTheta;
     };
 
-    BVHNode3D* CreateBVHFromCurve(PolyCurveGroup *curves);
-    BVHNode3D* CreateEdgeBVHFromCurve(PolyCurveGroup *curves);
+    BVHNode3D* CreateBVHFromCurve(PolyCurveNetwork *curves);
+    BVHNode3D* CreateEdgeBVHFromCurve(PolyCurveNetwork *curves);
 }

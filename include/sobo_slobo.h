@@ -4,6 +4,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include "utils.h"
+#include "poly_curve_network.h"
 
 namespace LWS {
     struct EdgePositionPair {
@@ -29,28 +30,28 @@ namespace LWS {
         static void IntegrateLocalMatrix(EdgePositionPair e1, EdgePositionPair e2,
             double alpha, double beta, double out[4][4]);
 
-        static void AddEdgePairContribution(PolyCurveGroup* loop, double alpha, double beta,
-            PointOnCurve p1, PointOnCurve p2, Eigen::MatrixXd &A);
+        static void AddEdgePairContribution(PolyCurveNetwork* loop, double alpha, double beta,
+            CurveEdge* p1, CurveEdge* p2, Eigen::MatrixXd &A);
 
-        static void AddEdgePairContributionLow(PolyCurveGroup* loop, double alpha, double beta,
-            PointOnCurve p1, PointOnCurve p2, Eigen::MatrixXd &A);
+        static void AddEdgePairContributionLow(PolyCurveNetwork* loop, double alpha, double beta,
+            CurveEdge* p1, CurveEdge* p2, Eigen::MatrixXd &A);
         
         // Fills the global Sobolev-Slobodeckij Gram matrix.
-        static void SobolevGramMatrix(PolyCurveGroup* loop, double alpha,
+        static void SobolevGramMatrix(PolyCurveNetwork* loop, double alpha,
             double beta, Eigen::MatrixXd &A, double diagEps = 0);
 
         // Fills the global Sobolev-Slobodeckij Gram matrix, plus an
         // extra row for a barycenter constraint.
-        static void SobolevPlusBarycenter(PolyCurveGroup* loop, double alpha,
+        static void SobolevPlusBarycenter(PolyCurveNetwork* loop, double alpha,
             double beta, Eigen::MatrixXd &A);
 
         // Fills the global Sobolev-Slobodeckij Gram matrix, plus an
         // extra row for a barycenter constraint.
-        static void SobolevPlusBarycenter3X(PolyCurveGroup* loop, double alpha,
+        static void SobolevPlusBarycenter3X(PolyCurveNetwork* loop, double alpha,
             double beta, Eigen::MatrixXd &A);
 
         // Fills the matrix A with edge length constraints, starting from the row baseIndex.
-        static void AddEdgeLengthConstraints(PolyCurveGroup* curves, Eigen::MatrixXd &A, int baseIndex);
+        static void AddEdgeLengthConstraints(PolyCurveNetwork* curves, Eigen::MatrixXd &A, int baseIndex);
         
         // Computes the inner product of the two given vectors, under the metric
         // whose Gram matrix is given.
@@ -64,75 +65,64 @@ namespace LWS {
         static void SobolevOrthoProjection(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J);
 
         // Assemble the Df differential operator as a matrix
-        static void DfMatrix(PolyCurveGroup* loop, Eigen::MatrixXd &out);
-
-        // Assemble the dense Sobolev Gram matrix on edges.
-        static void FillAfMatrix(PolyCurveGroup* loop, double alpha, double beta, Eigen::MatrixXd &A);
+        static void DfMatrix(PolyCurveNetwork* loop, Eigen::MatrixXd &out);
 
         // Map a scalar-valued function on vertices to a gradient-valued function on edges
         template<typename V, typename M>
-        static void ApplyDf(PolyCurveGroup* loop, V &as, M &out);
+        static void ApplyDf(PolyCurveNetwork* loop, V &as, M &out);
 
         // Multiply by the transpose of the above Df (taking edge values back to vertices)
         template<typename V, typename M>
-        static void ApplyDfTranspose(PolyCurveGroup* loop, M &es, V &out);
+        static void ApplyDfTranspose(PolyCurveNetwork* loop, M &es, V &out);
 
         static void MultiplyComponents(Eigen::MatrixXd &A, std::vector<Vector3> &x, std::vector<Vector3> &out);
-
-        static void ApplyGramMatrix(PolyCurveGroup* loop, Eigen::VectorXd &as, double alpha, double beta, Eigen::VectorXd &out);
     };
 
     template<typename V, typename M>
-    void SobolevCurves::ApplyDf(PolyCurveGroup* loop, V &as, M &out) {
-        for (PolyCurve *c : loop->curves) {
-            int nVerts = c->NumVertices();
-            for (int i = 0; i < nVerts; i++) {
-                PointOnCurve p1 = loop->GetCurvePoint(i);
-                int i1 = loop->GlobalIndex(p1);
-                PointOnCurve p2 = p1.Next();
-                int i2 = loop->GlobalIndex(p2);
+    void SobolevCurves::ApplyDf(PolyCurveNetwork* loop, V &as, M &out) {
+        int nEdges = loop->NumEdges();
+        for (int i = 0; i < nEdges; i++) {
+            CurveEdge* e = loop->GetEdge(i);
+            CurveVertex* p1 = e->prevVert;
+            CurveVertex* p2 = e->nextVert;
+            int i1 = p1->GlobalIndex();
+            int i2 = p2->GlobalIndex();
 
-                // Positive weight on the second vertex, negative on the first
-                double d12 = as(i2) - as(i1);
-                Vector3 e12 = (p2.Position() - p1.Position());
-                double length = norm(e12);
+            // Positive weight on the second vertex, negative on the first
+            double d12 = as(i2) - as(i1);
+            Vector3 e12 = (p2->Position() - p1->Position());
+            double length = norm(e12);
 
-                Vector3 grad12 = (d12 * e12) / (length * length);
+            Vector3 grad12 = (d12 * e12) / (length * length);
 
-                SetRow(out, i1, grad12);
-            }
+            SetRow(out, i1, grad12);
         }
     } 
 
     template<typename V, typename M>
-    void SobolevCurves::ApplyDfTranspose(PolyCurveGroup* loop, M &es, V &out) {
-        for (PolyCurve *c : loop->curves) {
-            int nVerts = c->NumVertices();
-            for (int i = 0; i < nVerts; i++) {
-                // This is the first vertex of the next edge, so negative weight
-                PointOnCurve p1 = loop->GetCurvePoint(i);
-                // This is the second vertex of the previous edge, so positive weight
-                PointOnCurve prev = p1.Prev();
-                int i_prev = loop->GlobalIndex(prev);
-                int i_next = loop->GlobalIndex(p1);
+    void SobolevCurves::ApplyDfTranspose(PolyCurveNetwork* loop, M &es, V &out) {
+        int nVerts = loop->NumVertices();
+        for (int i = 0; i < nVerts; i++) {
+            double result = 0;
+            CurveVertex* p1 = loop->GetVertex(i);
+            int i_vert = p1->GlobalIndex();
 
-                PointOnCurve next = p1.Next();
+            for (int e = 0; e < p1->numEdges(); e++) {
+                CurveEdge* edge = p1->edge(e);
+                int i_edge = edge->GlobalIndex();
+                Vector3 v_edge = edge->Vector();
+                double len_edge = norm(v_edge);
+                double w_edge = 1.0 / len_edge;
+                // If this edge is a "forward" edge,
+                // then the weight is negative
+                if (edge->prevVert == p1) {
+                    w_edge *= -1;
+                }
+                v_edge /= w_edge;
 
-                // Compute the two weights
-                Vector3 v_prev = (p1.Position() - prev.Position());
-                double len_prev = norm(v_prev);
-                double w_prev = 1.0 / len_prev;
-                v_prev /= len_prev;
-                
-                // However, the "forward" edge had a negative weight, so it is also negative here
-                Vector3 v_next = (next.Position() - p1.Position());
-                double len_next = norm(v_next);
-                double w_next = -1.0 / len_next;
-                v_next /= len_next;
-
-                double result = w_prev * dot(v_prev, SelectRow(es, i_prev)) + w_next * dot(v_next, SelectRow(es, i_next));
-                out(i_next) += result;
+                result += w_edge * dot(v_edge, SelectRow(es, i_edge));
             }
+            out(i_vert) += result;
         }
     }
 }

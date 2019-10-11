@@ -88,7 +88,7 @@ namespace LWS {
                         start = next;
                     }
                     // Add neighbors
-                    for (size_t e = 0; e < next->numEdges(); e++) {
+                    for (int e = 0; e < next->numEdges(); e++) {
                         CurveEdge* nEdge = next->edge(e);
                         // Group edges by component
                         if (!foundEdges[nEdge->id]) {
@@ -143,7 +143,7 @@ namespace LWS {
         return length;
     }
 
-    PolyCurveNetwork* PolyCurveNetwork::Coarsen(MultigridOperator &op) {
+    PolyCurveNetwork* PolyCurveNetwork::Coarsen(MultigridOperator &op, bool doEdgeMatrix) {
         Eigen::SparseMatrix<double> prolongMatrix, edgeMatrix;
         // Determine which vertices should be kept and which shouldn't
         std::vector<bool> shouldKeep(nVerts);
@@ -173,7 +173,7 @@ namespace LWS {
                     coarseCount++;
                     fineToCoarse[next->id] = coarseID;
                 }
-                for (size_t e = 0; e < next->numEdges(); e++) {
+                for (int e = 0; e < next->numEdges(); e++) {
                     CurveVertex* neighbor = next->edge(e)->Opposite(next);
                     if (!explored[neighbor->id]) {
                         frontier.push(std::pair<CurveVertex*, bool>(neighbor, !keep));
@@ -209,6 +209,11 @@ namespace LWS {
 
         prolongMatrix.resize(vertices.size(), coarseCount);
         prolongMatrix.setFromTriplets(triplets.begin(), triplets.end());
+        op.matrices.push_back(IndexedMatrix{prolongMatrix, 0, 0});
+
+        if (doEdgeMatrix) {
+
+        }
         
         // Assemble the edge prolongation operator
         std::vector<Eigen::Triplet<double>> edgeTriplets;
@@ -218,7 +223,7 @@ namespace LWS {
             if (shouldKeep[i]) {
                 // Look for neighbors that have both endpoints kept
                 CurveVertex* v_i = vertices[i];
-                for (size_t e = 0; e < v_i->numEdges(); i++) {
+                for (int e = 0; e < v_i->numEdges(); i++) {
                     CurveEdge* e_i = v_i->edge(e);
                     CurveVertex* v_neighbor = e_i->Opposite(v_i);
                     // If both endpoints of the edge were kept,
@@ -230,7 +235,9 @@ namespace LWS {
                         size_t coarseNext = fineToCoarse[e_i->nextVert->id];
                         coarseEdges.push_back({coarsePrev, coarseNext});
                         int fineID = e_i->id;
-                        edgeTriplets.push_back(Eigen::Triplet<double>(fineID, coarseID, 1));
+                        if (doEdgeMatrix) {
+                            edgeTriplets.push_back(Eigen::Triplet<double>(fineID, coarseID, 1));
+                        }
                     }
                 }
             }
@@ -249,17 +256,18 @@ namespace LWS {
                 }
                 int coarseID = coarseEdges.size();
                 coarseEdges.push_back({coarsePrev, coarseNext});
-                
-                edgeTriplets.push_back(Eigen::Triplet<double>(v_i->edge(0)->id, coarseID, 0.5));
-                edgeTriplets.push_back(Eigen::Triplet<double>(v_i->edge(1)->id, coarseID, 0.5));
+                if (doEdgeMatrix) {
+                    edgeTriplets.push_back(Eigen::Triplet<double>(v_i->edge(0)->id, coarseID, 0.5));
+                    edgeTriplets.push_back(Eigen::Triplet<double>(v_i->edge(1)->id, coarseID, 0.5));
+                }
             }
         }
 
-        edgeMatrix.resize(edges.size(), coarseEdges.size());
-        edgeMatrix.setFromTriplets(edgeTriplets.begin(), edgeTriplets.end());
-
-        op.matrices.push_back(IndexedMatrix{prolongMatrix, 0, 0});
-        op.edgeMatrices.push_back(IndexedMatrix{edgeMatrix, 0, 0});
+        if (doEdgeMatrix) {
+            edgeMatrix.resize(edges.size(), coarseEdges.size());
+            edgeMatrix.setFromTriplets(edgeTriplets.begin(), edgeTriplets.end());
+            op.edgeMatrices.push_back(IndexedMatrix{edgeMatrix, 0, 0});
+        }
 
         // Get the coarsened positions
         Eigen::MatrixXd coarsePosMat = ApplyPinv(prolongMatrix, positions);

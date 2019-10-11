@@ -26,10 +26,8 @@ namespace LWS {
     struct VertexBody6D {
         PosTan pt;
         double mass;
-        int vertIndex1;
-        int vertIndex2;
-        
-        BodyType type();
+        int elementIndex;
+        BodyType type;
     };
 
     PosTan postan_max(PosTan v1, PosTan v2);

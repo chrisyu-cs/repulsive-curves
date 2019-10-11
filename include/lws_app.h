@@ -12,7 +12,7 @@
 #include "tpe_energy_sc.h"
 #include "tpe_flow_sc.h"
 #include "Eigen/SparseLU"
-#include "poly_curve.h"
+#include "poly_curve_network.h"
 
 namespace LWS {
     class LWSApp {
@@ -23,17 +23,16 @@ namespace LWS {
         void customWindow();
         void initSolver();
         void processFileOBJ(std::string filename);
-        void DisplayCurves(PolyCurveGroup* curves, std::string name);
+        void DisplayCurves(PolyCurveNetwork* curves, std::string name);
         void DisplayCyclicList(std::vector<Vector3> &positions, std::string name);
         std::string surfaceName;
-        PolyCurveGroup* curves;
+        PolyCurveNetwork* curves;
         TPEFlowSolverSC* tpeSolver;
 
         private:
-        void centerLoopBarycenter(PolyCurveGroup* curves);
+        void centerLoopBarycenter(PolyCurveNetwork* curves);
         void UpdateCurvePositions();
         void outputFrame();
-        void plotBHError(double alpha, double beta);
         
         std::unique_ptr<surface::HalfedgeMesh> mesh;
         std::unique_ptr<surface::VertexPositionGeometry> geom;

@@ -9,7 +9,7 @@ namespace LWS {
     long BlockClusterTree::wellSepTime = 0;
     long BlockClusterTree::traversalTime = 0;
 
-    BlockClusterTree::BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e) {
+    BlockClusterTree::BlockClusterTree(PolyCurveNetwork* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e) {
         curves = cg;
         alpha = a;
         beta = b;
@@ -186,18 +186,16 @@ namespace LWS {
         
         for (size_t i = 0; i < pair.cluster1->clusterIndices.size(); i++) {
             int e1index = pair.cluster1->clusterIndices[i];
-            PointOnCurve p1 = curves->GetCurvePoint(e1index);
+            CurveEdge* p1 = curves->GetEdge(e1index);
             double l1 = tree_root->bvhRoot->fullMasses(e1index);
 
             for (size_t j = 0; j < pair.cluster2->clusterIndices.size(); j++) {
                 int e2index = pair.cluster2->clusterIndices[j];
-
-                PointOnCurve p2 = curves->GetCurvePoint(e2index);
-
-                bool isNeighbors = (p1 == p2 || p1.Next() == p2 || p1 == p2.Next() || p1.Next() == p2.Next());
+                CurveEdge* p2 = curves->GetEdge(e2index);
+                bool isNeighbors = (p1 == p2 || p1->IsNeighbors(p2));
                 
-                Vector3 mid1 = (p1.Position() + p1.Next().Position()) / 2;
-                Vector3 mid2 = (p2.Position() + p2.Next().Position()) / 2;
+                Vector3 mid1 = p1->Midpoint();
+                Vector3 mid2 = p2->Midpoint();
 
                 double l2 = tree_root->bvhRoot->fullMasses(e2index);
 
@@ -305,10 +303,10 @@ namespace LWS {
 
         for (size_t i = 0; i < children1.size(); i++) {
             for (size_t j = 0; j < children2.size(); j++) {
-                PointOnCurve p1 = curves->GetCurvePoint(children1[i].vertIndex1);
-                PointOnCurve p2 = curves->GetCurvePoint(children2[j].vertIndex1);
+                CurveEdge* p1 = curves->GetEdge(children1[i].elementIndex);
+                CurveEdge* p2 = curves->GetEdge(children2[j].elementIndex);
 
-                bool isNeighbors = (p1 == p2 || p1.Next() == p2 || p1 == p2.Next() || p1.Next() == p2.Next());
+                bool isNeighbors = p1 == p2 || p1->IsNeighbors(p2);
 
                 double w_i = children1[i].mass;
                 double w_j = children2[j].mass;

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "spatial/tpe_bvh.h"
-#include "poly_curve.h"
 #include "multigrid_operator.h"
 #include "product/matrix_free.h"
 #include "product/dense_matrix.h"
@@ -53,7 +52,7 @@ namespace LWS {
 
     class EdgeLengthSaddleDomain : public MultigridDomain<EdgeLengthSaddleDomain, BlockClusterTree> {
         public:
-        PolyCurveGroup* curves;
+        PolyCurveNetwork* curves;
         BVHNode3D* bvh;
         BlockClusterTree* tree;
         double alpha, beta;
@@ -61,7 +60,7 @@ namespace LWS {
         int nVerts;
         bool isTopLevel;
 
-        EdgeLengthSaddleDomain(PolyCurveGroup* c, double a, double b, double sep) {
+        EdgeLengthSaddleDomain(PolyCurveNetwork* c, double a, double b, double sep) {
             curves = c;
             alpha = a;
             beta = b;
@@ -86,8 +85,7 @@ namespace LWS {
         }
 
         MultigridDomain<EdgeLengthSaddleDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
-            curves->EdgeProlongation(prolongOp);
+            PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp, true);
             EdgeLengthSaddleDomain* sub = new EdgeLengthSaddleDomain(coarsened, alpha, beta, sepCoeff);
             sub->isTopLevel = false;
             return sub;
@@ -130,14 +128,14 @@ namespace LWS {
 
     class EdgeLengthNullProjectorDomain : public MultigridDomain<EdgeLengthNullProjectorDomain, BlockClusterTree> {
         public:
-        PolyCurveGroup* curves;
+        PolyCurveNetwork* curves;
         BVHNode3D* bvh;
         BlockClusterTree* tree;
         double alpha, beta;
         double sepCoeff;
         int nVerts;
 
-        EdgeLengthNullProjectorDomain(PolyCurveGroup* c, double a, double b, double sep) {
+        EdgeLengthNullProjectorDomain(PolyCurveNetwork* c, double a, double b, double sep) {
             curves = c;
             alpha = a;
             beta = b;
@@ -158,7 +156,7 @@ namespace LWS {
         }
 
         MultigridDomain<EdgeLengthNullProjectorDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
+            PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
             EdgeLengthNullProjectorDomain* coarseDomain = new EdgeLengthNullProjectorDomain(coarsened, alpha, beta, sepCoeff);
             prolongOp.lowerP = coarseDomain->GetConstraintProjector();
             prolongOp.upperP = GetConstraintProjector();
@@ -209,14 +207,14 @@ namespace LWS {
 
     class Barycenter3Domain : public MultigridDomain<Barycenter3Domain, BlockClusterTree> {
         public:
-        PolyCurveGroup* curves;
+        PolyCurveNetwork* curves;
         BVHNode3D* bvh;
         BlockClusterTree* tree;
         double alpha, beta;
         double sepCoeff;
         int nVerts;
 
-        Barycenter3Domain(PolyCurveGroup* c, double a, double b, double sep) {
+        Barycenter3Domain(PolyCurveNetwork* c, double a, double b, double sep) {
             curves = c;
             alpha = a;
             beta = b;
@@ -237,7 +235,7 @@ namespace LWS {
         }
 
         MultigridDomain<Barycenter3Domain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
+            PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
             return new Barycenter3Domain(coarsened, alpha, beta, sepCoeff);
         }
 
@@ -276,14 +274,14 @@ namespace LWS {
 
     class PolyCurveNullProjectorDomain : public MultigridDomain<PolyCurveNullProjectorDomain, BlockClusterTree> {
         public:
-        PolyCurveGroup* curves;
+        PolyCurveNetwork* curves;
         BVHNode3D* bvh;
         BlockClusterTree* tree;
         double alpha, beta;
         double sepCoeff;
         int nVerts;
 
-        PolyCurveNullProjectorDomain(PolyCurveGroup* c, double a, double b, double sep) {
+        PolyCurveNullProjectorDomain(PolyCurveNetwork* c, double a, double b, double sep) {
             curves = c;
             alpha = a;
             beta = b;
@@ -304,7 +302,7 @@ namespace LWS {
         }
 
         MultigridDomain<PolyCurveNullProjectorDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
+            PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
             PolyCurveNullProjectorDomain* coarseDomain = new PolyCurveNullProjectorDomain(coarsened, alpha, beta, sepCoeff);
             prolongOp.lowerP = coarseDomain->GetConstraintProjector();
             prolongOp.upperP = GetConstraintProjector();
@@ -353,14 +351,14 @@ namespace LWS {
 
     class PolyCurveSaddleDomain : public MultigridDomain<PolyCurveSaddleDomain, BlockClusterTree> {
         public:
-        PolyCurveGroup* curves;
+        PolyCurveNetwork* curves;
         BVHNode3D* bvh;
         BlockClusterTree* tree;
         double alpha, beta;
         double sepCoeff;
         int nVerts;
 
-        PolyCurveSaddleDomain(PolyCurveGroup* c, double a, double b, double sep) {
+        PolyCurveSaddleDomain(PolyCurveNetwork* c, double a, double b, double sep) {
             curves = c;
             alpha = a;
             beta = b;
@@ -380,7 +378,7 @@ namespace LWS {
         }
 
         MultigridDomain<PolyCurveSaddleDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
+            PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
             return new PolyCurveSaddleDomain(coarsened, alpha, beta, sepCoeff);
         }
 
@@ -420,7 +418,7 @@ namespace LWS {
 
     class PolyCurveGramDomain : public MultigridDomain<PolyCurveGramDomain, BlockClusterTree> {
         public:
-        PolyCurveGroup* curves;
+        PolyCurveNetwork* curves;
         BVHNode3D* bvh;
         BlockClusterTree* tree;
         double alpha, beta;
@@ -428,7 +426,7 @@ namespace LWS {
         double sepCoeff;
         int nVerts;
 
-        PolyCurveGramDomain(PolyCurveGroup* c, double a, double b, double sep, double e) {
+        PolyCurveGramDomain(PolyCurveNetwork* c, double a, double b, double sep, double e) {
             curves = c;
             alpha = a;
             beta = b;
@@ -447,7 +445,7 @@ namespace LWS {
         }
 
         MultigridDomain<PolyCurveGramDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
+            PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
             return new PolyCurveGramDomain(coarsened, alpha, beta, sepCoeff, epsilon);
         }
 
@@ -487,12 +485,12 @@ namespace LWS {
 
     class PolyCurveDenseDomain : public MultigridDomain<PolyCurveDenseDomain, DenseMatrixMult> {
         public:
-        PolyCurveGroup* curves;
+        PolyCurveNetwork* curves;
         DenseMatrixMult* multiplier;
         double alpha, beta;
         double epsilon;
         
-        PolyCurveDenseDomain(PolyCurveGroup* c, double a, double b, double e) {
+        PolyCurveDenseDomain(PolyCurveNetwork* c, double a, double b, double e) {
             curves = c;
             alpha = a;
             beta = b;
@@ -508,7 +506,7 @@ namespace LWS {
         }
 
         MultigridDomain<PolyCurveDenseDomain, DenseMatrixMult>* Coarsen(MultigridOperator &prolongOp) const {
-            PolyCurveGroup* coarsened = curves->Coarsen(prolongOp);
+            PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
             return new PolyCurveDenseDomain(coarsened, alpha, beta, epsilon);
         }
 

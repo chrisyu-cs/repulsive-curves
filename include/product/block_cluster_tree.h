@@ -5,7 +5,7 @@
 #include "vector_multiplier.h"
 #include "sobo_slobo.h"
 #include "flow/gradient_constraints.h"
-#include "poly_curve.h"
+#include "poly_curve_network.h"
 
 #include "Eigen/Dense"
 #include <fstream>
@@ -32,7 +32,7 @@ namespace LWS {
         static long wellSepTime;
         static long traversalTime;
 
-        BlockClusterTree(PolyCurveGroup* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e = 0.0);
+        BlockClusterTree(PolyCurveNetwork* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e = 0.0);
         // Loop over all currently inadmissible cluster pairs
         // and subdivide them to their children.
         void splitInadmissibleNodes();
@@ -106,7 +106,7 @@ namespace LWS {
         int nVerts;
         double alpha, beta, separationCoeff;
         double epsilon;
-        PolyCurveGroup* curves;
+        PolyCurveNetwork* curves;
         BVHNode3D* tree_root;
         std::vector<ClusterPair> admissiblePairs;
         std::vector<ClusterPair> unresolvedPairs;
@@ -215,7 +215,7 @@ namespace LWS {
         }
 
         for (int i = 0; i < nVerts; i++) {
-            b(i) += epsilon * curves->GetCurvePoint(i).DualLength() * v(i);
+            b(i) += epsilon * curves->GetVertex(i)->DualLength() * v(i);
         }
     }
 
