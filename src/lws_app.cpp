@@ -135,6 +135,8 @@ namespace LWS {
       BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.5, 2, 4);
       std::cout << "Made BCT" << std::endl;
 
+      mult->PrintData();
+
       LWS::BVHNode3D* vert_tree = CreateBVHFromCurve(curves);
       Eigen::MatrixXd gradients;
       gradients.setZero(nVerts, 3);
