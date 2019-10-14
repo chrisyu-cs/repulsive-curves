@@ -83,6 +83,7 @@ namespace LWS {
         int nEdges = loop->NumEdges();
         for (int i = 0; i < nEdges; i++) {
             CurveEdge* e = loop->GetEdge(i);
+            int i_edge = e->GlobalIndex();
             CurveVertex* p1 = e->prevVert;
             CurveVertex* p2 = e->nextVert;
             int i1 = p1->GlobalIndex();
@@ -95,7 +96,7 @@ namespace LWS {
 
             Vector3 grad12 = (d12 * e12) / (length * length);
 
-            SetRow(out, i1, grad12);
+            SetRow(out, i_edge, grad12);
         }
     } 
 
@@ -118,7 +119,7 @@ namespace LWS {
                 if (edge->prevVert == p1) {
                     w_edge *= -1;
                 }
-                v_edge /= w_edge;
+                v_edge /= len_edge;
 
                 result += w_edge * dot(v_edge, SelectRow(es, i_edge));
             }

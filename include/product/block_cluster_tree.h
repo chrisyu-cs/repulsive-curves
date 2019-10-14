@@ -275,8 +275,8 @@ namespace LWS {
         // MultiplyInadmissible(v_hat, b_hat_inadm, 0, inadmissiblePairs.size());
         MultiplyInadmissibleParallel(v_hat, b_hat_inadm, 6);
         long middle = Utils::currentTimeMilliseconds();
-        // MultiplyAdmissible(v_hat, b_hat_adm);
-        MultiplyAdmissibleFast(v_hat, b_hat_adm);
+        MultiplyAdmissible(v_hat, b_hat_adm);
+        // MultiplyAdmissibleFast(v_hat, b_hat_adm);
         long wellSepEnd = Utils::currentTimeMilliseconds();
 
         b_hat_adm += b_hat_inadm;

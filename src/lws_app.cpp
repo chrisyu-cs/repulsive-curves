@@ -184,6 +184,8 @@ namespace LWS {
       gradients.setZero(nVerts, 3);
       tpeSolver->FillGradientVectorBH(tree, gradients);
 
+      std::cout << "Filled BH" << std::endl;
+
       using TestDomain = EdgeLengthNullProjectorDomain;
       TestDomain* domain = new TestDomain(curves, 2, 4, 0.5);
 

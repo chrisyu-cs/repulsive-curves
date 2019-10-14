@@ -247,6 +247,7 @@ namespace LWS {
         // Add in the results
         for (int i = 0; i < wf_i.rows(); i++) {
             Vector3 toAdd = wf_i[i] * 2 * (a_wf_1 * SelectRow(v_hat, pair.cluster1->clusterIndices[i]) - a_wf_J);
+            CurveEdge* e_i = curves->GetEdge(pair.cluster1->clusterIndices[i]);
             AddToRow(result, pair.cluster1->clusterIndices[i], toAdd);
         }
     }
