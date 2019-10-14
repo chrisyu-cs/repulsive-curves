@@ -173,6 +173,20 @@ namespace LWS {
       delete vert_tree;
     }
 
+    if (ImGui::Button("Test coarsen")) {
+      int nVerts = curves->NumVertices();
+      int logNumVerts = log2(nVerts) - 4;
+
+      PolyCurveNetwork* p = curves;
+      for (int i = 0; i < logNumVerts; i++) {
+        MultigridOperator op;
+        p = p->Coarsen(op);
+
+        DisplayCurves(p, "coarsened" + std::to_string(i));
+      }
+
+    }
+
     if (ImGui::Button("Test 3x saddle")) {
       // Get the TPE gradient as a test problem
       int nVerts = curves->NumVertices();
@@ -414,8 +428,14 @@ namespace LWS {
 
     VertexData<size_t> indices = mesh->getVertexIndices();
 
-    std::vector<Vector3> all_positions;
+    int nVerts = mesh->nVertices();
+    std::vector<Vector3> all_positions(nVerts);
     std::vector<std::array<size_t, 2>> all_edges;
+
+    for (Vertex v : mesh->vertices()) {
+      size_t index = indices[v];
+      all_positions[index] = geom->vertexPositions[v];
+    }
 
     for (BoundaryLoop b : mesh->boundaryLoops()) {
       Halfedge he = b.halfedge().twin();
@@ -423,10 +443,10 @@ namespace LWS {
 
       do {
         Vector3 v = geom->vertexPositions[he.vertex()];
-        all_positions.push_back(v);
         size_t index = indices[he.vertex()];
         size_t next_index = indices[he.next().vertex()];
         all_edges.push_back({index, next_index});
+        
         he = he.next();
       }
       while (he != start);
@@ -440,7 +460,6 @@ namespace LWS {
 
   void LWSApp::DisplayCurves(PolyCurveNetwork* curves, std::string name) {
 
-    std::cout << "Making curve object" << std::endl;
     std::vector<glm::vec3> nodes;
     std::vector<std::array<size_t, 2>> edges;
     
@@ -457,7 +476,6 @@ namespace LWS {
     polyscope::registerCurveNetwork(name, nodes, edges);
     polyscope::getCurveNetwork(name)->radius *= 5;
 
-    std::cout << "Registered curve object" << std::endl;
     centerLoopBarycenter(curves);
   }
 

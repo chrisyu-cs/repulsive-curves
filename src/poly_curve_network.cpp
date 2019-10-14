@@ -143,13 +143,24 @@ namespace LWS {
 
     PolyCurveNetwork* PolyCurveNetwork::Coarsen(MultigridOperator &op, bool doEdgeMatrix) {
         Eigen::SparseMatrix<double> prolongMatrix, edgeMatrix;
+        int nEdges = NumEdges();
         // Determine which vertices should be kept and which shouldn't
         std::vector<bool> shouldKeep(nVerts);
         std::vector<bool> explored(nVerts);
+        std::vector<bool> seenEdges(nEdges);
         std::queue<std::pair<CurveVertex*, bool>> frontier;
         // Map coarsened indices back to finer ones in this curve
         std::vector<int> fineToCoarse(nVerts);
         int coarseCount = 0;
+
+        for (int i = 0; i < nVerts; i++) {
+            shouldKeep[i] = false;
+            explored[i] = false;
+            fineToCoarse[i] = -1;
+        }
+        for (int i = 0; i < nEdges; i++) {
+            seenEdges[i] = false;
+        }
 
         for (int i = 0; i < NumComponents(); i++) {
             frontier.push(std::pair<CurveVertex*, bool>(verticesByComponent[i][0], true));
@@ -171,6 +182,9 @@ namespace LWS {
                     coarseCount++;
                     fineToCoarse[next->id] = coarseID;
                 }
+                else {
+                    fineToCoarse[next->id] = -1;
+                }
                 for (int e = 0; e < next->numEdges(); e++) {
                     CurveVertex* neighbor = next->edge(e)->Opposite(next);
                     if (!explored[neighbor->id]) {
@@ -183,25 +197,28 @@ namespace LWS {
         std::vector<Eigen::Triplet<double>> triplets;
 
         // Assemble the prolongation operator
-        for (int i = 0; i < nVerts; i++) {
-            if (shouldKeep[i]) {
+        for (CurveVertex* v_i : vertices) {
+            if (shouldKeep[v_i->id]) {
                 // If we kept the vertex, then we need to look up the index of
                 // the corresponding vertex in the coarsened network
-                int coarseI = fineToCoarse[i];
-                triplets.push_back(Eigen::Triplet<double>(i, coarseI, 1));
+                int coarseI = fineToCoarse[v_i->id];
+                triplets.push_back(Eigen::Triplet<double>(v_i->id, coarseI, 1));
             }
             else {
                 // Otherwise, if we deleted the vertex, we need to find the index
                 // of the two neighboring coarsened vertices
-                CurveVertex* v_i = vertices[i];
                 if (v_i->numEdges() != 2) {
                     std::cerr << "Deleted an edge with vertex valence != 2" << std::endl;
                     throw 1;
                 }
-                int coarseI1 = fineToCoarse[v_i->edge(0)->Opposite(v_i)->id];
-                int coarseI2 = fineToCoarse[v_i->edge(1)->Opposite(v_i)->id];
-                triplets.push_back(Eigen::Triplet<double>(i, coarseI1, 0.5));
-                triplets.push_back(Eigen::Triplet<double>(i, coarseI2, 0.5));
+                int n0 = v_i->edge(0)->Opposite(v_i)->id;
+                int n1 = v_i->edge(1)->Opposite(v_i)->id;
+
+                int coarseI1 = fineToCoarse[n0];
+                int coarseI2 = fineToCoarse[n1];
+
+                triplets.push_back(Eigen::Triplet<double>(v_i->id, coarseI1, 0.5));
+                triplets.push_back(Eigen::Triplet<double>(v_i->id, coarseI2, 0.5));
             }
         }
 
@@ -213,12 +230,13 @@ namespace LWS {
         std::vector<Eigen::Triplet<double>> edgeTriplets;
         std::vector<std::array<size_t, 2>> coarseEdges;
 
-        for (int i = 0; i < nVerts; i++) {
-            if (shouldKeep[i]) {
+        for (CurveVertex* v_i : vertices) {
+            if (shouldKeep[v_i->id]) {
                 // Look for neighbors that have both endpoints kept
-                CurveVertex* v_i = vertices[i];
                 for (int e = 0; e < v_i->numEdges(); e++) {
                     CurveEdge* e_i = v_i->edge(e);
+                    if (seenEdges[e_i->id]) continue;
+                    seenEdges[e_i->id] = true;
                     CurveVertex* v_neighbor = e_i->Opposite(v_i);
                     // If both endpoints of the edge were kept,
                     // then map the old one to the new one with
@@ -238,15 +256,20 @@ namespace LWS {
             else {
                 // This means we deleted a vertex, so both its neighbors were kept,
                 // and one longer edge runs between them
-                CurveVertex* v_i = vertices[i];
                 size_t coarsePrev, coarseNext;
-                if (v_i == v_i->edge(0)->nextVert) {
+                int finePrev, fineNext;
+
+                if (v_i == v_i->edge(0)->nextVert && v_i == v_i->edge(1)->prevVert) {
                     coarsePrev = fineToCoarse[v_i->edge(0)->prevVert->id];
                     coarseNext = fineToCoarse[v_i->edge(1)->nextVert->id];
                 }
+                else if (v_i == v_i->edge(0)->prevVert && v_i == v_i->edge(1)->nextVert) {
+                    coarsePrev = fineToCoarse[v_i->edge(1)->prevVert->id];
+                    coarseNext = fineToCoarse[v_i->edge(0)->nextVert->id];
+                }
                 else {
-                    coarsePrev = fineToCoarse[v_i->edge(0)->nextVert->id];
-                    coarseNext = fineToCoarse[v_i->edge(1)->prevVert->id];
+                    std::cerr << "Couldn't orient edge pair" << std::endl;
+                    throw 1;
                 }
                 int coarseID = coarseEdges.size();
                 coarseEdges.push_back({coarsePrev, coarseNext});
@@ -263,11 +286,19 @@ namespace LWS {
             op.edgeMatrices.push_back(IndexedMatrix{edgeMatrix, 0, 0});
         }
 
+        std::vector<int> vertCounts(coarseCount);
+
+        for (auto &e : coarseEdges) {
+            vertCounts[e[0]]++;
+            vertCounts[e[1]]++;
+        }
+
         // Get the coarsened positions
         Eigen::MatrixXd coarsePosMat = ApplyPinv(prolongMatrix, positions);
         PolyCurveNetwork* p = new PolyCurveNetwork(coarsePosMat, coarseEdges);
-        op.lowerSize = coarseCount;
-        op.upperSize = vertices.size();
+        op.lowerSize = p->NumVertices();
+        op.upperSize = NumVertices();
+
         return p;
     }
 }
