@@ -184,12 +184,8 @@ namespace LWS {
       gradients.setZero(nVerts, 3);
       tpeSolver->FillGradientVectorBH(tree, gradients);
 
-      std::cout << "Filled BH" << std::endl;
-
       using TestDomain = EdgeLengthNullProjectorDomain;
       TestDomain* domain = new TestDomain(curves, 2, 4, 0.5);
-
-      std::cout << "Made domain" << std::endl;
 
       // Reshape the V x 3 matrix into a 3V x 1 vector
       Eigen::VectorXd gradientsLong(domain->NumRows());
@@ -202,8 +198,9 @@ namespace LWS {
 
       Eigen::VectorXd gradientOrig = gradientsLong;
 
-      if (domain->GetMode() == ProlongationMode::Matrix3AndProjector)
-        gradientsLong = curves->constraintProjector->ProjectToNullspace(gradientsLong);
+      if (domain->GetMode() == ProlongationMode::Matrix3AndProjector) {
+          gradientsLong = curves->constraintProjector->ProjectToNullspace(gradientsLong);
+      }
 
       long setupEnd = Utils::currentTimeMilliseconds();
       std::cout << "Setup time = " << (setupEnd - setupStart) << " ms" << std::endl;
@@ -211,6 +208,7 @@ namespace LWS {
       // Multigrid solve
       long multigridStart = Utils::currentTimeMilliseconds();
       MultigridHierarchy<TestDomain>* hierarchy = new MultigridHierarchy<TestDomain>(domain, logNumVerts);
+      std::cout << "Created hierarchy" << std::endl;
       Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<TestDomain>::EigenCG>(gradientsLong);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;

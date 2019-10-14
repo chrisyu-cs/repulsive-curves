@@ -25,6 +25,7 @@ namespace LWS {
     }
 
     PolyCurveNetwork::PolyCurveNetwork(Eigen::MatrixXd &ps, std::vector<std::array<size_t, 2>> &es) {
+        nVerts = ps.rows();
         positions = ps;
         adjacency = std::vector<std::vector<CurveEdge*>>(nVerts);
         
@@ -33,6 +34,7 @@ namespace LWS {
     }
 
     void PolyCurveNetwork::InitStructs(std::vector<std::array<size_t, 2>> &es) {
+        constraintProjector = 0;
 
         // Create all vertex structs
         for (int i = 0; i < nVerts; i++) {
@@ -101,10 +103,6 @@ namespace LWS {
                         frontier.push(neighbor);
                     }
                 }
-
-                std::cout << "Found component starting at " << start->id << ", with "
-                    << verticesByComponent[cNum].size() << " vertices and "
-                    << edgesByComponent[cNum].size() << " edges" << std::endl;
             }
         }
     }
@@ -197,11 +195,11 @@ namespace LWS {
                 // of the two neighboring coarsened vertices
                 CurveVertex* v_i = vertices[i];
                 if (v_i->numEdges() != 2) {
-                    std::cerr << "Deleted an edge with vertex valuence != 2" << std::endl;
+                    std::cerr << "Deleted an edge with vertex valence != 2" << std::endl;
                     throw 1;
                 }
-                int coarseI1 = v_i->edge(0)->Opposite(v_i)->id;
-                int coarseI2 = v_i->edge(1)->Opposite(v_i)->id;
+                int coarseI1 = fineToCoarse[v_i->edge(0)->Opposite(v_i)->id];
+                int coarseI2 = fineToCoarse[v_i->edge(1)->Opposite(v_i)->id];
                 triplets.push_back(Eigen::Triplet<double>(i, coarseI1, 0.5));
                 triplets.push_back(Eigen::Triplet<double>(i, coarseI2, 0.5));
             }
@@ -210,10 +208,6 @@ namespace LWS {
         prolongMatrix.resize(vertices.size(), coarseCount);
         prolongMatrix.setFromTriplets(triplets.begin(), triplets.end());
         op.matrices.push_back(IndexedMatrix{prolongMatrix, 0, 0});
-
-        if (doEdgeMatrix) {
-
-        }
         
         // Assemble the edge prolongation operator
         std::vector<Eigen::Triplet<double>> edgeTriplets;
@@ -223,7 +217,7 @@ namespace LWS {
             if (shouldKeep[i]) {
                 // Look for neighbors that have both endpoints kept
                 CurveVertex* v_i = vertices[i];
-                for (int e = 0; e < v_i->numEdges(); i++) {
+                for (int e = 0; e < v_i->numEdges(); e++) {
                     CurveEdge* e_i = v_i->edge(e);
                     CurveVertex* v_neighbor = e_i->Opposite(v_i);
                     // If both endpoints of the edge were kept,
@@ -247,12 +241,12 @@ namespace LWS {
                 CurveVertex* v_i = vertices[i];
                 size_t coarsePrev, coarseNext;
                 if (v_i == v_i->edge(0)->nextVert) {
-                    coarsePrev = v_i->edge(0)->prevVert->id;
-                    coarseNext = v_i->edge(1)->nextVert->id;
+                    coarsePrev = fineToCoarse[v_i->edge(0)->prevVert->id];
+                    coarseNext = fineToCoarse[v_i->edge(1)->nextVert->id];
                 }
                 else {
-                    coarsePrev = v_i->edge(0)->nextVert->id;
-                    coarseNext = v_i->edge(1)->prevVert->id;
+                    coarsePrev = fineToCoarse[v_i->edge(0)->nextVert->id];
+                    coarseNext = fineToCoarse[v_i->edge(1)->prevVert->id];
                 }
                 int coarseID = coarseEdges.size();
                 coarseEdges.push_back({coarsePrev, coarseNext});
@@ -272,6 +266,8 @@ namespace LWS {
         // Get the coarsened positions
         Eigen::MatrixXd coarsePosMat = ApplyPinv(prolongMatrix, positions);
         PolyCurveNetwork* p = new PolyCurveNetwork(coarsePosMat, coarseEdges);
+        op.lowerSize = coarseCount;
+        op.upperSize = vertices.size();
         return p;
     }
 }
