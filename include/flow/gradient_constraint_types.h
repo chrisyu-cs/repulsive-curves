@@ -19,6 +19,7 @@ namespace LWS {
             std::vector<Eigen::Triplet<double>> triplets;
             int nVerts = curves->NumVertices();
             int nEdges = curves->NumEdges();
+            int nC = curves->NumComponents();
 
             // Add the barycenter row
             double totalLength = curves->TotalLength();
@@ -99,12 +100,23 @@ namespace LWS {
 
         void FillConstraintMatrix(Eigen::SparseMatrix<double> &B) {
             std::vector<Eigen::Triplet<double>> triplets;
-            B.resize(1, nVerts);
-            double totalLength = curves->TotalLength();
-            // Fill a single row with normalized vertex weights
-            for (int i = 0; i < nVerts; i++) {
-                double wt = curves->GetVertex(i)->DualLength() / totalLength;
-                triplets.push_back(Eigen::Triplet<double>(0, i, wt));
+            int nComponents = curves->NumComponents();
+            B.resize(nComponents, nVerts);
+
+            // Fill rows with normalized vertex weights
+            for (int c = 0; c < nComponents; c++) {
+                int nVertsComp = curves->NumVerticesInComponent(c);
+                double compLen = 0;
+                for (int i = 0; i < nVertsComp; i++) {
+                    CurveVertex* v = curves->GetVertexInComponent(c, i);
+                    compLen += v->DualLength();
+                }
+                for (int i = 0; i < nVertsComp; i++) {
+                    CurveVertex* v = curves->GetVertexInComponent(c, i);
+                    int index = curves->GetVertexInComponent(c, i)->GlobalIndex();
+                    double wt = v->DualLength() / compLen;
+                    triplets.push_back(Eigen::Triplet<double>(c, index, wt));
+                }
             }
             B.setFromTriplets(triplets.begin(), triplets.end());
         }

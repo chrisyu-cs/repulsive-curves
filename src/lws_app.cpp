@@ -131,9 +131,7 @@ namespace LWS {
 
       int nVerts = curves->NumVertices();
       LWS::BVHNode3D* tree = CreateEdgeBVHFromCurve(curves);
-      std::cout << "Made edge BVH" << std::endl;
-      BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.5, 2, 4);
-      std::cout << "Made BCT" << std::endl;
+      BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.1, 2, 4);
 
       mult->PrintData();
 
@@ -175,22 +173,65 @@ namespace LWS {
 
     if (ImGui::Button("Test coarsen")) {
       int nVerts = curves->NumVertices();
-      int logNumVerts = log2(nVerts) - 4;
+      int logNumVerts = log2(nVerts) - 2;
 
-      PolyCurveNetwork* p = curves;
-      for (int i = 0; i < logNumVerts; i++) {
-        MultigridOperator op;
-        p = p->Coarsen(op);
+      std::vector<MultigridOperator> ops(logNumVerts);
+      std::vector<PolyCurveNetwork*> ps(logNumVerts);
 
-        DisplayCurves(p, "coarsened" + std::to_string(i));
+      ps[0] = curves;
+
+      for (int i = 0; i < logNumVerts - 1; i++) {
+        std::cout << "Coarsening curve network of length " << ps[i]->NumVertices() << std::endl;
+        ps[i+1] = ps[i]->Coarsen(ops[i]);
+        DisplayCurves(ps[i + 1], "coarsened" + std::to_string(i));
       }
 
+      for (int i = logNumVerts - 1; i > 0; i--) {
+        Eigen::VectorXd coarsePos(ps[i]->NumVertices() * 3);
+        coarsePos.setZero();
+        MatrixIntoVectorX3(ps[i]->positions, coarsePos);
+
+        Eigen::VectorXd finePos = ops[i - 1].prolong(coarsePos, ProlongationMode::Matrix3Only);
+
+        Eigen::MatrixXd finePosMat(ps[i - 1]->NumVertices(), 3);
+        finePosMat.setZero();
+        VectorXdIntoMatrix(finePos, finePosMat);
+
+        ps[i - 1]->positions = finePosMat;
+
+        DisplayCurves(ps[i - 1], "prolonged" + std::to_string(i));
+      }
+    }
+
+    if (ImGui::Button("Test solve")) {
+      int nVerts = curves->NumVertices();
+      LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
+      Eigen::MatrixXd gradients;
+      gradients.setZero(nVerts, 3);
+      tpeSolver->FillGradientVectorBH(tree, gradients);
+      delete tree;
+
+      Eigen::VectorXd b;
+      b.setZero(3 * nVerts);
+      MatrixIntoVectorX3(gradients, b);
+
+      using TestDomain = EdgeLengthNullProjectorDomain;
+      TestDomain* domain = new TestDomain(curves, 2, 4, 0.5);
+
+      Eigen::MatrixXd A = domain->GetFullMatrix();
+      Eigen::VectorXd sol = domain->DirectSolve(b);
+
+      std::cout << A << std::endl;
+      std::cout << sol << std::endl;
+
+      delete domain;
     }
 
     if (ImGui::Button("Test 3x saddle")) {
       // Get the TPE gradient as a test problem
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 4;
+      std::cout << "Using " << logNumVerts << " levels" << std::endl;
 
       long setupStart = Utils::currentTimeMilliseconds();
       LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
@@ -227,9 +268,9 @@ namespace LWS {
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 
-      std::cout << "Well-separated cluster time (total) = " << domain->tree->wellSepTime << " ms" << std::endl;
-      std::cout << "Ill-separated cluster time (total) = " << domain->tree->illSepTime << " ms" << std::endl;
-      std::cout << "Time spent on subtree traversals = " << domain->tree->traversalTime << " ms" << std::endl;
+      // std::cout << "Well-separated cluster time (total) = " << domain->tree->wellSepTime << " ms" << std::endl;
+      // std::cout << "Ill-separated cluster time (total) = " << domain->tree->illSepTime << " ms" << std::endl;
+      // std::cout << "Time spent on subtree traversals = " << domain->tree->traversalTime << " ms" << std::endl;
 
       // Direct solve
       long directStart = Utils::currentTimeMilliseconds();
@@ -260,84 +301,6 @@ namespace LWS {
       delete hierarchy;
     }
 
-    if (ImGui::Button("Test multigrid")) {
-      int nVerts = curves->NumVertices();
-      int logNumVerts = log2(nVerts) - 4;
-
-      using MGDomain = PolyCurveNullProjectorDomain;
-      MGDomain* domain = new MGDomain(curves, 2, 4, 0.5);
-      // MGDomain* domain = new MGDomain(curves, 2, 4, 0.5, 0.1);
-
-      long bh_start = Utils::currentTimeMilliseconds();
-      LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
-      // Use l2 gradient of TPE as test RHS
-      Eigen::MatrixXd gradients;
-      gradients.setZero(nVerts, 3);
-      tpeSolver->FillGradientVectorBH(tree, gradients);
-
-      // For now, use x-coordinate as scalar function
-      Eigen::VectorXd x(domain->NumRows());
-      x.setZero();
-      x.block(0, 0, nVerts, 1) = gradients.col(0);
-      long bh_end = Utils::currentTimeMilliseconds();
-      std::cout << "Gradient w/ Barnes-Hut time = " << (bh_end - bh_start) << " ms" << std::endl;
-
-      // If we've enabled null-space projectors, then project the RHS
-      if (domain->GetMode() == ProlongationMode::MatrixAndProjector)
-        x = curves->constraintProjector->ProjectToNullspace(x);
-
-      long multigridStart = Utils::currentTimeMilliseconds();
-      MultigridHierarchy<MGDomain>* hierarchy = new MultigridHierarchy<MGDomain>(domain, logNumVerts);
-      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<MGDomain>::EigenCG>(x);
-      long multigridEnd = Utils::currentTimeMilliseconds();
-      std::cout << "Multigrid assembly + solve time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
-
-      long solveStart = Utils::currentTimeMilliseconds();
-      Eigen::VectorXd ref_sol = domain->DirectSolve(x);
-      long solveEnd = Utils::currentTimeMilliseconds();
-      std::cout << "Direct assembly + solve time = " << (solveEnd - solveStart) << " ms" << std::endl;
-
-      Eigen::MatrixXd sols(sol.rows(), 3);
-      sols.col(0) = x;
-      sols.col(1) = sol.block(0, 0, nVerts, 1);
-      sols.col(2) = ref_sol.block(0, 0, nVerts, 1);
-
-      for (int i = 0; i < sol.rows(); i++) {
-        // std::cout << i << ", " << sol(i) << ", " << ref_sol(i) << std::endl;
-      }
-
-      double barycenterRef = 0;
-      double barycenter = 0;
-      double totalLen = curves->TotalLength();
-      for (int i = 0; i < nVerts; i++) {
-        double weight =  curves->GetVertex(i)->DualLength() / totalLen;
-        barycenterRef += ref_sol(i) * weight;
-        barycenter += sol(i) * weight;
-      }
-
-      std::cout << "Barycenter = " << barycenter << ", reference barycenter = " << barycenterRef << std::endl;
-
-      Eigen::VectorXd diff = sol - ref_sol;
-
-      std::cout << "Reference norm = " << ref_sol.norm() << std::endl;
-      std::cout << "Multigrid norm = " << sol.norm() << std::endl;
-      std::cout << "Difference norm = " << diff.norm() << std::endl;
-      std::cout << "Multigrid error from ground truth = " << 100 * (diff.norm() / ref_sol.norm()) << " percent" << std::endl;
-
-      double dot = sol.normalized().dot(ref_sol.normalized());
-      std::cout << "Dot product between directions = " << dot << std::endl;
-
-      Eigen::VectorXd Ax_hier(nVerts);
-      Ax_hier.setZero();
-      domain->GetMultiplier()->Multiply(x, Ax_hier);
-      // Eigen::VectorXd Ax_dense = A * x;
-      // double mult_rel_err = 100 * (Ax_hier - Ax_dense).norm() / Ax_dense.norm();
-      // std::cout << "Hierarchical mult. relative error = " << mult_rel_err << " percent" << std::endl;
-
-      delete tree;
-      delete hierarchy;
-    }
-
     if (ImGui::Button("Output frame")) {
       outputFrame();
     }
@@ -356,7 +319,7 @@ namespace LWS {
       }
       bool good_step;
       if (LWSOptions::useMultigrid) {
-        good_step = tpeSolver->StepSobolevLSIterative();
+        good_step = tpeSolver->StepSobolevLSIterative(0);
       }
       else {
         good_step = tpeSolver->StepSobolevLS(true);

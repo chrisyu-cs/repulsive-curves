@@ -126,6 +126,83 @@ namespace LWS {
         }
     };
 
+    class EdgeLengthDenseProjectorDomain : public MultigridDomain<EdgeLengthDenseProjectorDomain, DenseMatrixMult> {
+        public:
+        PolyCurveNetwork* curves;
+        double alpha, beta;
+        double sepCoeff;
+        int nVerts;
+        double epsilon;
+        DenseMatrixMult* M;
+
+        EdgeLengthDenseProjectorDomain(PolyCurveNetwork* c, double a, double b, double sep, double diagEps = 0) {
+            curves = c;
+            alpha = a;
+            beta = b;
+            sepCoeff = sep;
+            nVerts = curves->NumVertices();
+            epsilon = diagEps;
+
+            EdgeLengthConstraint constraint(curves);
+            curves->AddConstraintProjector(constraint);
+
+            Eigen::MatrixXd A = GetFullMatrix();
+            M = new DenseMatrixMult(A);
+        }
+
+        ~EdgeLengthDenseProjectorDomain() {
+        }
+
+        MultigridDomain<EdgeLengthDenseProjectorDomain, DenseMatrixMult>* Coarsen(MultigridOperator &prolongOp) const {
+            PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
+            EdgeLengthDenseProjectorDomain* coarseDomain = new EdgeLengthDenseProjectorDomain(coarsened, alpha, beta, sepCoeff, epsilon);
+            prolongOp.lowerP = coarseDomain->GetConstraintProjector();
+            prolongOp.upperP = GetConstraintProjector();
+            return coarseDomain;
+        }
+
+        DenseMatrixMult* GetMultiplier() const {
+            return M;
+        }
+
+        Eigen::MatrixXd GetFullMatrix() const {
+            int rows = nVerts + 1;
+            Eigen::MatrixXd A;
+            A.setZero(4 * nVerts + 3, 4 * nVerts + 3);
+            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A, epsilon);
+            SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
+            return A;
+        }
+
+        Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
+            Eigen::VectorXd b_aug(4 * nVerts + 3);
+            int constraintRows = nVerts + 3;
+            b_aug.block(0, 0, b.rows(), 1) = b;
+            b_aug.block(b.rows(), 0, constraintRows, 1).setZero();
+
+            Eigen::MatrixXd A = GetFullMatrix();
+            b_aug = A.partialPivLu().solve(b_aug);
+            return b_aug.block(0, 0, b.rows(), 1);
+        }
+
+        int NumVertices() const {
+            return nVerts;
+        }
+
+        int NumRows() const {
+            return 3 * nVerts;
+        }
+
+        ProlongationMode GetMode() const {
+            return ProlongationMode::Matrix3AndProjector;
+        }
+
+        NullSpaceProjector* GetConstraintProjector() const {
+            return curves->constraintProjector;
+        }
+
+    };
+
     class EdgeLengthNullProjectorDomain : public MultigridDomain<EdgeLengthNullProjectorDomain, BlockClusterTree> {
         public:
         PolyCurveNetwork* curves;
@@ -134,16 +211,18 @@ namespace LWS {
         double alpha, beta;
         double sepCoeff;
         int nVerts;
+        double epsilon;
 
-        EdgeLengthNullProjectorDomain(PolyCurveNetwork* c, double a, double b, double sep) {
+        EdgeLengthNullProjectorDomain(PolyCurveNetwork* c, double a, double b, double sep, double diagEps = 0) {
             curves = c;
             alpha = a;
             beta = b;
             sepCoeff = sep;
             nVerts = curves->NumVertices();
+            epsilon = diagEps;
 
             bvh = CreateEdgeBVHFromCurve(curves);
-            tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta);
+            tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta, epsilon);
             tree->SetBlockTreeMode(BlockTreeMode::Matrix3AndProjector);
 
             EdgeLengthConstraint constraint(curves);
@@ -157,7 +236,7 @@ namespace LWS {
 
         MultigridDomain<EdgeLengthNullProjectorDomain, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
             PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
-            EdgeLengthNullProjectorDomain* coarseDomain = new EdgeLengthNullProjectorDomain(coarsened, alpha, beta, sepCoeff);
+            EdgeLengthNullProjectorDomain* coarseDomain = new EdgeLengthNullProjectorDomain(coarsened, alpha, beta, sepCoeff, epsilon);
             prolongOp.lowerP = coarseDomain->GetConstraintProjector();
             prolongOp.upperP = GetConstraintProjector();
             return coarseDomain;
@@ -171,7 +250,7 @@ namespace LWS {
             int rows = nVerts + 1;
             Eigen::MatrixXd A;
             A.setZero(4 * nVerts + 3, 4 * nVerts + 3);
-            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A);
+            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A, epsilon);
             SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
             return A;
         }
@@ -314,17 +393,30 @@ namespace LWS {
         }
 
         Eigen::MatrixXd GetFullMatrix() const {
-            int rows = nVerts + 1;
+            int nC = curves->NumComponents();
+            int rows = nVerts + nC;
             Eigen::MatrixXd A;
             A.setZero(rows, rows);
-            SobolevCurves::SobolevPlusBarycenter(curves, alpha, beta, A);
+            SobolevCurves::SobolevGramMatrix(curves, alpha, beta, A);
+
+            BarycenterConstraint constraint(curves);
+            Eigen::SparseMatrix<double> B_s;
+            constraint.FillConstraintMatrix(B_s);
+            Eigen::MatrixXd B = B_s.toDense();
+
+            A.block(nVerts, 0, nC, nVerts) = B;
+            A.block(0, nVerts, nVerts, nC) = B.transpose();
+
             return A;
         }
 
         Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
-            Eigen::VectorXd b_aug(nVerts + 1);
+            int nC = curves->NumComponents();
+            Eigen::VectorXd b_aug(nVerts + nC);
             b_aug.block(0, 0, nVerts, 1) = b;
-            b_aug(nVerts) = 0;
+            for (int c = 0; c < nC; c++ ){
+                b_aug(nVerts + c) = 0;
+            }
 
             Eigen::MatrixXd A = GetFullMatrix();
             b_aug = A.partialPivLu().solve(b_aug);

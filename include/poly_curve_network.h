@@ -16,6 +16,7 @@ namespace LWS
         CurveVertex* nextVert;
         CurveVertex* prevVert;
         int id;
+        int component;
 
         inline CurveVertex* Opposite(CurveVertex* v);
         inline Vector3 Vector();
@@ -30,6 +31,7 @@ namespace LWS
     struct CurveVertex {
         PolyCurveNetwork* curve;
         int id;
+        int component;
 
         bool operator ==(const CurveVertex &other);
         bool operator !=(const CurveVertex &other);
@@ -75,6 +77,14 @@ namespace LWS
 
         inline int NumComponents() {
             return verticesByComponent.size();
+        }
+
+        inline int NumVerticesInComponent(int i) {
+            return verticesByComponent[i].size();
+        }
+
+        inline CurveVertex* GetVertexInComponent(int c, int i) {
+            return verticesByComponent[c][i];
         }
 
         inline CurveVertex* GetVertex(int i) {

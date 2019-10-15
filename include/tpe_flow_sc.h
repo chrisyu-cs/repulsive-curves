@@ -31,7 +31,7 @@ namespace LWS {
         bool StepNaive(double h);
         bool StepLS();
         bool StepSobolevLS(bool useBH);
-        bool StepSobolevLSIterative();
+        bool StepSobolevLSIterative(double epsilon);
 
         double ComputeAndProjectGradient(Eigen::MatrixXd &gradients);
         double ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu);

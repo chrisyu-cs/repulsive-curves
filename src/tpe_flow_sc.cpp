@@ -582,7 +582,7 @@ namespace LWS {
         return maxViolation;
     }
 
-    bool TPEFlowSolverSC::StepSobolevLSIterative() {
+    bool TPEFlowSolverSC::StepSobolevLSIterative(double epsilon) {
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
         long all_start = Utils::currentTimeMilliseconds();
 
@@ -601,7 +601,7 @@ namespace LWS {
         long mg_setup_start = Utils::currentTimeMilliseconds();
         using MultigridDomain = EdgeLengthNullProjectorDomain;
         using MultigridSolver = MultigridHierarchy<MultigridDomain>;
-        MultigridDomain* domain = new MultigridDomain(curveNetwork, alpha, beta, 0.5);
+        MultigridDomain* domain = new MultigridDomain(curveNetwork, alpha, beta, 0.5, epsilon);
         MultigridSolver* multigrid = new MultigridSolver(domain);
         long mg_setup_end = Utils::currentTimeMilliseconds();
         std::cout << "  Multigrid setup: " << (mg_setup_end - mg_setup_start) << " ms" << std::endl;

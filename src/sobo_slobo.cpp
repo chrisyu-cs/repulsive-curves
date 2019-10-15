@@ -251,10 +251,10 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::SobolevPlusBarycenter(PolyCurveNetwork* loop, double alpha, double beta, Eigen::MatrixXd &A) {
+    void SobolevCurves::SobolevPlusBarycenter(PolyCurveNetwork* loop, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
         int nVerts = loop->NumVertices();
         // Fill the top-left block with the gram matrix
-        SobolevCurves::SobolevGramMatrix(loop, alpha, beta, A);
+        SobolevCurves::SobolevGramMatrix(loop, alpha, beta, A, diagEps);
 
         double sumLength = loop->TotalLength();
 
@@ -267,11 +267,11 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::SobolevPlusBarycenter3X(PolyCurveNetwork* loop, double alpha, double beta, Eigen::MatrixXd &A) {
+    void SobolevCurves::SobolevPlusBarycenter3X(PolyCurveNetwork* loop, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
         int nVerts = loop->NumVertices();
         Eigen::MatrixXd topLeft;
         topLeft.setZero(nVerts + 1, nVerts + 1);
-        SobolevPlusBarycenter(loop, alpha, beta, topLeft);
+        SobolevPlusBarycenter(loop, alpha, beta, topLeft, diagEps);
 
         for (int i = 0; i < nVerts + 1; i++) {
             for (int j = 0; j < nVerts + 1; j++) {

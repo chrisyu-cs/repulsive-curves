@@ -18,6 +18,10 @@ namespace LWS {
             expectedInput = inputVerts + 1;
             expectedOutput = outputVerts + 1;
         }
+        else if (mode == ProlongationMode::Matrix3Only) {
+            expectedInput = 3 * inputVerts;
+            expectedOutput = 3 * outputVerts;
+        }
         else if (mode == ProlongationMode::Matrix3AndEdgeConstraints) {
             expectedInput = 4 * inputVerts + 3;
             expectedOutput = 4 * outputVerts + 3;
@@ -61,6 +65,9 @@ namespace LWS {
             prolongVerts3X(v, out);
             prolongBarycenter3X(v, out);
         }
+        else if (mode == ProlongationMode::Matrix3Only) {
+            prolongVerts3X(v, out);
+        }
         else if (mode == ProlongationMode::Matrix3AndProjector) {
             v = lowerP->ProjectToNullspace(v);
             prolongVerts3X(v, out);
@@ -96,6 +103,9 @@ namespace LWS {
             restrictVertsTranspose3X(v, out);
             restrictBarycenter3X(v, out);
         }
+        else if (mode == ProlongationMode::Matrix3Only) {
+            restrictVertsTranspose3X(v, out);
+        }
         else if (mode == ProlongationMode::Matrix3AndProjector) {
             v = upperP->ProjectToNullspace(v);
             restrictVertsTranspose3X(v, out);
@@ -130,6 +140,9 @@ namespace LWS {
         else if (mode == ProlongationMode::Matrix3AndBarycenter) {
             restrictVertsPinv3X(v, out);
             restrictBarycenter3X(v, out);
+        }
+        else if (mode == ProlongationMode::Matrix3Only) {
+            restrictVertsPinv3X(v, out);
         }
         else if (mode == ProlongationMode::Matrix3AndProjector) {
             v = upperP->ProjectToNullspace(v);

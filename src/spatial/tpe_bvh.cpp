@@ -114,10 +114,12 @@ namespace LWS {
         else bvhRoot = root;
 
         if (points.size() == 0) {
-            isLeaf = true;
+            isLeaf = false;
             isEmpty = true;
             totalMass = 0;
             numElements = 0;
+            // This is just to find bugs more easily
+            body.elementIndex = -999;
         }
         // If there's only one point, then we don't need to do anything
         // except set the fields from that one point

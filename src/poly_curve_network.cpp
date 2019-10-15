@@ -85,6 +85,7 @@ namespace LWS {
                     // Group vertices by component
                     foundVerts[next->id] = true;
                     verticesByComponent[cNum].push_back(next);
+                    next->component = cNum;
                     // Make the start vertex an endpoint, if we find it
                     if (next->numEdges() == 1) {
                         start = next;
@@ -96,6 +97,7 @@ namespace LWS {
                         if (!foundEdges[nEdge->id]) {
                             foundEdges[nEdge->id] = true;
                             edgesByComponent[cNum].push_back(nEdge);
+                            nEdge->component = cNum;
                         }
                         // Add neighbors as well
                         CurveVertex* neighbor = nEdge->Opposite(next);
