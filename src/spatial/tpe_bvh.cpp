@@ -255,6 +255,23 @@ namespace LWS {
         maxCoords = minCoords;
     }
 
+    void BVHNode3D::refreshWeightsVector(PolyCurveNetwork* curves, BodyType bType) {
+        if (bType == BodyType::Vertex) {
+            int nVerts = curves->NumVertices();
+            for (int i = 0; i < nVerts; i++) {
+                CurveVertex* v = curves->GetVertex(i);
+                fullMasses(v->id) = v->DualLength();
+            }
+        }
+        else if (bType == BodyType::Edge) {
+            int nEdges = curves->NumEdges();
+            for (int i = 0; i < nEdges; i++) {
+                CurveEdge* e = curves->GetEdge(i);
+                fullMasses(e->id) = e->Length();
+            }
+        }
+    }
+
     void BVHNode3D::recomputeCentersOfMass(PolyCurveNetwork* curves) {
         if (isEmpty) {
             totalMass = 0;

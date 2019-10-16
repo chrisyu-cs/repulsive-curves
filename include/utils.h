@@ -46,14 +46,16 @@ namespace LWS {
         A(row, 2) += toAdd.z;
     }
 
-    inline void MatrixIntoVectorX3(Eigen::MatrixXd &A, Eigen::VectorXd &v) {
+    template<typename Matrix>
+    inline void MatrixIntoVectorX3(Matrix &A, Eigen::VectorXd &v) {
         for (int i = 0; i < A.rows(); i++) {
             v.block(i * 3, 0, 3, 1) = A.block(i, 0, 1, 3).transpose();
         }
     }
 
     inline void VectorXdIntoMatrix(Eigen::VectorXd &v, Eigen::MatrixXd &A) {
-        for (int i = 0; i < A.rows(); i++) {
+        int nV = v.rows() / 3;
+        for (int i = 0; i < nV; i++) {
             A.block(i, 0, 1, 3) = v.block(i * 3, 0, 3, 1).transpose();
         }
     }

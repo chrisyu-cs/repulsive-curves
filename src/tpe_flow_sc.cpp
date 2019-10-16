@@ -2,19 +2,14 @@
 #include "utils.h"
 #include "product/dense_matrix.h"
 
+#include "circle_search.h"
 
 namespace LWS {
 
     TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveNetwork* g) :
     originalPositions(g->NumVertices()),
-    l2gradients(g->NumVertices() + 1, 3),
-    vertGradients(g->NumVertices() + 1, 3),
-    vertConstraints(g->NumVertices() + 1, 3),
     initialLengths(g->NumEdges())
     {
-        l2gradients.setZero();
-        vertGradients.setZero();
-        vertConstraints.setZero();
 
         curveNetwork = g;
         alpha = 2;
@@ -103,18 +98,8 @@ namespace LWS {
     }
 
     void TPEFlowSolverSC::FillGradientVectorBH(SpatialTree *root, Eigen::MatrixXd &gradients) {
-        // The single energy term (i, j) affects six vertices:
-        // (i_prev, i, i_next, j_prev, j, j_next).
-        // We can restructure the computation as follows:
-        // for each single 1-ring (i, i_prev, i_next), accumulate the
-        // contributions from the gradients of both terms (i, j) and (j, i).
-        int nVerts = curveNetwork->NumVertices();
-        gradients.setZero();
-
-        for (int i = 0; i < nVerts; i++) {
-            CurveVertex* i_pt = curveNetwork->GetVertex(i);
-            root->accumulateTPEGradient(gradients, i_pt, curveNetwork, alpha, beta);
-        }
+        // Use the spatial tree and Barnes-Hut to evaluate the gradient
+        SpatialTree::TPEGradientBarnesHut(curveNetwork, root, gradients, alpha, beta);
     }
 
     void TPEFlowSolverSC::FillConstraintVector(Eigen::MatrixXd &gradients) {
@@ -433,9 +418,9 @@ namespace LWS {
         int nRows = matrixNumRows();
         size_t nVerts = curveNetwork->NumVertices();
 
-        for (int i = 0; i < gradients.rows(); i++) {
-            l2gradients.row(i) = gradients.row(i);
-        }
+        Eigen::MatrixXd l2gradients = gradients;
+        Eigen::MatrixXd vertConstraints;
+        vertConstraints.setZero(curveNetwork->NumEdges() + 1, 3);
 
         // If we're not using the per-edge length constraints, use total length instead
         if (!useEdgeLengthConstraint) {
@@ -515,8 +500,10 @@ namespace LWS {
         long start = Utils::currentTimeMilliseconds();
 
         size_t nVerts = curveNetwork->NumVertices();
-
         int nRows = matrixNumRows();
+
+        Eigen::MatrixXd vertGradients;
+        vertGradients.setZero(nVerts + 1, 3);
 
         long grad_start = Utils::currentTimeMilliseconds();
         SpatialTree *tree_root = 0;
@@ -588,12 +575,16 @@ namespace LWS {
 
         size_t nVerts = curveNetwork->NumVertices();
         int nRows = matrixNumRows();
-        SpatialTree *tree_root = 0;
+        BVHNode3D* tree_root = 0;
+
+        Eigen::MatrixXd vertGradients;
+        vertGradients.setZero(nVerts, 3);
 
         // Assemble the L2 gradient
         long bh_start = Utils::currentTimeMilliseconds();
         tree_root = CreateBVHFromCurve(curveNetwork);
         FillGradientVectorBH(tree_root, vertGradients);
+        Eigen::MatrixXd l2gradients = vertGradients;
         long bh_end = Utils::currentTimeMilliseconds();
         std::cout << "  Barnes-Hut: " << (bh_end - bh_start) << " ms" << std::endl;
 
@@ -611,6 +602,9 @@ namespace LWS {
         double dot_acc = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients);
         long mg_end = Utils::currentTimeMilliseconds();
         std::cout << "  Multigrid solve: " << (mg_end - mg_start) << " ms" << std::endl;
+
+        Eigen::MatrixXd deriv = CircleSearch::SolveSecondDerivative<MultigridSolver, MultigridSolver::EigenCG>(curveNetwork,
+            vertGradients, l2gradients, tree_root, multigrid, alpha, beta, 1e-5);
 
         // Take a line search step using this gradient
         long ls_start = Utils::currentTimeMilliseconds();

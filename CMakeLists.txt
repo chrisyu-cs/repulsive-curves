@@ -66,7 +66,8 @@ add_subdirectory(deps/polyscope)
 
 # == Build our project stuff
 
-set(SRCS 
+set(SRCS
+  src/circle_search.cpp
   src/lws_app.cpp
   src/lws_options.cpp
   src/poly_curve_network.cpp

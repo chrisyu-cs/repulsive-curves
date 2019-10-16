@@ -78,6 +78,8 @@ namespace LWS {
 
         void findCurveSegments(std::vector<VertexBody6D> &points, PolyCurveNetwork* curves);
 
+        // Copy the new weights from the curves
+        virtual void refreshWeightsVector(PolyCurveNetwork* curves, BodyType bType);
         // Recursively recompute all centers of mass in this tree
         virtual void recomputeCentersOfMass(PolyCurveNetwork* curves);
         // Compute the total energy contribution from a single vertex

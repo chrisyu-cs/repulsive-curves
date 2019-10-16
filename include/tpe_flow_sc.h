@@ -65,9 +65,6 @@ namespace LWS {
         CoordinateLUs coord_lus;
         PolyCurveNetwork* curveNetwork;
         std::vector<Vector3> originalPositions;
-        Eigen::MatrixXd l2gradients;
-        Eigen::MatrixXd vertGradients;
-        Eigen::MatrixXd vertConstraints;
         std::vector<double> initialLengths;
         double alpha;
         double beta;
@@ -80,15 +77,18 @@ namespace LWS {
     double TPEFlowSolverSC::ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output) {
         // Flatten the gradient matrix into a long vector
         Eigen::VectorXd gradients3x;
-        gradients3x.setZero(gradients.rows() * gradients.cols());
-        MatrixIntoVectorX3(gradients, gradients3x);
+        // Copy only the rows that actually contain gradient vectors
+        gradients3x.setZero(curveNetwork->NumVertices() * 3);
+        auto block = gradients.block(0, 0, curveNetwork->NumVertices(), 3);
+        MatrixIntoVectorX3(block, gradients3x);
         // Project this vector into the constraint null-space:
         // we really want to solve PGPx = Pb
         gradients3x = curveNetwork->constraintProjector->ProjectToNullspace(gradients3x);
         // Solve PGPx = Pb using multigrid
         Eigen::VectorXd sobolevGradients = solver->template VCycleSolve<Smoother>(gradients3x);
-
+        // Compute dot product with unprojected gradient, and copy into results vector
         double dirDot = gradients3x.dot(sobolevGradients) / (gradients3x.norm() * sobolevGradients.norm());
+        output.setZero();
         VectorXdIntoMatrix(sobolevGradients, output);
         return dirDot;
     }

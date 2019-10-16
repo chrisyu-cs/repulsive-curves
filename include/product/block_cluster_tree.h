@@ -39,9 +39,17 @@ namespace LWS {
         static bool isPairAdmissible(ClusterPair pair, double coeff);
         static bool isPairSmallEnough(ClusterPair pair);
 
+        inline void refreshEdgeWeights() {
+            tree_root->refreshWeightsVector(curves, BodyType::Edge);
+        }
+
         void PrintData();
         void PrintAdmissibleClusters(std::ofstream &stream);
         void PrintInadmissibleClusters(std::ofstream &stream);
+
+        // Dot product of v1 and v2 using the Gram matrix represented by this tree.
+        template<typename V>
+        double DotProduct(V &v1, V &v2);
 
         // Multiplies v and stores in b. Dispatches to the specific multiplication case below.
         template<typename V, typename Dest>
@@ -168,6 +176,14 @@ namespace LWS {
                 PropagateBIs(child, node->B_I, b_tilde);
             }
         }
+    }
+
+    template<typename V>
+    double BlockClusterTree::DotProduct(V &v1, V &v2) {
+        Eigen::VectorXd G_v2;
+        G_v2.setZero(v2.rows());
+        Multiply(v2, G_v2);
+        return v1.dot(G_v2);
     }
 
     template<typename V, typename Dest>
