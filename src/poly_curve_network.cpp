@@ -109,6 +109,28 @@ namespace LWS {
         }
     }
 
+    double PolyCurveNetwork::FillConstraintViolations(Eigen::VectorXd &b, std::vector<double> &targetLengths) {
+        // Fill 3 barycenter coordinates
+        Vector3 bcenter = Barycenter();
+        b(0) = -bcenter.x;
+        b(1) = -bcenter.y;
+        b(2) = -bcenter.z;
+
+        double maxViolation = 0;
+
+        // For each edge, fill in its deviation from target length
+        int nEdges = NumEdges();
+        for (int i = 0; i < nEdges; i++) {
+            CurveEdge* e_i = GetEdge(i);
+            double curLen = e_i->Length();
+            double negError = targetLengths[i] - curLen;
+            b(3 + i) = negError;
+            maxViolation = fmax(maxViolation, fabs(negError));
+        }
+
+        return maxViolation;
+    }
+
     void PolyCurveNetwork::BoundingCube(Vector3 &center, double &width) {
         Vector3 min_coords;
         Vector3 max_coords;

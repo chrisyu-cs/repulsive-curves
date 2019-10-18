@@ -18,4 +18,17 @@ namespace LWS {
             root->accumulateTPEGradient(output, i_pt, curveNetwork, alpha, beta);
         }
     }
+
+    double SpatialTree::TPEnergyBH(PolyCurveNetwork* curveNetwork, SpatialTree *root, double alpha, double beta) {
+        int nVerts = curveNetwork->NumVertices();
+        double fullSum = 0;
+        // Loop over all vertices and add up energy contributions
+        for (int i = 0; i < nVerts; i++) {
+            CurveVertex* i_pt = curveNetwork->GetVertex(i);
+            double vertSum = 0;
+            root->accumulateVertexEnergy(vertSum, i_pt, curveNetwork, alpha, beta);
+            fullSum += vertSum;
+        }
+        return fullSum;
+    }
 }

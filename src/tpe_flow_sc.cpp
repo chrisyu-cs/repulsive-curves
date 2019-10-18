@@ -36,16 +36,7 @@ namespace LWS {
     }
 
     double TPEFlowSolverSC::CurrentEnergyBH(SpatialTree *root) {
-        int nVerts = curveNetwork->NumVertices();
-        double fullSum = 0;
-        // Loop over all vertices and add up energy contributions
-        for (int i = 0; i < nVerts; i++) {
-            CurveVertex* i_pt = curveNetwork->GetVertex(i);
-            double vertSum = 0;
-            root->accumulateVertexEnergy(vertSum, i_pt, curveNetwork, alpha, beta);
-            fullSum += vertSum;
-        }
-        return fullSum;
+        return SpatialTree::TPEnergyBH(curveNetwork, root, alpha, beta);
     }
 
     void TPEFlowSolverSC::FillGradientSingle(Eigen::MatrixXd &gradients, int i, int j) {
@@ -603,18 +594,17 @@ namespace LWS {
         long mg_end = Utils::currentTimeMilliseconds();
         std::cout << "  Multigrid solve: " << (mg_end - mg_start) << " ms" << std::endl;
 
-        Eigen::MatrixXd deriv = CircleSearch::SolveSecondDerivative<MultigridSolver, MultigridSolver::EigenCG>(curveNetwork,
-            vertGradients, l2gradients, tree_root, multigrid, alpha, beta, 1e-5);
-
         // Take a line search step using this gradient
         long ls_start = Utils::currentTimeMilliseconds();
-        double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
+        double step_size = CircleSearch::CircleSearchStep<MultigridSolver, MultigridSolver::EigenCG>(curveNetwork,
+            vertGradients, l2gradients, tree_root, multigrid, dot_acc, alpha, beta, 1e-6);
+        // double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
         long ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
         // Correct for drift with backprojection
         long bp_start = Utils::currentTimeMilliseconds();
-        step_size = BackprojectMultigridLS<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root);
+        // step_size = BackprojectMultigridLS<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root);
         long bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
 
