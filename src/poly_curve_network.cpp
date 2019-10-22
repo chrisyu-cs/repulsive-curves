@@ -116,7 +116,7 @@ namespace LWS {
         b(1) = -bcenter.y;
         b(2) = -bcenter.z;
 
-        double maxViolation = 0;
+        double maxViolation = fmax(fabs(bcenter.x), fmax(fabs(bcenter.y), fabs(bcenter.z)));
 
         // For each edge, fill in its deviation from target length
         int nEdges = NumEdges();

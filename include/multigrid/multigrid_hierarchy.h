@@ -165,6 +165,20 @@ namespace LWS {
             return solutions[0];
         }
 
+        template<typename Smoother>
+        void BackprojectMultigrid(PolyCurveNetwork* curveNetwork, Eigen::VectorXd &phi, Eigen::MatrixXd &output) {
+            // Flatten the gradient matrix into a long vector
+            Eigen::VectorXd B_pinv_phi(NumRows());
+            curveNetwork->constraintProjector->ApplyBPinv(phi, B_pinv_phi);
+            Product::MatrixReplacement<Mult> multiplier(GetTopLevelMultiplier(), NumRows());
+            Eigen::VectorXd GB_phi = multiplier * B_pinv_phi;
+            // Solve Gv = b by solving PGPv = Pb
+            GB_phi = curveNetwork->constraintProjector->ProjectToNullspace(GB_phi);
+            Eigen::VectorXd v = VCycleSolve<Smoother>(GB_phi);
+            v = B_pinv_phi - v;
+            VectorXdIntoMatrix(v, output);
+        }
+
     };
     
 }

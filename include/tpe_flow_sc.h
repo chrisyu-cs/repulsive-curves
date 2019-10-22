@@ -40,8 +40,6 @@ namespace LWS {
         template<typename Domain, typename Smoother>
         double ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output);
         template<typename Domain, typename Smoother>
-        void BackprojectMultigrid(Eigen::VectorXd &phi, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output);
-        template<typename Domain, typename Smoother>
         bool BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess, MultigridHierarchy<Domain>* solver, SpatialTree* root);
 
         double FillConstraintViolations(Eigen::VectorXd &phi);
@@ -69,7 +67,6 @@ namespace LWS {
         double alpha;
         double beta;
         void SetGradientStep(Eigen::MatrixXd gradient, double delta);
-        double FillLengthConstraintViolations(Eigen::VectorXd &b, int baseIndex);
         bool BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
     };
 
@@ -97,8 +94,8 @@ namespace LWS {
     bool TPEFlowSolverSC::BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess,
     MultigridHierarchy<Domain>* solver, SpatialTree* root) {
         double delta = initGuess;
-        Eigen::MatrixXd correction(gradient.rows(), gradient.cols());
         int nVerts = curveNetwork->NumVertices();
+        Eigen::MatrixXd correction(nVerts, 3);
 
         while (delta > ls_step_threshold) {
             SetGradientStep(gradient, delta);
@@ -112,7 +109,7 @@ namespace LWS {
             double maxBefore = FillConstraintViolations(phi);        
 
             // Compute and apply the correction
-            BackprojectMultigrid<Domain, Smoother>(phi, solver, correction);
+            solver->template BackprojectMultigrid<Smoother>(curveNetwork, phi, correction);
             for (int i = 0; i < nVerts; i++) {
                 CurveVertex* p = curveNetwork->GetVertex(i);
                 Vector3 cur = p->Position();
@@ -134,19 +131,4 @@ namespace LWS {
         std::cout << "Couldn't make backprojection succeed (initial step " << initGuess << ")" << std::endl;
         return false;
     }
-
-    template<typename Domain, typename Smoother>
-    void TPEFlowSolverSC::BackprojectMultigrid(Eigen::VectorXd &phi, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output) {
-        // Flatten the gradient matrix into a long vector
-        Eigen::VectorXd B_pinv_phi(solver->NumRows());
-        curveNetwork->constraintProjector->ApplyBPinv(phi, B_pinv_phi);
-        Product::MatrixReplacement<typename MultigridHierarchy<Domain>::Mult> multiplier(solver->GetTopLevelMultiplier(), solver->NumRows());
-        Eigen::VectorXd GB_phi = multiplier * B_pinv_phi;
-        // Solve Gv = b by solving PGPv = Pb
-        GB_phi = curveNetwork->constraintProjector->ProjectToNullspace(GB_phi);
-        Eigen::VectorXd v = solver->template VCycleSolve<Smoother>(GB_phi);
-        v = B_pinv_phi - v;
-        VectorXdIntoMatrix(v, output);
-    }
-
 }

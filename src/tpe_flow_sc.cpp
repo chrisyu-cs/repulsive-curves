@@ -311,25 +311,6 @@ namespace LWS {
         }
     }
 
-    double TPEFlowSolverSC::FillLengthConstraintViolations(Eigen::VectorXd &b, int baseIndex) {
-        if (!useEdgeLengthConstraint) return 0;
-        int nVerts = curveNetwork->NumVertices();
-
-        double maxViolation = 0;
-
-        for (int i = 0; i < curveNetwork->NumEdges(); i++) {
-            // Compute current segment length
-            CurveEdge* p = curveNetwork->GetEdge(i);
-            double curDist = p->Length();
-
-            double negError = initialLengths[i] - curDist;
-            b(baseIndex + i) = negError;
-
-            maxViolation = fmax(maxViolation, fabs(negError));
-        }
-        return maxViolation;
-    }
-
     bool TPEFlowSolverSC::BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
         int nVerts = curveNetwork->NumVertices();
         Eigen::VectorXd b;
@@ -342,14 +323,8 @@ namespace LWS {
             // so we only need one solve.
 
             // Place all 3 barycenter coordinates on RHS
-            b(3 * nVerts) = -barycenter.x;
-            b(3 * nVerts + 1) = -barycenter.y;
-            b(3 * nVerts + 2) = -barycenter.z;
-
-            double maxViolation = 0;
-
-            // Add length violations to RHS
-            maxViolation = FillLengthConstraintViolations(b, 3 * nVerts + 3);
+            double maxViolation = curveNetwork->FillConstraintViolations(b, initialLengths);
+            
             // Solve for correction
             Eigen::VectorXd corr = lu.solve(b);
             // Apply correction
@@ -546,18 +521,7 @@ namespace LWS {
     }
 
     double TPEFlowSolverSC::FillConstraintViolations(Eigen::VectorXd &phi) {
-        int nVerts = curveNetwork->NumVertices();
-        Vector3 barycenter = curveNetwork->Barycenter();
-
-        // Fill all 3 barycenter coordinates
-        phi(0) = -barycenter.x;
-        phi(1) = -barycenter.y;
-        phi(2) = -barycenter.z;
-
-        // Add length violations to RHS
-        FillLengthConstraintViolations(phi, 3);
-        double maxViolation = phi.lpNorm<Eigen::Infinity>();
-        return maxViolation;
+        return curveNetwork->FillConstraintViolations(phi, initialLengths);
     }
 
     bool TPEFlowSolverSC::StepSobolevLSIterative(double epsilon) {
@@ -597,7 +561,7 @@ namespace LWS {
         // Take a line search step using this gradient
         long ls_start = Utils::currentTimeMilliseconds();
         double step_size = CircleSearch::CircleSearchStep<MultigridSolver, MultigridSolver::EigenCG>(curveNetwork,
-            vertGradients, l2gradients, tree_root, multigrid, dot_acc, alpha, beta, 1e-6);
+            vertGradients, l2gradients, tree_root, multigrid, initialLengths, dot_acc, alpha, beta, 1e-6);
         // double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
         long ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;

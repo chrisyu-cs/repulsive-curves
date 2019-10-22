@@ -21,7 +21,8 @@ namespace LWS {
 
         template<typename Solver, typename Smoother>
         static double CircleSearchStep(PolyCurveNetwork* curves, Eigen::MatrixXd &projectedGradient,
-        Eigen::MatrixXd &l2Gradient, BVHNode3D* bvh, Solver* solver, double gradDot, double alpha, double beta, double epsilon);
+        Eigen::MatrixXd &l2Gradient, BVHNode3D* bvh, Solver* solver, std::vector<double> &targetLengths,
+        double gradDot, double alpha, double beta, double epsilon);
 
     };
 
@@ -90,9 +91,26 @@ namespace LWS {
         curves->positions = origPos + R * (p_dot_coeff * -p_dot + R * K_coeff * K);
     }
 
+    inline void plotSteps(PolyCurveNetwork* curves, Eigen::MatrixXd &origPos, Eigen::MatrixXd &p_dot, Eigen::MatrixXd &K,
+    double R, double alpha_0, double alpha_1, BVHNode3D* bvh, std::vector<double> &targetLengths) {
+        for (double t = 0; t < 0.2; t += 0.001) {
+            setCircleStep(curves, origPos, p_dot, K, t, R, alpha_0, alpha_1);
+            bvh->recomputeCentersOfMass(curves);
+
+            Eigen::VectorXd constraints(curves->NumEdges() + 3);
+            constraints.setZero();
+            curves->FillConstraintViolations(constraints, targetLengths);
+            double constraintNorm = constraints.norm();
+
+            double energy = SpatialTree::TPEnergyBH(curves, bvh, 2, 4);
+            std::cout << t << ", " << energy << ", " << constraintNorm << std::endl;
+        }
+    }
+
     template<typename Solver, typename Smoother>
     double CircleSearch::CircleSearchStep(PolyCurveNetwork* curves, Eigen::MatrixXd &projectedGradient,
-    Eigen::MatrixXd &l2Gradient, BVHNode3D* bvh, Solver* solver, double gradDot, double alpha, double beta, double epsilon) {
+    Eigen::MatrixXd &l2Gradient, BVHNode3D* bvh, Solver* solver, std::vector<double> &targetLengths,
+    double gradDot, double alpha, double beta, double epsilon) {
         int nVerts = curves->NumVertices();
         Eigen::VectorXd p_dotdot = SolveSecondDerivative<Solver, Smoother>(curves, projectedGradient, l2Gradient,
             bvh, solver, alpha, beta, epsilon);
@@ -113,6 +131,7 @@ namespace LWS {
         double alpha_max = M_PI / 2;
 
         double gradNorm = projectedGradient.norm();
+        // double t_guess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
         double t_guess = (-alpha_0 + sqrt(alpha_0 * alpha_0 + 4 * R * alpha_1 * alpha_max)) / (2 * alpha_1);
         // t_guess = fmin(t_guess, 1.0 / gradNorm);
 
@@ -127,6 +146,8 @@ namespace LWS {
         double sigma = 0.01;
         int numBacktracks = 0;
         double ls_step_threshold = 1e-10;
+
+        plotSteps(curves, origPos, projectedGradient, K_matrix, R, alpha_0, alpha_1, bvh, targetLengths);
 
         // Line search
         while (fabs(t_guess) > ls_step_threshold) {
@@ -159,9 +180,48 @@ namespace LWS {
             }
         }
 
+        double backproj_threshold = 1e-3;
+        Eigen::MatrixXd correction(nVerts, 3);
+        correction.setZero();
+        bool first = true;
+
         // Backprojection
+        while (fabs(t_guess) > ls_step_threshold) {
+            if (first) {
+                first = false;
+            }
+            else {
+                setCircleStep(curves, origPos, projectedGradient, K_matrix, t_guess, R, alpha_0, alpha_1);
+            }
+            // Update the centers of mass to reflect the new positions
+            bvh->recomputeCentersOfMass(curves);
+
+            Eigen::VectorXd phi(curves->NumEdges() + 3);
+            double maxBefore = curves->FillConstraintViolations(phi, targetLengths);        
+
+            // Compute and apply the correction
+            solver->template BackprojectMultigrid<Smoother>(curves, phi, correction);
+            for (int i = 0; i < nVerts; i++) {
+                CurveVertex* p = curves->GetVertex(i);
+                Vector3 cur = p->Position();
+                p->SetPosition(cur + SelectRow(correction, i));
+            }
+
+            // Add length violations to RHS
+            double maxViolation = curves->FillConstraintViolations(phi, targetLengths);
+            std::cout << "  Constraint: " << maxBefore << " -> " << maxViolation << std::endl;
+
+            if (maxViolation < backproj_threshold) {
+                break;
+            }
+            else {
+                std::cout << "Couldn't backproject; decreased step to " << t_guess << std::endl;
+                t_guess /= 2;
+            }
+        }
 
         std::cout << "t_guess = " << t_guess << " (" << numBacktracks << " backtracks)" << std::endl;
+        std::cout << "Total length = " << curves->TotalLength() << std::endl;
         std::cout << "Energy: " << initialEnergy << " -> " << newEnergy << std::endl;
 
         return fabs(t_guess);
