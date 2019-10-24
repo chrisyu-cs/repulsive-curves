@@ -126,6 +126,32 @@ namespace LWS {
       inadmfile.close();
     }
 
+    if (ImGui::Button("Test scaling")) {
+      Eigen::MatrixXd initGradients;
+      initGradients.setZero(curves->NumVertices(), 3);
+      double initEnergy = tpeSolver->CurrentEnergyDirect();
+      tpeSolver->FillGradientVectorDirect(initGradients);
+
+      curves->positions = curves->positions * 2;
+
+      double scaledEnergy = tpeSolver->CurrentEnergyDirect();
+      Eigen::MatrixXd scaledGradients;
+      scaledGradients.setZero(curves->NumVertices(), 3);
+      tpeSolver->FillGradientVectorDirect(scaledGradients);
+      
+      Eigen::MatrixXd gradientRatio = scaledGradients;
+
+      for (int i = 0; i < curves->NumVertices(); i++) {
+        for (int j = 0; j < 3; j++) {
+          gradientRatio(i, j) = scaledGradients(i, j) / initGradients(i, j);
+        }
+      }
+
+      std::cout << "Gradient ratio = \n" << gradientRatio << std::endl;
+      std::cout << "Energy ratio = " << scaledEnergy << " / " << initEnergy << " = " << (scaledEnergy / initEnergy) << std::endl;
+
+    }
+
     if (ImGui::Button("Test multiply")) {
       std::cout << "Machine epsilon: " << std::numeric_limits<double>::epsilon() << std::endl;
 
@@ -361,7 +387,7 @@ namespace LWS {
   void LWSApp::initSolver() {
     if (!tpeSolver) {
       // Set up solver
-      tpeSolver = new TPEFlowSolverSC(curves);
+      tpeSolver = new TPEFlowSolverSC(curves, 3, 6);
     }
   }
 

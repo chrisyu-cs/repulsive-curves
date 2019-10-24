@@ -11,6 +11,56 @@ namespace LWS {
         }
     }
 
+
+    void TPESC::FillGradientSingle(PolyCurveNetwork* curveNetwork, Eigen::MatrixXd &gradients, int i, int j, double alpha, double beta) {
+        if (i == j) return;
+        CurveVertex* i_pt = curveNetwork->GetVertex(i);
+        CurveVertex* j_pt = curveNetwork->GetVertex(j);
+
+        // Add i and neighbors of i
+        std::vector<CurveVertex*> i_pts;
+        i_pts.push_back(i_pt);
+        for (int e = 0; e < i_pt->numEdges(); e++) {
+            i_pts.push_back(i_pt->edge(e)->Opposite(i_pt));
+        }
+
+        // Add j and neighbors of j
+        std::vector<CurveVertex*> j_pts;
+        j_pts.push_back(j_pt);
+        for (int e = 0; e < j_pt->numEdges(); e++) {
+            j_pts.push_back(j_pt->edge(e)->Opposite(j_pt));
+        }
+
+        // Differentiate wrt neighbors of i
+        for (CurveVertex* i_n : i_pts) {
+            AddToRow(gradients, i_n->GlobalIndex(), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_n));
+        }
+        // Differentiate wrt neighbors of j
+        for (CurveVertex* j_n : j_pts) {
+            bool noOverlap = true;
+            // Only compute this derivative if j_n is not already included in one of the previous pairs
+            for (CurveVertex* i_n : i_pts) {
+                if (i_n == j_n) noOverlap = false;
+            }
+            if (noOverlap) {
+                AddToRow(gradients, j_n->GlobalIndex(), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_n));
+            }
+        }
+    }
+
+    void TPESC::FillGradientVectorDirect(PolyCurveNetwork* curveNetwork, Eigen::MatrixXd &gradients, double alpha, double beta) {
+        int nVerts = curveNetwork->NumVertices();
+        // Fill with zeros, so that the constraint entries are 0
+        gradients.setZero();
+        // Fill vertex entries with accumulated gradients
+        for (int i = 0; i < nVerts; i++) {
+            for (int j = 0; j < nVerts; j++) {
+                if (i == j) continue;
+                TPESC::FillGradientSingle(curveNetwork, gradients, i, j, alpha, beta);
+            }
+        }
+    }
+
     double TPESC::tpe_Kf(CurveVertex* i, CurveVertex* j, double alpha, double beta) {
         if (i == j) return 0;
         Vector3 disp = i->Position() - j->Position();

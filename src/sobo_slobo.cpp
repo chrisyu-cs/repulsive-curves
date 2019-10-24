@@ -251,6 +251,22 @@ namespace LWS {
         }
     }
 
+    void SobolevCurves::SobolevGramMatrix3X(PolyCurveNetwork* curves, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
+        Eigen::MatrixXd topLeft;
+        int nVerts = curves->NumVertices();
+        topLeft.setZero(nVerts, nVerts);
+
+        SobolevGramMatrix(curves, alpha, beta, topLeft, diagEps);
+
+        for (int i = 0; i < nVerts; i++) {
+            for (int j = 0; j < nVerts; j++) {
+                A(3 * i, 3 * j) = topLeft(i, j);
+                A(3 * i + 1, 3 * j + 1) = topLeft(i, j);
+                A(3 * i + 2, 3 * j + 2) = topLeft(i, j);
+            }
+        }
+    }
+
     void SobolevCurves::SobolevPlusBarycenter(PolyCurveNetwork* loop, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
         int nVerts = loop->NumVertices();
         // Fill the top-left block with the gram matrix

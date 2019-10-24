@@ -39,6 +39,13 @@ namespace LWS {
             out = v - out;
         }
 
+        inline Eigen::MatrixXd ProjectorMatrix() {
+            // We want to get (B^T) (B B^T)^{-1} B v, so start from the right
+            Eigen::MatrixXd BBT_inv = (B * B.transpose()).toDense().inverse();
+            BBT_inv = B.transpose() * BBT_inv * B;
+            return BBT_inv;
+        }
+
         // Multiply by (BB^T)^(-1).
         template<typename V, typename Dest>
         void SolveBBT(V &v, Dest &out) {

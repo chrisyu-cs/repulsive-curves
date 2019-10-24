@@ -39,6 +39,10 @@ namespace LWS {
         // Fills the global Sobolev-Slobodeckij Gram matrix.
         static void SobolevGramMatrix(PolyCurveNetwork* loop, double alpha,
             double beta, Eigen::MatrixXd &A, double diagEps = 0);
+        
+        // Fills the global Sobolev-Slobodeckij Gram matrix.
+        static void SobolevGramMatrix3X(PolyCurveNetwork* loop, double alpha,
+            double beta, Eigen::MatrixXd &A, double diagEps = 0);
 
         // Fills the global Sobolev-Slobodeckij Gram matrix, plus an
         // extra row for a barycenter constraint.

@@ -21,6 +21,9 @@ namespace LWS {
 
     class TPESC {
         public:
+        static void FillGradientSingle(PolyCurveNetwork* curveNetwork, Eigen::MatrixXd &gradients, int i, int j, double alpha, double beta);
+        static void FillGradientVectorDirect(PolyCurveNetwork* curveNetwork, Eigen::MatrixXd &gradients, double alpha, double beta);
+
         static double tpe_Kf(CurveVertex* i, CurveVertex* j, double alpha, double beta);
         static double tpe_Kf_pts(Vector3 p_x, Vector3 p_y, Vector3 tangent_x, double alpha, double beta);
         

@@ -6,14 +6,14 @@
 
 namespace LWS {
 
-    TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveNetwork* g) :
+    TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveNetwork* g, double a, double b) :
     originalPositions(g->NumVertices()),
     initialLengths(g->NumEdges())
     {
 
         curveNetwork = g;
-        alpha = 2;
-        beta = 4;
+        alpha = a;
+        beta = b;
         ls_step_threshold = 1e-15;
         backproj_threshold = 1e-3;
         iterNum = 0;
@@ -31,7 +31,7 @@ namespace LWS {
         else return CurrentEnergyDirect();
     }
 
-    inline double TPEFlowSolverSC::CurrentEnergyDirect() {
+    double TPEFlowSolverSC::CurrentEnergyDirect() {
         return TPESC::tpe_total(curveNetwork, alpha, beta);
     }
 
@@ -39,53 +39,8 @@ namespace LWS {
         return SpatialTree::TPEnergyBH(curveNetwork, root, alpha, beta);
     }
 
-    void TPEFlowSolverSC::FillGradientSingle(Eigen::MatrixXd &gradients, int i, int j) {
-        if (i == j) return;
-        CurveVertex* i_pt = curveNetwork->GetVertex(i);
-        CurveVertex* j_pt = curveNetwork->GetVertex(j);
-
-        // Add i and neighbors of i
-        std::vector<CurveVertex*> i_pts;
-        i_pts.push_back(i_pt);
-        for (int e = 0; e < i_pt->numEdges(); e++) {
-            i_pts.push_back(i_pt->edge(e)->Opposite(i_pt));
-        }
-
-        // Add j and neighbors of j
-        std::vector<CurveVertex*> j_pts;
-        j_pts.push_back(j_pt);
-        for (int e = 0; e < j_pt->numEdges(); e++) {
-            j_pts.push_back(j_pt->edge(e)->Opposite(j_pt));
-        }
-
-        // Differentiate wrt neighbors of i
-        for (CurveVertex* i_n : i_pts) {
-            AddToRow(gradients, i_n->GlobalIndex(), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, i_n));
-        }
-        // Differentiate wrt neighbors of j
-        for (CurveVertex* j_n : j_pts) {
-            bool noOverlap = true;
-            // Only compute this derivative if j_n is not already included in one of the previous pairs
-            for (CurveVertex* i_n : i_pts) {
-                if (i_n == j_n) noOverlap = false;
-            }
-            if (noOverlap) {
-                AddToRow(gradients, j_n->GlobalIndex(), TPESC::tpe_grad(i_pt, j_pt, alpha, beta, j_n));
-            }
-        }
-    }
-
     void TPEFlowSolverSC::FillGradientVectorDirect(Eigen::MatrixXd &gradients) {
-        int nVerts = curveNetwork->NumVertices();
-        // Fill with zeros, so that the constraint entries are 0
-        gradients.setZero();
-        // Fill vertex entries with accumulated gradients
-        for (int i = 0; i < nVerts; i++) {
-            for (int j = 0; j < nVerts; j++) {
-                if (i == j) continue;
-                FillGradientSingle(gradients, i, j);
-            }
-        }
+        TPESC::FillGradientVectorDirect(curveNetwork, gradients, alpha, beta);
     }
 
     void TPEFlowSolverSC::FillGradientVectorBH(SpatialTree *root, Eigen::MatrixXd &gradients) {

@@ -284,6 +284,89 @@ namespace LWS {
 
     };
 
+    class DenseEdgeNullProjectorDomain : public MultigridDomain<DenseEdgeNullProjectorDomain, DenseMatrixMult> {
+        public:
+        PolyCurveNetwork* curves;
+        double alpha, beta;
+        double sepCoeff;
+        int nVerts;
+        double epsilon;
+        Eigen::MatrixXd PAP;
+        DenseMatrixMult* mult;
+
+        DenseEdgeNullProjectorDomain(PolyCurveNetwork* c, double a, double b, double sep, double diagEps = 0) {
+            curves = c;
+            alpha = a;
+            beta = b;
+            sepCoeff = sep;
+            nVerts = curves->NumVertices();
+            epsilon = diagEps;
+
+            EdgeLengthConstraint constraint(curves);
+            curves->AddConstraintProjector(constraint);
+
+            Eigen::MatrixXd P = curves->constraintProjector->ProjectorMatrix();
+            PAP.setZero(nVerts * 3, nVerts * 3);
+            SobolevCurves::SobolevGramMatrix3X(curves, alpha, beta, PAP, epsilon);
+            PAP = P * PAP * P;
+
+            mult = new DenseMatrixMult(PAP);
+        }
+
+        ~DenseEdgeNullProjectorDomain() {
+            delete mult;
+        }
+
+        MultigridDomain<DenseEdgeNullProjectorDomain, DenseMatrixMult>* Coarsen(MultigridOperator &prolongOp) const {
+            PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
+            DenseEdgeNullProjectorDomain* coarseDomain = new DenseEdgeNullProjectorDomain(coarsened, alpha, beta, sepCoeff, epsilon);
+            prolongOp.lowerP = coarseDomain->GetConstraintProjector();
+            prolongOp.upperP = GetConstraintProjector();
+            return coarseDomain;
+        }
+
+        DenseMatrixMult* GetMultiplier() const {
+            return mult;
+        }
+
+        Eigen::MatrixXd GetFullMatrix() const {
+            int rows = nVerts + 1;
+            Eigen::MatrixXd A;
+            A.setZero(4 * nVerts + 3, 4 * nVerts + 3);
+            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A, epsilon);
+            SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
+            return A;
+        }
+
+        Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
+            Eigen::VectorXd b_aug(4 * nVerts + 3);
+            int constraintRows = nVerts + 3;
+            b_aug.block(0, 0, b.rows(), 1) = b;
+            b_aug.block(b.rows(), 0, constraintRows, 1).setZero();
+
+            Eigen::MatrixXd A = GetFullMatrix();
+            b_aug = A.partialPivLu().solve(b_aug);
+            return b_aug.block(0, 0, b.rows(), 1);
+        }
+
+        int NumVertices() const {
+            return nVerts;
+        }
+
+        int NumRows() const {
+            return 3 * nVerts;
+        }
+
+        ProlongationMode GetMode() const {
+            return ProlongationMode::Matrix3AndProjector;
+        }
+
+        NullSpaceProjector* GetConstraintProjector() const {
+            return curves->constraintProjector;
+        }
+
+    };
+
     class Barycenter3Domain : public MultigridDomain<Barycenter3Domain, BlockClusterTree> {
         public:
         PolyCurveNetwork* curves;

@@ -12,6 +12,9 @@ namespace LWS {
         template<typename V, typename Dest>
         void Multiply(V &v, Dest &b) const;
 
+        template<typename V>
+        double DotProduct(V &v1, V &v2) const;
+
         private:
         Eigen::MatrixXd A;
 
@@ -33,4 +36,11 @@ namespace LWS {
             b[i] = Ax(i);
         }
     }
+
+    template<typename V>
+    double DenseMatrixMult::DotProduct(V &v1, V &v2) const {
+        return v1.dot(A * v2);
+    }
+
+    
 }

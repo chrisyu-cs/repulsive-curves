@@ -18,9 +18,9 @@ namespace LWS {
 
     class TPEFlowSolverSC {
         public:
-        TPEFlowSolverSC(PolyCurveNetwork* p);
+        TPEFlowSolverSC(PolyCurveNetwork* p, double a, double b);
         double CurrentEnergy(SpatialTree *root = 0);
-        inline double CurrentEnergyDirect();
+        double CurrentEnergyDirect();
         double CurrentEnergyBH(SpatialTree *root);
         void FillGradientSingle(Eigen::MatrixXd &gradients, int i, int j);
         void FillGradientVectorDirect(Eigen::MatrixXd &gradients);

@@ -12,23 +12,23 @@ namespace LWS {
         // and (directional derivative of Gram matrix) * energy gradient.
         public:
         static Eigen::VectorXd DifferentiateRHS(PolyCurveNetwork* curves, Eigen::VectorXd &projectedGradient,
-        Eigen::MatrixXd &l2Gradient, BVHNode3D* bvh, BlockClusterTree* mult, Eigen::VectorXd &lambda,
+        Eigen::MatrixXd &dE, BVHNode3D* bvh, BlockClusterTree* mult, Eigen::VectorXd &lambda,
         NullSpaceProjector* projector, double alpha, double beta, double epsilon);
 
         template<typename Solver, typename Smoother>
         static Eigen::VectorXd SolveSecondDerivative(PolyCurveNetwork* curves, Eigen::MatrixXd &projectedGradient,
-        Eigen::MatrixXd &l2Gradient, BVHNode3D* bvh, Solver* solver, double alpha, double beta, double epsilon);
+        Eigen::MatrixXd &dE, BVHNode3D* bvh, Solver* solver, double alpha, double beta, double epsilon);
 
         template<typename Solver, typename Smoother>
         static double CircleSearchStep(PolyCurveNetwork* curves, Eigen::MatrixXd &projectedGradient,
-        Eigen::MatrixXd &l2Gradient, BVHNode3D* bvh, Solver* solver, std::vector<double> &targetLengths,
+        Eigen::MatrixXd &dE, BVHNode3D* bvh, Solver* solver, std::vector<double> &targetLengths,
         double gradDot, double alpha, double beta, double epsilon);
 
     };
 
     template<typename Solver, typename Smoother>
     Eigen::VectorXd CircleSearch::SolveSecondDerivative(PolyCurveNetwork* curves, Eigen::MatrixXd &projectedGradient,
-    Eigen::MatrixXd &l2Gradient, BVHNode3D* bvh, Solver* solver, double alpha, double beta, double epsilon) {
+    Eigen::MatrixXd &dE, BVHNode3D* bvh, Solver* solver, double alpha, double beta, double epsilon) {
         int nVerts = curves->NumVertices();
         BlockClusterTree* mult = solver->levels[0]->GetMultiplier();
 
@@ -41,7 +41,7 @@ namespace LWS {
         projGrad3x.setZero();
         l2grad3x.setZero();
         MatrixIntoVectorX3(projectedGradient, projGrad3x);
-        MatrixIntoVectorX3(l2Gradient, l2grad3x);
+        MatrixIntoVectorX3(dE, l2grad3x);
         // lambda now contains G * u
         mult->Multiply(projGrad3x, lambda);
         NullSpaceProjector* projector = solver->levels[0]->GetConstraintProjector();
@@ -54,7 +54,7 @@ namespace LWS {
         // Solve (BB^T) lambda = B phi - B G u to get lambda
         projector->SolveBBT(lambda, lambda);
 
-        Eigen::VectorXd rhs = DifferentiateRHS(curves, projGrad3x, l2Gradient, bvh, mult, lambda,
+        Eigen::VectorXd rhs = DifferentiateRHS(curves, projGrad3x, dE, bvh, mult, lambda,
             projector, alpha, beta, epsilon);
 
         int nConstraints = curves->NumEdges() + 3;
@@ -83,18 +83,24 @@ namespace LWS {
     }
 
     inline void setCircleStep(PolyCurveNetwork* curves, Eigen::MatrixXd &origPos, Eigen::MatrixXd &p_dot, Eigen::MatrixXd &K,
-    double t, double R, double alpha_0, double alpha_1) {
+    double t, double R, double alpha_0, double alpha_1, Eigen::MatrixXd &p_dotdot) {
         double alpha_of_t = alphaOfStep(t, R, alpha_0, alpha_1);
         double p_dot_coeff = sin(alpha_of_t) / alpha_0;
         double K_coeff = (1.0 - cos(alpha_of_t));
 
-        curves->positions = origPos + R * (p_dot_coeff * -p_dot + R * K_coeff * K);
+        // curves->positions = origPos + R * (p_dot_coeff * -p_dot + R * K_coeff * K);
+        // curves->positions = origPos + -p_dot * t + 0.5 * t * t * -p_dotdot;
+        curves->positions = origPos + -p_dot * t;
     }
 
     inline void plotSteps(PolyCurveNetwork* curves, Eigen::MatrixXd &origPos, Eigen::MatrixXd &p_dot, Eigen::MatrixXd &K,
-    double R, double alpha_0, double alpha_1, BVHNode3D* bvh, std::vector<double> &targetLengths) {
-        for (double t = 0; t < 0.2; t += 0.001) {
-            setCircleStep(curves, origPos, p_dot, K, t, R, alpha_0, alpha_1);
+    double R, double alpha_0, double alpha_1, BVHNode3D* bvh, std::vector<double> &targetLengths, double gradDot, Eigen::MatrixXd &dE) {
+        for (double t = 0; t < 2e-2; t += 1e-4) {
+            // Eigen::MatrixXd realDE(curves->NumVertices(), 3);
+            // realDE.setZero();
+            // TPESC::FillGradientVectorDirect(curves, realDE, 2, 4);
+
+            setCircleStep(curves, origPos, p_dot, K, t, R, alpha_0, alpha_1, p_dot);
             bvh->recomputeCentersOfMass(curves);
 
             Eigen::VectorXd constraints(curves->NumEdges() + 3);
@@ -102,18 +108,34 @@ namespace LWS {
             curves->FillConstraintViolations(constraints, targetLengths);
             double constraintNorm = constraints.norm();
 
+            double dotLengths = 0;
+
+            for (int i = 0; i < curves->NumVertices(); i++) {
+                for (int j = 0; j < 3; j++) {
+                    dotLengths += p_dot(i, j) * dE(i, j);
+                }
+            }
+
+            double targetDecrease = dotLengths * t;
+
             double energy = SpatialTree::TPEnergyBH(curves, bvh, 2, 4);
-            std::cout << t << ", " << energy << ", " << constraintNorm << std::endl;
+            double realEnergy = 0; //TPESC::tpe_total(curves, 2, 4);
+
+            std::cout << t << ", " << energy << ", " << -targetDecrease << ", " << realEnergy << std::endl;
         }
     }
 
     template<typename Solver, typename Smoother>
     double CircleSearch::CircleSearchStep(PolyCurveNetwork* curves, Eigen::MatrixXd &projectedGradient,
-    Eigen::MatrixXd &l2Gradient, BVHNode3D* bvh, Solver* solver, std::vector<double> &targetLengths,
+    Eigen::MatrixXd &dE, BVHNode3D* bvh, Solver* solver, std::vector<double> &targetLengths,
     double gradDot, double alpha, double beta, double epsilon) {
         int nVerts = curves->NumVertices();
-        Eigen::VectorXd p_dotdot = SolveSecondDerivative<Solver, Smoother>(curves, projectedGradient, l2Gradient,
+        Eigen::VectorXd p_dotdot = SolveSecondDerivative<Solver, Smoother>(curves, projectedGradient, dE,
             bvh, solver, alpha, beta, epsilon);
+
+        Eigen::MatrixXd p_dotdot_mat;
+        p_dotdot_mat.setZero(nVerts, 3);
+        VectorXdIntoMatrix(p_dotdot, p_dotdot_mat);
 
         Eigen::VectorXd p_dot(nVerts * 3);
         p_dot.setZero();
@@ -132,8 +154,21 @@ namespace LWS {
 
         double gradNorm = projectedGradient.norm();
         // double t_guess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
-        double t_guess = (-alpha_0 + sqrt(alpha_0 * alpha_0 + 4 * R * alpha_1 * alpha_max)) / (2 * alpha_1);
+        double t_guess = -2 * alpha_0 / alpha_1;
+
+        if (alphaOfStep(t_guess, R, alpha_0, alpha_1) > alpha_max) {
+            double alpha_t = alphaOfStep(t_guess, R, alpha_0, alpha_1);
+            std::cout << "Initial guess " << t_guess << " had alpha " << alpha_t << " greater than max " << alpha_max << std::endl;
+            t_guess = (-alpha_0 + sqrt(alpha_0 * alpha_0 + 4 * R * alpha_1 * alpha_max)) / (2 * alpha_1);
+        }
+        if (t_guess < 0) {
+            std::cout << "Guess " << t_guess << " was negative" << std::endl;
+            t_guess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
+        }
         // t_guess = fmin(t_guess, 1.0 / gradNorm);
+
+        std::cout << "p_dot norm = " << gradNorm << std::endl;
+        std::cout << "t_guess = " << t_guess << std::endl;
 
         Eigen::MatrixXd K_matrix(K.rows() / 3, 3);
         VectorXdIntoMatrix(K, K_matrix);
@@ -147,12 +182,12 @@ namespace LWS {
         int numBacktracks = 0;
         double ls_step_threshold = 1e-10;
 
-        plotSteps(curves, origPos, projectedGradient, K_matrix, R, alpha_0, alpha_1, bvh, targetLengths);
+        // plotSteps(curves, origPos, projectedGradient, K_matrix, R, alpha_0, alpha_1, bvh, targetLengths, gradDot, dE);
 
         // Line search
         while (fabs(t_guess) > ls_step_threshold) {
             // Search along this direction
-            setCircleStep(curves, origPos, projectedGradient, K_matrix, t_guess, R, alpha_0, alpha_1);
+            setCircleStep(curves, origPos, projectedGradient, K_matrix, t_guess, R, alpha_0, alpha_1, p_dotdot_mat);
             // Check the new energy
             bvh->recomputeCentersOfMass(curves);
             newEnergy = SpatialTree::TPEnergyBH(curves, bvh, alpha, beta);
@@ -187,11 +222,12 @@ namespace LWS {
 
         // Backprojection
         while (fabs(t_guess) > ls_step_threshold) {
+            break;
             if (first) {
                 first = false;
             }
             else {
-                setCircleStep(curves, origPos, projectedGradient, K_matrix, t_guess, R, alpha_0, alpha_1);
+                setCircleStep(curves, origPos, projectedGradient, K_matrix, t_guess, R, alpha_0, alpha_1, p_dotdot_mat);
             }
             // Update the centers of mass to reflect the new positions
             bvh->recomputeCentersOfMass(curves);
