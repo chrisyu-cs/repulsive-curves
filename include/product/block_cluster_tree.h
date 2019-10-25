@@ -61,10 +61,15 @@ namespace LWS {
 
         // Multiplies the inadmissible clusters for A * v, storing it in b.
         void MultiplyInadmissible(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int startIndex, int endIndex) const;
-        void MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int nThreads) const;
+        void MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat,
+            Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int nThreads) const;
         void MultiplyAdmissibleFast(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
         // Multiplies the admissible clusters for A * v, storing it in b.
         void MultiplyAdmissible(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
+
+        // Same, but for low-order term.
+        void MultiplyAdmissibleFastLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
+        void MultiplyInadmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int startIndex, int endIndex) const;
 
         // Multiplies A * v, where v holds a vector3 at each vertex in a flattened column,
         //  and stores it in b.
@@ -87,14 +92,25 @@ namespace LWS {
         }
 
         void AfFullProduct(ClusterPair pair, const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
-        void AfApproxProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
+        void AfFullProductLow(ClusterPair pair, const Eigen::VectorXd &v_mid, Eigen::VectorXd &result) const;
+        void AfApproxProduct(ClusterPair pair, const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
+        void AfApproxProductLow(ClusterPair pair, const Eigen::VectorXd &v_mid, Eigen::VectorXd &result) const;
 
         template<typename V>
         Eigen::VectorXd MultiplyAf(const V &v) const;
         template<typename V>
+        Eigen::VectorXd MultiplyAfLow(const V &v) const;
+
+        template<typename V>
         void SetVIs(BVHNode3D* node, const V &v_hat) const;
+        template<typename V>
+        void SetVIsLow(BVHNode3D* node, const V &v_mid) const;
+
         template<typename Dest>
         void SetBIs(BVHNode3D* node, Dest &b_tilde) const;
+        template<typename Dest>
+        void SetBIsLow(BVHNode3D* node, Dest &b_tilde) const;
+
         template<typename Dest>
         void PropagateBIs(BVHNode3D* node, double parent_BI, Dest &b_tilde) const;
 
@@ -133,6 +149,17 @@ namespace LWS {
         result = tree_root->fullMasses.asDiagonal() * result;
         return result;
     }
+
+    template<typename V>
+    Eigen::VectorXd BlockClusterTree::MultiplyAfLow(const V &v) const {
+        tree_root->recursivelyZeroMVFields();
+        Eigen::VectorXd result(v.rows());
+        result.setZero();
+        SetVIsLow(tree_root, v);
+        SetBIsLow(tree_root, result);
+        result = tree_root->fullMasses.asDiagonal() * result;
+        return result;
+    }
     
     template<typename V>
     void BlockClusterTree::SetVIs(BVHNode3D* node, const V &v_hat) const {
@@ -151,13 +178,45 @@ namespace LWS {
             }
         }
     }
+    
+    template<typename V>
+    void BlockClusterTree::SetVIsLow(BVHNode3D* node, const V &v_mid) const {
+        if (node->IsLeaf()) {
+            int index = node->VertexIndex();
+            double w_j = node->totalMass;
+            double v_mid_j = v_mid(index);
+            node->V_I = w_j * v_mid_j;
+        }
+        else {
+            node->V_I = 0;
+            // Start at the roots and propagate upward
+            for (BVHNode3D* child : node->children) {
+                SetVIsLow(child, v_mid);
+                node->V_I += child->V_I;
+            }
+        }
+    }
 
     template<typename Dest>
     void BlockClusterTree::SetBIs(BVHNode3D* node, Dest &b_tilde) const {
         // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
         for (ClusterPair pair : admissiblePairs) {
-            double pow_s = beta - alpha;
-            double a_IJ = 1.0 / pow(norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass), pow_s);
+            double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta,
+                pair.cluster1->centerOfMass, pair.cluster2->centerOfMass);
+            pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
+        }
+
+        // Now recursively propagate downward
+        PropagateBIs(node, 0, b_tilde);
+    }
+
+    template<typename Dest>
+    void BlockClusterTree::SetBIsLow(BVHNode3D* node, Dest &b_tilde) const {
+        // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
+        for (ClusterPair pair : admissiblePairs) {
+            Vector3 tangent = pair.cluster1->averageTangent.normalize();
+            double a_IJ = SobolevCurves::MetricDistanceTermLow(alpha, beta,
+                pair.cluster1->centerOfMass, pair.cluster2->centerOfMass, tangent);
             pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
         }
 
@@ -276,26 +335,37 @@ namespace LWS {
     template<typename V, typename Dest>
     void BlockClusterTree::MultiplyVector(V &v, Dest &b) const {
         int nVerts = curves->NumVertices();
-        Eigen::MatrixXd v_hat(nVerts, 3);
+        int nEdges = curves->NumEdges();
+        Eigen::MatrixXd v_hat(nEdges, 3);
         v_hat.setZero();
 
         SobolevCurves::ApplyDf(curves, v, v_hat);
 
-        Eigen::MatrixXd b_hat_adm(nVerts, 3);
+        Eigen::MatrixXd b_hat_adm(nEdges, 3);
         b_hat_adm.setZero();
 
-        Eigen::MatrixXd b_hat_inadm(nVerts, 3);
+        Eigen::VectorXd v_low = v;
+        Eigen::VectorXd b_low_adm(nVerts);
+        b_low_adm.setZero();
+        Eigen::MatrixXd b_hat_inadm(nEdges, 3);
         b_hat_inadm.setZero();
+        Eigen::VectorXd b_low_inadm(nVerts);
+        b_low_inadm.setZero();
 
         long illSepStart = Utils::currentTimeMilliseconds();
         // MultiplyInadmissible(v_hat, b_hat_inadm, 0, inadmissiblePairs.size());
-        MultiplyInadmissibleParallel(v_hat, b_hat_inadm, 6);
+        // MultiplyInadmissibleParallel(v_hat, b_hat_inadm, v_low, b_low_inadm, 6);
         long middle = Utils::currentTimeMilliseconds();
         // MultiplyAdmissible(v_hat, b_hat_adm);
-        MultiplyAdmissibleFast(v_hat, b_hat_adm);
+        // MultiplyAdmissibleFast(v_hat, b_hat_adm);
+
+        MultiplyInadmissibleLow(v_low, b_low_inadm, 0, inadmissiblePairs.size());
+        MultiplyAdmissibleFastLow(v_low, b_low_adm);
         long wellSepEnd = Utils::currentTimeMilliseconds();
 
         b_hat_adm += b_hat_inadm;
+        b_low_adm += b_low_inadm;
+
 
         long illTime = (middle - illSepStart);
         long wellTime = (wellSepEnd - middle);
@@ -303,7 +373,8 @@ namespace LWS {
         illSepTime += illTime;
         wellSepTime += wellTime;
 
-        SobolevCurves::ApplyDfTranspose(curves, b_hat_adm, b);
+        // SobolevCurves::ApplyDfTranspose(curves, b_hat_adm, b);
+        b += b_low_adm;
     }
 
     template<typename V3, typename Dest>

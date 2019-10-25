@@ -26,17 +26,17 @@ namespace LWS {
         // the epsilon-perturbed vectors
         Eigen::MatrixXd origPositions = curves->positions;
         double projNorm = projectedGradient.norm();
-        // Move by epsilon in the normalized projected gradient direction
-        curves->positions += (epsilon  / projNorm) * (projectedGradient);
-        bvh->recomputeCentersOfMass(curves);
-        mult->refreshEdgeWeights();
+        // Move by epsilon in the search direction
+        curves->positions -= (epsilon  / projNorm) * (projectedGradient);
         
         // Get the epsilon-perturbed L2 gradient
         Eigen::MatrixXd l2GradientEps;
         l2GradientEps.setZero(nVerts, 3);
+        bvh->recomputeCentersOfMass(curves);
         SpatialTree::TPEGradientBarnesHut(curves, bvh, l2GradientEps, alpha, beta);
 
         // Multiply (Gram + eps) * gradient
+        mult->refreshEdgeWeights();
         mult->Multiply(projectedGradient, gramTimesGradientEps);
         // Assemble new constraint block
         Eigen::SparseMatrix<double> B_eps;
@@ -55,6 +55,7 @@ namespace LWS {
         sum.setZero(nVerts * 3 + nConstraints);
         MatrixIntoVectorX3(l2GradientEps, sum);
 
+        // Reset original values
         curves->positions = origPositions;
         bvh->recomputeCentersOfMass(curves);
         mult->refreshEdgeWeights();

@@ -166,7 +166,13 @@ namespace LWS {
         double len2 = t->Length();
         Vector3 mid1 = s->Midpoint();
         Vector3 mid2 = t->Midpoint();
-        double denom = pow(norm(mid1 - mid2), beta - alpha);
+    
+        // Vector3 s_tan = s->Tangent();
+        // Vector3 dist_vec = mid1 - mid2;
+        // Vector3 projected = dist_vec - dot(dist_vec, s_tan) * s_tan;
+
+        double dist_term = SobolevCurves::MetricDistanceTerm(alpha, beta, mid1, mid2);
+        // double dist_term = pow(norm(projected), alpha - 2) / pow(norm(dist_vec), beta - 2);
 
         for (CurveVertex* u : endpoints) {
             for (CurveVertex* v : endpoints) {
@@ -179,12 +185,12 @@ namespace LWS {
                 int index_u = u->GlobalIndex();
                 int index_v = v->GlobalIndex();
 
-                A(index_u, index_v) += (numer / denom) * len1 * len2;
+                A(index_u, index_v) += numer * dist_term * len1 * len2;
             }
         }
     }
 
-    double HatMidpoint(CurveEdge* edge, CurveVertex* vertex) {
+    double SobolevCurves::HatMidpoint(CurveEdge* edge, CurveVertex* vertex) {
         CurveVertex* edgeStart = edge->prevVert;
         CurveVertex* edgeEnd = edge->nextVert;
 
@@ -208,11 +214,10 @@ namespace LWS {
         double len2 = t->Length();
         Vector3 mid_s = s->Midpoint();
         Vector3 mid_t = t->Midpoint();
-        double denom = pow(norm(mid_s - mid_t), 2);
 
         Vector3 tangent_s = s->Tangent();
 
-        double kf_st = TPESC::tpe_Kf_pts(mid_s, mid_t, tangent_s, alpha, beta);
+        double kf_st = MetricDistanceTermLow(alpha, beta, mid_s, mid_t, tangent_s);
 
         for (CurveVertex* u : endpoints) {
             for (CurveVertex* v : endpoints) {
@@ -225,7 +230,7 @@ namespace LWS {
                 int index_u = u->GlobalIndex();
                 int index_v = v->GlobalIndex();
 
-                A(index_u, index_v) += (numer / denom) * kf_st * len1 * len2;
+                A(index_u, index_v) += numer * kf_st * len1 * len2;
             }
         }
     }
@@ -244,8 +249,8 @@ namespace LWS {
                 // if (pc_i == pc_j) continue;
                 if (pc_i == pc_j || pc_i->IsNeighbors(pc_j)) continue;
 
-                AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
-                // AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
+                // AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
+                AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
             }
             A(i, i) += diagEps * curves->GetVertex(i)->DualLength();
         }

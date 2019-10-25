@@ -85,12 +85,13 @@ namespace LWS {
     inline void setCircleStep(PolyCurveNetwork* curves, Eigen::MatrixXd &origPos, Eigen::MatrixXd &p_dot, Eigen::MatrixXd &K,
     double t, double R, double alpha_0, double alpha_1, Eigen::MatrixXd &p_dotdot) {
         double alpha_of_t = alphaOfStep(t, R, alpha_0, alpha_1);
+        // alpha_of_t = M_PI;
         double p_dot_coeff = sin(alpha_of_t) / alpha_0;
         double K_coeff = (1.0 - cos(alpha_of_t));
 
-        // curves->positions = origPos + R * (p_dot_coeff * -p_dot + R * K_coeff * K);
+        curves->positions = origPos + R * (p_dot_coeff * p_dot + R * K_coeff * K);
         // curves->positions = origPos + -p_dot * t + 0.5 * t * t * -p_dotdot;
-        curves->positions = origPos + -p_dot * t;
+        // curves->positions = origPos + -p_dot * t;
     }
 
     inline void plotSteps(PolyCurveNetwork* curves, Eigen::MatrixXd &origPos, Eigen::MatrixXd &p_dot, Eigen::MatrixXd &K,
@@ -147,6 +148,7 @@ namespace LWS {
         double G_pdot_pdotdot = mult->DotProduct(p_dot, p_dotdot);
 
         Eigen::VectorXd K = (1.0 / G_pdot_pdot) * (p_dotdot - p_dot * (G_pdot_pdotdot / G_pdot_pdot));
+
         double R = 1.0 / sqrt(mult->DotProduct(K, K));
         double alpha_0 = sqrt(G_pdot_pdot);
         double alpha_1 = 0.5 * (G_pdot_pdotdot / alpha_0);
@@ -165,14 +167,31 @@ namespace LWS {
             std::cout << "Guess " << t_guess << " was negative" << std::endl;
             t_guess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
         }
-        // t_guess = fmin(t_guess, 1.0 / gradNorm);
+        t_guess = fmin(t_guess, 1.0 / gradNorm);
 
         std::cout << "p_dot norm = " << gradNorm << std::endl;
+        std::cout << "p_dot G-norm = " << G_pdot_pdot << std::endl;
+        std::cout << "p_ddot norm = " << p_dotdot.norm() << std::endl;
+        std::cout << "K norm = " << K.norm() << std::endl;
         std::cout << "t_guess = " << t_guess << std::endl;
+        std::cout << "alpha_0 = " << alpha_0 << std::endl;
+        std::cout << "alpha_1 = " << alpha_1 << std::endl;
 
         Eigen::MatrixXd K_matrix(K.rows() / 3, 3);
         VectorXdIntoMatrix(K, K_matrix);
         Eigen::MatrixXd origPos = curves->positions;
+
+        std::cout << "Dot product of pddot with K = " << mult->DotProduct(p_dot, K) << std::endl;
+        setCircleStep(curves, origPos, projectedGradient, K_matrix, t_guess, R, alpha_0, alpha_1, p_dotdot_mat);
+        Eigen::MatrixXd newPos = curves->positions;
+        Eigen::MatrixXd diff = newPos - origPos;
+        Eigen::VectorXd diffvec(curves->NumVertices(), 3);
+        diffvec.setZero();
+        MatrixIntoVectorX3(diff, diffvec);
+
+        std::cout << "Distance between old and new pos = " << diff.norm() << std::endl;
+        std::cout << "Radius of 'circle' = " << 1.0 / K.norm() << std::endl;
+        std::cout << "Dot product between axis and diff = " << mult->DotProduct(diffvec, K) << std::endl;
 
         mult->SetBlockTreeMode(BlockTreeMode::Matrix3AndProjector);
 

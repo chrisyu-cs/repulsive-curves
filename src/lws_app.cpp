@@ -192,6 +192,8 @@ namespace LWS {
       std::cout << "Tree norm = " << b_tree.norm() << std::endl;
 
       std::cout << "Multiplication accuracy = " << 100 * (norm_diff / norm_mat) << " percent" << std::endl;
+      std::cout << "Normalized dot product = " << b_mat.dot(b_tree) / (b_mat.norm() * b_tree.norm()) << std::endl;
+
       delete mult;
       delete tree;
       delete vert_tree;
@@ -256,8 +258,10 @@ namespace LWS {
     if (ImGui::Button("Test 3x saddle")) {
       // Get the TPE gradient as a test problem
       int nVerts = curves->NumVertices();
-      int logNumVerts = log2(nVerts) - 4;
+      int logNumVerts = log2(nVerts) - 5;
       std::cout << "Using " << logNumVerts << " levels" << std::endl;
+
+      tpeSolver->SetExponents(3, 6);
 
       long setupStart = Utils::currentTimeMilliseconds();
       LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
@@ -266,7 +270,7 @@ namespace LWS {
       tpeSolver->FillGradientVectorBH(tree, gradients);
 
       using TestDomain = EdgeLengthNullProjectorDomain;
-      TestDomain* domain = new TestDomain(curves, 2, 4, 0.5);
+      TestDomain* domain = new TestDomain(curves, 3, 6, 0.5);
 
       // Reshape the V x 3 matrix into a 3V x 1 vector
       Eigen::VectorXd gradientsLong(domain->NumRows());
@@ -290,7 +294,7 @@ namespace LWS {
       long multigridStart = Utils::currentTimeMilliseconds();
       MultigridHierarchy<TestDomain>* hierarchy = new MultigridHierarchy<TestDomain>(domain, logNumVerts);
       std::cout << "Created hierarchy" << std::endl;
-      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<TestDomain>::EigenCG>(gradientsLong);
+      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<TestDomain>::EigenCG>(gradientsLong, 1e-2);
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 

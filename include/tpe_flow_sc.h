@@ -26,6 +26,10 @@ namespace LWS {
         void FillGradientVectorDirect(Eigen::MatrixXd &gradients);
 
         void FillGradientVectorBH(SpatialTree *root, Eigen::MatrixXd &gradients);
+        inline void SetExponents(double a, double b) {
+            alpha = a;
+            beta = b;
+        }
 
         void FillConstraintVector(Eigen::MatrixXd &gradients);
         bool StepNaive(double h);
@@ -82,7 +86,7 @@ namespace LWS {
         // we really want to solve PGPx = Pb
         gradients3x = curveNetwork->constraintProjector->ProjectToNullspace(gradients3x);
         // Solve PGPx = Pb using multigrid
-        Eigen::VectorXd sobolevGradients = solver->template VCycleSolve<Smoother>(gradients3x);
+        Eigen::VectorXd sobolevGradients = solver->template VCycleSolve<Smoother>(gradients3x, 1e-2);
         // Compute dot product with unprojected gradient, and copy into results vector
         double dirDot = gradients3x.dot(sobolevGradients) / (gradients3x.norm() * sobolevGradients.norm());
         output.setZero();
@@ -106,7 +110,7 @@ namespace LWS {
 
             Eigen::VectorXd phi(nVerts + 3);
 
-            double maxBefore = FillConstraintViolations(phi);        
+            double maxBefore = FillConstraintViolations(phi);
 
             // Compute and apply the correction
             solver->template BackprojectMultigrid<Smoother>(curveNetwork, phi, correction);

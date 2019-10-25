@@ -227,6 +227,8 @@ namespace LWS {
 
             EdgeLengthConstraint constraint(curves);
             curves->AddConstraintProjector(constraint);
+
+            // std::cout << "Made level with " << nVerts << std::endl;
         }
 
         ~EdgeLengthNullProjectorDomain() {
@@ -309,6 +311,8 @@ namespace LWS {
             PAP.setZero(nVerts * 3, nVerts * 3);
             SobolevCurves::SobolevGramMatrix3X(curves, alpha, beta, PAP, epsilon);
             PAP = P * PAP * P;
+
+            // std::cout << "Created domain with " << nVerts << std::endl;
 
             mult = new DenseMatrixMult(PAP);
         }

@@ -86,7 +86,7 @@ namespace LWS {
 
         // Solve Gx = b, where G is the Sobolev Gram matrix of the top-level curve.
         template<typename Smoother>
-        Eigen::VectorXd VCycleSolve(Eigen::VectorXd b) {
+        Eigen::VectorXd VCycleSolve(Eigen::VectorXd b, double tolerance) {
             ProlongationMode mode = levels[0]->GetMode();
 
             int numLevels = levels.size();
@@ -107,6 +107,11 @@ namespace LWS {
             Eigen::VectorXd initGuess = VCycleInitGuess<Smoother>(b, mode, hMatrices);
             Eigen::VectorXd initResidual = b - hMatrices[0] * initGuess;
             double initRelative = initResidual.lpNorm<Eigen::Infinity>() / b.lpNorm<Eigen::Infinity>();
+            // std::cout << "Initial residual = " << initRelative << std::endl;
+            if (initRelative < tolerance) {
+                // std::cout << "  * Initial residual low enough; no V-cycles needed" << std::endl;
+                return initGuess;
+            }
 
             while (!done) {
                 // Propagate residuals downward
@@ -156,12 +161,12 @@ namespace LWS {
                 double residNorm = overallResidual.lpNorm<Eigen::Infinity>() / b.lpNorm<Eigen::Infinity>();
 
                 numIters++;
-                done = (residNorm < 1e-2 || numIters >= 20);
+                done = (residNorm < tolerance || numIters >= 25);
 
                 std::cerr << "  * [Iteration " << numIters << "] residual = " << residNorm << "     \r" << std::flush;
             }
 
-            std::cout << "\n  * Did " << numIters << " iterations" << std::endl; 
+            std::cout << "\n  * Finished in " << numIters << " iterations" << std::endl; 
             return solutions[0];
         }
 
@@ -174,7 +179,7 @@ namespace LWS {
             Eigen::VectorXd GB_phi = multiplier * B_pinv_phi;
             // Solve Gv = b by solving PGPv = Pb
             GB_phi = curveNetwork->constraintProjector->ProjectToNullspace(GB_phi);
-            Eigen::VectorXd v = VCycleSolve<Smoother>(GB_phi);
+            Eigen::VectorXd v = VCycleSolve<Smoother>(GB_phi, 1e-3);
             v = B_pinv_phi - v;
             VectorXdIntoMatrix(v, output);
         }

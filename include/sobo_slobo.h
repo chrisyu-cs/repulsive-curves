@@ -30,6 +30,8 @@ namespace LWS {
         static void IntegrateLocalMatrix(EdgePositionPair e1, EdgePositionPair e2,
             double alpha, double beta, double out[4][4]);
 
+        static double HatMidpoint(CurveEdge* edge, CurveVertex* vertex);
+
         static void AddEdgePairContribution(PolyCurveNetwork* loop, double alpha, double beta,
             CurveEdge* p1, CurveEdge* p2, Eigen::MatrixXd &A);
 
@@ -75,11 +77,35 @@ namespace LWS {
         template<typename V, typename M>
         static void ApplyDf(PolyCurveNetwork* loop, V &as, M &out);
 
+        // Map a scalar-valued function on vertices to average values on edge midpoints
+        template<typename V, typename VE>
+        static void ApplyMid(PolyCurveNetwork* loop, V &as, VE &out);
+
         // Multiply by the transpose of the above Df (taking edge values back to vertices)
         template<typename V, typename M>
         static void ApplyDfTranspose(PolyCurveNetwork* loop, M &es, V &out);
 
+        // Multiply by the transpose of the midpoint matrix (taking edge values back to vertices)
+        template<typename V, typename VE>
+        static void ApplyMidTranspose(PolyCurveNetwork* loop, VE &es, V &out);
+
         static void MultiplyComponents(Eigen::MatrixXd &A, std::vector<Vector3> &x, std::vector<Vector3> &out);
+
+        static inline double MetricDistanceTerm(double alpha, double beta, Vector3 v1, Vector3 v2) {
+            double s_pow = (beta - 1) / alpha;
+            double dist_term = 1.0 / pow(norm(v1 - v2), (s_pow - 1 + 0.5) * 2);
+            return dist_term;
+        }
+
+        static inline double MetricDistanceTermLow(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1) {
+            // Vector3 diff = v2 - v1;
+            // double d_proj = norm(diff - dot(diff, t1) * t1);
+            // double d_normal = norm(diff);
+            // return pow(d_proj, alpha) / pow(d_normal, beta);
+            double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, alpha, beta);
+            double dist2 = pow(norm(v1 - v2), 2);
+            return kf_st / dist2;
+        }
     };
 
     template<typename V, typename M>
@@ -102,7 +128,24 @@ namespace LWS {
 
             SetRow(out, i_edge, grad12);
         }
-    } 
+    }
+
+    template<typename V, typename VE>
+    void SobolevCurves::ApplyMid(PolyCurveNetwork* loop, V &as, VE &out) {
+        int nEdges = loop->NumEdges();
+        for (int i = 0; i < nEdges; i++) {
+            CurveEdge* e = loop->GetEdge(i);
+            int i_edge = e->GlobalIndex();
+            CurveVertex* p1 = e->prevVert;
+            CurveVertex* p2 = e->nextVert;
+            int i1 = p1->GlobalIndex();
+            int i2 = p2->GlobalIndex();
+
+            // Average the two values
+            double avg12 = (as(i2) + as(i1)) / 2;
+            out(i_edge) = avg12;
+        }
+    }
 
     template<typename V, typename M>
     void SobolevCurves::ApplyDfTranspose(PolyCurveNetwork* loop, M &es, V &out) {
@@ -126,6 +169,24 @@ namespace LWS {
                 v_edge /= len_edge;
 
                 result += w_edge * dot(v_edge, SelectRow(es, i_edge));
+            }
+            out(i_vert) += result;
+        }
+    }
+
+    template<typename V, typename VE>
+    void SobolevCurves::ApplyMidTranspose(PolyCurveNetwork* loop, VE &es, V &out) {
+        int nVerts = loop->NumVertices();
+        for (int i = 0; i < nVerts; i++) {
+            double result = 0;
+            CurveVertex* p1 = loop->GetVertex(i);
+            int i_vert = p1->GlobalIndex();
+
+            for (int e = 0; e < p1->numEdges(); e++) {
+                CurveEdge* edge = p1->edge(e);
+                int i_edge = edge->GlobalIndex();
+                // Weight is 0.5 on all neighbor edges
+                result += 0.5 * es(i_edge);
             }
             out(i_vert) += result;
         }

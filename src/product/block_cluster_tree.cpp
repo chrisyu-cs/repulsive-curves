@@ -124,13 +124,33 @@ namespace LWS {
         b_hat = 2 * (Af_1.asDiagonal() * v_hat - b_hat);
     }
 
+    void BlockClusterTree::MultiplyAdmissibleFastLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const {
+        b_mid = MultiplyAfLow(v_mid);
+        b_mid = 2 * (Af_1.asDiagonal() * v_mid - b_mid);
+
+        // for (auto &pair : admissiblePairs) {
+        //     AfApproxProductLow(pair, v_mid, b_mid);
+        // }
+
+        // for (auto &pair : admissiblePairs) {
+        //     AfFullProductLow(pair, v_mid, b_mid);
+        // }
+    }
+
     void BlockClusterTree::MultiplyInadmissible(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int startIndex, int endIndex) const {
         for (int i = startIndex; i < endIndex; i++) {
             AfFullProduct(inadmissiblePairs[i], v_hat, b_hat);
         }
     }
 
-    void BlockClusterTree::MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int nThreads) const {
+    void BlockClusterTree::MultiplyInadmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int startIndex, int endIndex) const {
+        for (int i = startIndex; i < endIndex; i++) {
+            AfFullProductLow(inadmissiblePairs[i], v_mid, b_mid);
+        }
+    }
+
+    void BlockClusterTree::MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat,
+    Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int nThreads) const {
         int nPairs = inadmissiblePairs.size();
         // How many would be left if we rounded down to the nearest multiple of nThreads
         int leftovers = nPairs % nThreads;
@@ -143,9 +163,11 @@ namespace LWS {
         }
 
         std::vector<Eigen::MatrixXd> out_bs(nThreads);
+        std::vector<Eigen::VectorXd> out_bmids(nThreads);
 
         for (int i = 0; i < nThreads; i++) {
             out_bs[i].setZero(b_hat.rows(), b_hat.cols());
+            out_bmids[i].setZero(b_mid.rows());
         }
 
         std::vector<std::thread> threads;
@@ -153,12 +175,13 @@ namespace LWS {
         int startIndex = 0;
         for (int i = 0; i < nThreads; i++) {
             int endIndex = startIndex + counts[i];
-            // TODO: parallelize these calls
+            
             auto multiply = [&, i, startIndex, endIndex]() {
                 // std::cout << "Starting thread for [" << startIndex << ", " << endIndex << ")" << std::endl;
                 // Eigen::MatrixXd output;
                 // output.setZero(out_bs[i].rows(), out_bs[i].cols());
                 MultiplyInadmissible(v_hat, out_bs[i], startIndex, endIndex);
+                MultiplyInadmissibleLow(v_mid, out_bmids[i], startIndex, endIndex);
                 // out_bs[i] = output;
             };
             threads.push_back(std::thread(multiply));
@@ -174,6 +197,7 @@ namespace LWS {
         b_hat = out_bs[0];
         for (int i = 1; i < nThreads; i++) {
             b_hat += out_bs[i];
+            b_mid += out_bmids[i];
         }
     }
 
@@ -201,7 +225,8 @@ namespace LWS {
 
                 // Save on a few operations by only multiplying l2 now,
                 // and multiplying l1 only once, after inner loop
-                double af_ij = (isNeighbors) ? 0 : l2 / pow(norm(mid1 - mid2), pow_s);
+                double distTerm = SobolevCurves::MetricDistanceTerm(alpha, beta, mid1, mid2);
+                double af_ij = (isNeighbors) ? 0 : l2  * distTerm;
 
                 // We dot this row of Af(i, j) with the all-ones vector, which means we
                 // just add up all entries of that row.
@@ -219,8 +244,46 @@ namespace LWS {
             AddToRow(result, e1index, toAdd);
         }
     }
+
+    void BlockClusterTree::AfFullProductLow(ClusterPair pair, const Eigen::VectorXd &v_in, Eigen::VectorXd &result) const
+    {
+        for (size_t i = 0; i < pair.cluster1->clusterIndices.size(); i++) {
+            int e1index = pair.cluster1->clusterIndices[i];
+            CurveEdge* p1 = curves->GetEdge(e1index);
+            double len1 = p1->Length();
+            double l1 = tree_root->bvhRoot->fullMasses(e1index);
+
+            for (size_t j = 0; j < pair.cluster2->clusterIndices.size(); j++) {
+                int e2index = pair.cluster2->clusterIndices[j];
+                CurveEdge* p2 = curves->GetEdge(e2index);
+                double len2 = p2->Length();
+                bool isNeighbors = (p1 == p2 || p1->IsNeighbors(p2));
+                if (isNeighbors) continue;
+
+                CurveVertex* endpoints[4] = {p1->prevVert, p1->nextVert, p2->prevVert, p2->nextVert};
+
+                double kf_st = SobolevCurves::MetricDistanceTermLow(alpha, beta,
+                    p1->Midpoint(), p2->Midpoint(), p1->Tangent());
+
+                for (CurveVertex* u : endpoints) {
+                    for (CurveVertex* v : endpoints) {
+                        double u_s = SobolevCurves::HatMidpoint(p1, u);
+                        double u_t = SobolevCurves::HatMidpoint(p2, u);
+                        double v_s = SobolevCurves::HatMidpoint(p1, v);
+                        double v_t = SobolevCurves::HatMidpoint(p2, v);
+
+                        double numer = (u_s - u_t) * (v_s - v_t);
+                        int index_u = u->GlobalIndex();
+                        int index_v = v->GlobalIndex();
+
+                        result(index_v) += v_in(index_u) * numer * kf_st * len1 * len2;
+                    }
+                }
+            }
+        }
+    }
     
-    void BlockClusterTree::AfApproxProduct(ClusterPair pair, Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
+    void BlockClusterTree::AfApproxProduct(ClusterPair pair, const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const
     {
         long traversalStart = Utils::currentTimeMilliseconds();
         Eigen::VectorXd wf_i;
@@ -231,8 +294,8 @@ namespace LWS {
 
         traversalTime += (traversalEnd - traversalStart);
         
-        double pow_s = beta - alpha;
-        double a_IJ = 1.0 / pow(norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass), pow_s);
+        double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta,
+            pair.cluster1->centerOfMass, pair.cluster2->centerOfMass);
         // Evaluate a(I,J) * w_f(J)^T * 1(J)
         double a_wf_1 = a_IJ * wf_j.sum();
 
@@ -250,6 +313,11 @@ namespace LWS {
             CurveEdge* e_i = curves->GetEdge(pair.cluster1->clusterIndices[i]);
             AddToRow(result, pair.cluster1->clusterIndices[i], toAdd);
         }
+    }
+    
+    void BlockClusterTree::AfApproxProductLow(ClusterPair pair, const Eigen::VectorXd &v_mid, Eigen::VectorXd &result) const
+    {
+
     }
 
     void BlockClusterTree::CompareBlocks() {
@@ -298,7 +366,6 @@ namespace LWS {
         std::vector<VertexBody6D> children2;
         pair.cluster2->accumulateChildren(children2);
         
-        double pow_s = beta - alpha;
         Eigen::MatrixXd block;
         block.setZero(children1.size(), children2.size());
 
@@ -315,7 +382,7 @@ namespace LWS {
                 Vector3 c_i = children1[i].pt.position;
                 Vector3 c_j = children2[j].pt.position;
 
-                block(i, j) = (isNeighbors) ? 0 : -w_i * w_j / pow(norm(c_i - c_j), pow_s);
+                block(i, j) = (isNeighbors) ? 0 : -w_i * w_j * SobolevCurves::MetricDistanceTerm(alpha, beta, c_i, c_j);
             }
         }
 
@@ -340,8 +407,9 @@ namespace LWS {
         for (size_t j = 0; j < children2.size(); j++) {
             wf_j[j] = children2[j].mass;
         }
-        double a_IJ = 1.0 / pow(norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass), pow_s);
-
+        double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta, 
+            pair.cluster1->centerOfMass, pair.cluster2->centerOfMass);
+        
         Eigen::MatrixXd block;
         block.setZero(children1.size(), children2.size());
 
