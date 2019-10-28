@@ -61,15 +61,18 @@ namespace LWS {
 
         // Multiplies the inadmissible clusters for A * v, storing it in b.
         void MultiplyInadmissible(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int startIndex, int endIndex) const;
-        void MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat,
-            Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int nThreads) const;
+        void MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int nThreads) const;
         void MultiplyAdmissibleFast(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
         // Multiplies the admissible clusters for A * v, storing it in b.
         void MultiplyAdmissible(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
+        void MultiplyAdmissibleExact(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
 
         // Same, but for low-order term.
-        void MultiplyAdmissibleFastLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
+        void MultiplyAdmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
+        void MultiplyAdmissibleLowFast(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
+        void MultiplyAdmissibleLowExact(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
         void MultiplyInadmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int startIndex, int endIndex) const;
+        void MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
 
         // Multiplies A * v, where v holds a vector3 at each vertex in a flattened column,
         //  and stores it in b.
@@ -93,6 +96,7 @@ namespace LWS {
 
         void AfFullProduct(ClusterPair pair, const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
         void AfFullProductLow(ClusterPair pair, const Eigen::VectorXd &v_mid, Eigen::VectorXd &result) const;
+        void AfFullProductLowVerts(ClusterPair pair, const Eigen::VectorXd &v_mid, Eigen::VectorXd &result) const;
         void AfApproxProduct(ClusterPair pair, const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
         void AfApproxProductLow(ClusterPair pair, const Eigen::VectorXd &v_mid, Eigen::VectorXd &result) const;
 
@@ -125,7 +129,7 @@ namespace LWS {
         void TestAdmissibleMultiply(V &v) const;
 
         private:
-        Eigen::VectorXd Af_1;
+        Eigen::VectorXd Af_1, Af_1_low;
         BlockTreeMode mode;
         int nVerts;
         double alpha, beta, separationCoeff;
@@ -214,12 +218,15 @@ namespace LWS {
     void BlockClusterTree::SetBIsLow(BVHNode3D* node, Dest &b_tilde) const {
         // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
         for (ClusterPair pair : admissiblePairs) {
-            Vector3 tangent = pair.cluster1->averageTangent.normalize();
-            double a_IJ = SobolevCurves::MetricDistanceTermLow(alpha, beta,
-                pair.cluster1->centerOfMass, pair.cluster2->centerOfMass, tangent);
+            Vector3 v1 = pair.cluster1->centerOfMass;
+            Vector3 v2 = pair.cluster2->centerOfMass;
+            Vector3 tangent1 = pair.cluster1->averageTangent;
+            Vector3 tangent2 = pair.cluster2->averageTangent;
+            double a_IJ = SobolevCurves::MetricDistanceTermLow(alpha, beta, v1, v2, tangent1, tangent2);
             pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
         }
 
+        node->aIJ_VJ = 0;
         // Now recursively propagate downward
         PropagateBIs(node, 0, b_tilde);
     }
@@ -338,43 +345,44 @@ namespace LWS {
         int nEdges = curves->NumEdges();
         Eigen::MatrixXd v_hat(nEdges, 3);
         v_hat.setZero();
+        Eigen::MatrixXd v_mid = v_hat;
 
+        // Set up input and outputs for metric
         SobolevCurves::ApplyDf(curves, v, v_hat);
+        SobolevCurves::ApplyMid(curves, v, v_mid);
 
         Eigen::MatrixXd b_hat_adm(nEdges, 3);
         b_hat_adm.setZero();
-
-        Eigen::VectorXd v_low = v;
-        Eigen::VectorXd b_low_adm(nVerts);
-        b_low_adm.setZero();
         Eigen::MatrixXd b_hat_inadm(nEdges, 3);
         b_hat_inadm.setZero();
-        Eigen::VectorXd b_low_inadm(nVerts);
-        b_low_inadm.setZero();
+
+        // Set up inputs and outputs for low-order part
+        Eigen::VectorXd b_mid_adm(nEdges);
+        b_mid_adm.setZero();
+        Eigen::VectorXd b_mid_inadm(nEdges);
+        b_mid_inadm.setZero();
 
         long illSepStart = Utils::currentTimeMilliseconds();
         // MultiplyInadmissible(v_hat, b_hat_inadm, 0, inadmissiblePairs.size());
-        // MultiplyInadmissibleParallel(v_hat, b_hat_inadm, v_low, b_low_inadm, 6);
+        // MultiplyInadmissibleParallel(v_hat, b_hat_inadm, 6);
+        MultiplyInadmissibleLowParallel(v_mid, b_mid_inadm);
+        // MultiplyInadmissibleLowVerts(v_vec, b_vec, 0, inadmissiblePairs.size());
         long middle = Utils::currentTimeMilliseconds();
         // MultiplyAdmissible(v_hat, b_hat_adm);
         // MultiplyAdmissibleFast(v_hat, b_hat_adm);
-
-        MultiplyInadmissibleLow(v_low, b_low_inadm, 0, inadmissiblePairs.size());
-        MultiplyAdmissibleFastLow(v_low, b_low_adm);
+        MultiplyAdmissibleLowFast(v_mid, b_mid_adm);
         long wellSepEnd = Utils::currentTimeMilliseconds();
-
-        b_hat_adm += b_hat_inadm;
-        b_low_adm += b_low_inadm;
-
-
         long illTime = (middle - illSepStart);
         long wellTime = (wellSepEnd - middle);
 
         illSepTime += illTime;
         wellSepTime += wellTime;
 
+        b_hat_adm += b_hat_inadm;
+        b_mid_adm += b_mid_inadm;
+
         // SobolevCurves::ApplyDfTranspose(curves, b_hat_adm, b);
-        b += b_low_adm;
+        SobolevCurves::ApplyMidTranspose(curves, b_mid_adm, b);
     }
 
     template<typename V3, typename Dest>

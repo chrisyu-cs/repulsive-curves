@@ -168,7 +168,6 @@ namespace LWS {
       Eigen::VectorXd x = gradients.col(0);
       std::cout << "Filled BH gradient vector" << std::endl;
 
-      mult->TestAdmissibleMultiply(x);
       long tree_start = Utils::currentTimeMilliseconds();
       Eigen::VectorXd b_tree;
       b_tree.setZero(nVerts);

@@ -97,14 +97,15 @@ namespace LWS {
             return dist_term;
         }
 
-        static inline double MetricDistanceTermLow(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1) {
+        static inline double MetricDistanceTermLow(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2) {
             // Vector3 diff = v2 - v1;
             // double d_proj = norm(diff - dot(diff, t1) * t1);
             // double d_normal = norm(diff);
             // return pow(d_proj, alpha) / pow(d_normal, beta);
-            double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, alpha, beta);
-            double dist2 = pow(norm(v1 - v2), 2);
-            return kf_st / dist2;
+            double beta_extra = 2;
+            double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, alpha, beta + beta_extra);
+            double kf_ts = TPESC::tpe_Kf_pts(v1, v2, t2, alpha, beta + beta_extra);
+            return (kf_st + kf_ts) / 2;
         }
     };
 

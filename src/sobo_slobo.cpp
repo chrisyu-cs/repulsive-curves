@@ -159,6 +159,22 @@ namespace LWS {
         }
     }
 
+    double SobolevCurves::HatMidpoint(CurveEdge* edge, CurveVertex* vertex) {
+        CurveVertex* edgeStart = edge->prevVert;
+        CurveVertex* edgeEnd = edge->nextVert;
+
+        if (vertex == edgeStart) {
+            return 0.5;
+        }
+        else if (vertex == edgeEnd) {
+            return 0.5;
+        }
+        else {
+            return 0;
+        }
+    }
+
+
     void SobolevCurves::AddEdgePairContribution(PolyCurveNetwork* loop, double alpha, double beta,
     CurveEdge* s, CurveEdge* t, Eigen::MatrixXd &A) {
         CurveVertex* endpoints[4] = {s->prevVert, s->nextVert, t->prevVert, t->nextVert};
@@ -166,13 +182,8 @@ namespace LWS {
         double len2 = t->Length();
         Vector3 mid1 = s->Midpoint();
         Vector3 mid2 = t->Midpoint();
-    
-        // Vector3 s_tan = s->Tangent();
-        // Vector3 dist_vec = mid1 - mid2;
-        // Vector3 projected = dist_vec - dot(dist_vec, s_tan) * s_tan;
 
         double dist_term = SobolevCurves::MetricDistanceTerm(alpha, beta, mid1, mid2);
-        // double dist_term = pow(norm(projected), alpha - 2) / pow(norm(dist_vec), beta - 2);
 
         for (CurveVertex* u : endpoints) {
             for (CurveVertex* v : endpoints) {
@@ -190,34 +201,17 @@ namespace LWS {
         }
     }
 
-    double SobolevCurves::HatMidpoint(CurveEdge* edge, CurveVertex* vertex) {
-        CurveVertex* edgeStart = edge->prevVert;
-        CurveVertex* edgeEnd = edge->nextVert;
-
-        if (vertex == edgeStart) {
-            return 0.5;
-        }
-        else if (vertex == edgeEnd) {
-            return 0.5;
-        }
-        else {
-            return 0;
-        }
-    }
-
     void SobolevCurves::AddEdgePairContributionLow(PolyCurveNetwork* loop, double alpha, double beta,
     CurveEdge* s, CurveEdge* t, Eigen::MatrixXd &A) {
-
         CurveVertex* endpoints[4] = {s->prevVert, s->nextVert, t->prevVert, t->nextVert};
-
         double len1 = s->Length();
         double len2 = t->Length();
         Vector3 mid_s = s->Midpoint();
         Vector3 mid_t = t->Midpoint();
-
         Vector3 tangent_s = s->Tangent();
+        Vector3 tangent_t = t->Tangent();
 
-        double kf_st = MetricDistanceTermLow(alpha, beta, mid_s, mid_t, tangent_s);
+        double kf_st = MetricDistanceTermLow(alpha, beta, mid_s, mid_t, tangent_s, tangent_t);
 
         for (CurveVertex* u : endpoints) {
             for (CurveVertex* v : endpoints) {
