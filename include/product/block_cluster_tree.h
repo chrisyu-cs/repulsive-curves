@@ -72,7 +72,7 @@ namespace LWS {
         void MultiplyAdmissibleLowFast(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
         void MultiplyAdmissibleLowExact(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
         void MultiplyInadmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int startIndex, int endIndex) const;
-        void MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
+        void MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int nThreads) const;
 
         // Multiplies A * v, where v holds a vector3 at each vertex in a flattened column,
         //  and stores it in b.
@@ -206,7 +206,8 @@ namespace LWS {
         // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
         for (ClusterPair pair : admissiblePairs) {
             double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta,
-                pair.cluster1->centerOfMass, pair.cluster2->centerOfMass);
+                pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
+                pair.cluster1->averageTangent, pair.cluster2->averageTangent);
             pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
         }
 
@@ -363,13 +364,14 @@ namespace LWS {
         b_mid_inadm.setZero();
 
         long illSepStart = Utils::currentTimeMilliseconds();
-        // MultiplyInadmissible(v_hat, b_hat_inadm, 0, inadmissiblePairs.size());
-        // MultiplyInadmissibleParallel(v_hat, b_hat_inadm, 6);
-        MultiplyInadmissibleLowParallel(v_mid, b_mid_inadm);
-        // MultiplyInadmissibleLowVerts(v_vec, b_vec, 0, inadmissiblePairs.size());
+        // Multiply inadmissible blocks
+        MultiplyInadmissibleParallel(v_hat, b_hat_inadm, 6);
+        long highOrderInadm = Utils::currentTimeMilliseconds();
+        MultiplyInadmissibleLowParallel(v_mid, b_mid_inadm, 6);
         long middle = Utils::currentTimeMilliseconds();
-        // MultiplyAdmissible(v_hat, b_hat_adm);
-        // MultiplyAdmissibleFast(v_hat, b_hat_adm);
+        // Multiply admissible blocks
+        MultiplyAdmissibleFast(v_hat, b_hat_adm);
+        long highOrderAdm = Utils::currentTimeMilliseconds();
         MultiplyAdmissibleLowFast(v_mid, b_mid_adm);
         long wellSepEnd = Utils::currentTimeMilliseconds();
         long illTime = (middle - illSepStart);
@@ -381,7 +383,12 @@ namespace LWS {
         b_hat_adm += b_hat_inadm;
         b_mid_adm += b_mid_inadm;
 
-        // SobolevCurves::ApplyDfTranspose(curves, b_hat_adm, b);
+        // std::cout << "Inadmissible high = " << (highOrderInadm - illSepStart) << " ms" << std::endl;
+        // std::cout << "Inadmissible low  = " << (middle - highOrderInadm) << " ms" << std::endl;
+        // std::cout << "Admissible high   = " << (highOrderAdm - middle) << " ms" << std::endl;
+        // std::cout << "Admissible low    = " << (wellSepEnd - highOrderAdm) << " ms" << std::endl;
+
+        SobolevCurves::ApplyDfTranspose(curves, b_hat_adm, b);
         SobolevCurves::ApplyMidTranspose(curves, b_mid_adm, b);
     }
 

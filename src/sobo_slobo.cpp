@@ -182,8 +182,10 @@ namespace LWS {
         double len2 = t->Length();
         Vector3 mid1 = s->Midpoint();
         Vector3 mid2 = t->Midpoint();
+        Vector3 tangent_s = s->Tangent();
+        Vector3 tangent_t = t->Tangent();
 
-        double dist_term = SobolevCurves::MetricDistanceTerm(alpha, beta, mid1, mid2);
+        double dist_term = SobolevCurves::MetricDistanceTerm(alpha, beta, mid1, mid2, tangent_s, tangent_t);
 
         for (CurveVertex* u : endpoints) {
             for (CurveVertex* v : endpoints) {
@@ -243,8 +245,8 @@ namespace LWS {
                 // if (pc_i == pc_j) continue;
                 if (pc_i == pc_j || pc_i->IsNeighbors(pc_j)) continue;
 
-                // AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
-                AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
+                AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
+                // AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
             }
             A(i, i) += diagEps * curves->GetVertex(i)->DualLength();
         }

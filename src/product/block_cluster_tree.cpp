@@ -169,11 +169,47 @@ namespace LWS {
         }
     }
 
-    void BlockClusterTree::MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const {
+    void BlockClusterTree::MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int nThreads) const {
+        int nPairs = inadmissiblePairs.size();
+        // How many would be left if we rounded down to the nearest multiple of nThreads
+        int leftovers = nPairs % nThreads;
+        std::vector<int> counts(nThreads);
+        // Split into nThreads roughly equal groups
+        for (int i = 0; i < nThreads; i++) {
+            counts[i] = nPairs / nThreads;
+            // Add the extras from rounding down, so that the totals match up
+            if (i < leftovers) counts[i]++;
+        }
+
+        std::vector<Eigen::VectorXd> out_bs(nThreads);
+
+        for (int i = 0; i < nThreads; i++) {
+            out_bs[i].setZero(b_mid.rows());
+        }
+
+        std::vector<std::thread> threads;
+
         int startIndex = 0;
-        int endIndex = inadmissiblePairs.size();
-        // TODO: copy parallelization from below
-        MultiplyInadmissibleLow(v_mid, b_mid, startIndex, endIndex);
+        for (int i = 0; i < nThreads; i++) {
+            int endIndex = startIndex + counts[i];
+            
+            auto multiply = [&, i, startIndex, endIndex]() {
+                MultiplyInadmissibleLow(v_mid, out_bs[i], startIndex, endIndex);
+            };
+            threads.push_back(std::thread(multiply));
+
+            startIndex = endIndex;
+        }
+
+        for (int i = 0; i < nThreads; i++) {
+            threads[i].join();
+        }
+
+        // Add up all the result vectors
+        b_mid = out_bs[0];
+        for (int i = 1; i < nThreads; i++) {
+            b_mid += out_bs[i];
+        }
     }
 
     void BlockClusterTree::MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int nThreads) const {
@@ -201,11 +237,7 @@ namespace LWS {
             int endIndex = startIndex + counts[i];
             
             auto multiply = [&, i, startIndex, endIndex]() {
-                // std::cout << "Starting thread for [" << startIndex << ", " << endIndex << ")" << std::endl;
-                // Eigen::MatrixXd output;
-                // output.setZero(out_bs[i].rows(), out_bs[i].cols());
                 MultiplyInadmissible(v_hat, out_bs[i], startIndex, endIndex);
-                // out_bs[i] = output;
             };
             threads.push_back(std::thread(multiply));
 
@@ -240,12 +272,14 @@ namespace LWS {
                 
                 Vector3 mid1 = p1->Midpoint();
                 Vector3 mid2 = p2->Midpoint();
+                Vector3 tan1 = p1->Tangent();
+                Vector3 tan2 = p2->Tangent();
 
                 double l2 = tree_root->bvhRoot->fullMasses(e2index);
 
                 // Save on a few operations by only multiplying l2 now,
                 // and multiplying l1 only once, after inner loop
-                double distTerm = SobolevCurves::MetricDistanceTerm(alpha, beta, mid1, mid2);
+                double distTerm = SobolevCurves::MetricDistanceTerm(alpha, beta, mid1, mid2, tan1, tan2);
                 double af_ij = (isNeighbors) ? 0 : l2  * distTerm;
 
                 // We dot this row of Af(i, j) with the all-ones vector, which means we
@@ -360,7 +394,8 @@ namespace LWS {
         traversalTime += (traversalEnd - traversalStart);
         
         double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta,
-            pair.cluster1->centerOfMass, pair.cluster2->centerOfMass);
+            pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
+            pair.cluster1->averageTangent, pair.cluster2->averageTangent);
         // Evaluate a(I,J) * w_f(J)^T * 1(J)
         double a_wf_1 = a_IJ * wf_j.sum();
 
@@ -475,8 +510,10 @@ namespace LWS {
 
                 Vector3 c_i = children1[i].pt.position;
                 Vector3 c_j = children2[j].pt.position;
+                Vector3 t_i = children1[i].pt.tangent;
+                Vector3 t_j = children2[j].pt.tangent;
 
-                block(i, j) = (isNeighbors) ? 0 : -w_i * w_j * SobolevCurves::MetricDistanceTerm(alpha, beta, c_i, c_j);
+                block(i, j) = (isNeighbors) ? 0 : -w_i * w_j * SobolevCurves::MetricDistanceTerm(alpha, beta, c_i, c_j, t_i, t_j);
             }
         }
 
@@ -502,7 +539,8 @@ namespace LWS {
             wf_j[j] = children2[j].mass;
         }
         double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta, 
-            pair.cluster1->centerOfMass, pair.cluster2->centerOfMass);
+            pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
+            pair.cluster1->averageTangent, pair.cluster2->averageTangent);
         
         Eigen::MatrixXd block;
         block.setZero(children1.size(), children2.size());

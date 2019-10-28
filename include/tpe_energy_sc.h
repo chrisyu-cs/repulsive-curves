@@ -25,8 +25,8 @@ namespace LWS {
         static void FillGradientVectorDirect(PolyCurveNetwork* curveNetwork, Eigen::MatrixXd &gradients, double alpha, double beta);
 
         static double tpe_Kf(CurveVertex* i, CurveVertex* j, double alpha, double beta);
-        static double tpe_Kf_pts(Vector3 p_x, Vector3 p_y, Vector3 tangent_x, double alpha, double beta);
-        
+        static inline double tpe_Kf_pts(Vector3 p_x, Vector3 p_y, Vector3 tangent_x, double alpha, double beta);
+
         static double tpe_pair(CurveVertex* i, CurveVertex* j, double alpha, double beta);
         static double tpe_pair_pts(Vector3 p_x, Vector3 p_y, Vector3 tangent_x, double l_x, double l_y, double alpha, double beta);
         static double tpe_total(PolyCurveNetwork* curves, double alpha, double beta);
@@ -62,4 +62,12 @@ namespace LWS {
         // Jacobian of the vertex tangent (average of surrounding edges) wrt a vertex
         static VertJacobian vertex_tangent_wrt_vert(CurveVertex* tangentVert, CurveVertex* wrtVert);
     };
+
+    inline double TPESC::tpe_Kf_pts(Vector3 p_x, Vector3 p_y, Vector3 tangent_x, double alpha, double beta) {
+        Vector3 disp = p_x - p_y;
+        Vector3 n_proj = disp - dot(disp, tangent_x) * tangent_x;
+        double numer = pow(norm(n_proj), alpha);
+        double denom = pow(norm(disp), beta);
+        return 1.0 / denom;
+    }
 }

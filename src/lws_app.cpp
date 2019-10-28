@@ -152,12 +152,35 @@ namespace LWS {
 
     }
 
+    if (ImGui::Button("Check derivative")) {
+      tpeSolver->SetExponents(3, 6);
+      int nVerts = curves->NumVertices();
+      Eigen::MatrixXd initGradients;
+      initGradients.setZero(nVerts, 3);
+      Eigen::MatrixXd bhGradients = initGradients;
+      tpeSolver->FillGradientVectorDirect(initGradients);
+
+      double energyDirect = tpeSolver->CurrentEnergyDirect();
+
+      LWS::BVHNode3D* vert_tree = CreateBVHFromCurve(curves);
+      tpeSolver->FillGradientVectorBH(vert_tree, bhGradients);
+
+      double energyBH = tpeSolver->CurrentEnergyBH(vert_tree);
+
+      std::cout << "BH gradient norm = " << bhGradients.norm() << std::endl;
+      std::cout << "BH energy = " << energyBH << std::endl;
+      std::cout << "Direct gradient norm = " << initGradients.norm() << std::endl;
+      std::cout << "Direct energy = " << energyDirect << std::endl;
+
+      std::cout << 100 * (bhGradients - initGradients).norm() / initGradients.norm() << "%" << std::endl;
+    }
+
     if (ImGui::Button("Test multiply")) {
       std::cout << "Machine epsilon: " << std::numeric_limits<double>::epsilon() << std::endl;
 
       int nVerts = curves->NumVertices();
       LWS::BVHNode3D* tree = CreateEdgeBVHFromCurve(curves);
-      BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.1, 2, 4);
+      BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.1, 3, 6);
 
       mult->PrintData();
 
@@ -177,7 +200,7 @@ namespace LWS {
 
       Eigen::MatrixXd A;
       A.setZero(nVerts, nVerts);
-      SobolevCurves::SobolevGramMatrix(curves, 2, 4, A);
+      SobolevCurves::SobolevGramMatrix(curves, 3, 6, A);
 
       long mult_start = Utils::currentTimeMilliseconds();
       Eigen::VectorXd b_mat = A * x;
@@ -228,30 +251,6 @@ namespace LWS {
 
         DisplayCurves(ps[i - 1], "prolonged" + std::to_string(i));
       }
-    }
-
-    if (ImGui::Button("Test solve")) {
-      int nVerts = curves->NumVertices();
-      LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
-      Eigen::MatrixXd gradients;
-      gradients.setZero(nVerts, 3);
-      tpeSolver->FillGradientVectorBH(tree, gradients);
-      delete tree;
-
-      Eigen::VectorXd b;
-      b.setZero(3 * nVerts);
-      MatrixIntoVectorX3(gradients, b);
-
-      using TestDomain = EdgeLengthNullProjectorDomain;
-      TestDomain* domain = new TestDomain(curves, 2, 4, 0.5);
-
-      Eigen::MatrixXd A = domain->GetFullMatrix();
-      Eigen::VectorXd sol = domain->DirectSolve(b);
-
-      std::cout << A << std::endl;
-      std::cout << sol << std::endl;
-
-      delete domain;
     }
 
     if (ImGui::Button("Test 3x saddle")) {

@@ -161,7 +161,9 @@ namespace LWS {
             return 0;
         }
         else {
-            std::cout << "  Energy: " << initialEnergy << " -> " << newEnergy << std::endl;
+            std::cout << "  Energy: " << initialEnergy << " -> " << newEnergy
+                << " (step size " << delta << ", " << numBacktracks << " backtracks)" << std::endl;
+            SetGradientStep(gradient, delta);
             return delta;
         }
     }
@@ -178,7 +180,7 @@ namespace LWS {
             }
 
             bool backprojSuccess = BackprojectConstraints(lu);
-
+            
             if (backprojSuccess) {
                 return delta;
             }
@@ -410,7 +412,7 @@ namespace LWS {
             dot_acc += dot(SelectRow(l2gradients, i), SelectRow(gradients, i));
         }
 
-        double dir_dot = dot_acc / (sqrt(norm_l2) * sqrt(norm_w2));
+        double dir_dot = dot_acc / (norm_l2 * norm_w2);
         std::cout << "  Directional dot product = " << dir_dot << std::endl;
         std::cout << "  Sobolev gradient norm = " << dot_acc << std::endl;
 
@@ -437,6 +439,8 @@ namespace LWS {
         else {
             FillGradientVectorDirect(vertGradients);
         }
+
+        Eigen::MatrixXd l2gradients = vertGradients;
         
         std::cout << "\n====== Timing ======" << std::endl;
         double grad_end = Utils::currentTimeMilliseconds();
@@ -451,15 +455,24 @@ namespace LWS {
         // Compute the Sobolev gradient
         double dot_acc = ComputeAndProjectGradient(vertGradients, A, lu);
 
+        Eigen::MatrixXd vertGradientsOnly = vertGradients.block(0, 0, nVerts, 3);
+        Eigen::VectorXd vOnly(3 * nVerts);
+        vOnly.setZero();
+        MatrixIntoVectorX3(vertGradientsOnly, vOnly);
+        Eigen::MatrixXd B = A.block(3 * nVerts, 0, curveNetwork->NumEdges() + 3, 3 * nVerts);
+        Eigen::VectorXd Bv = B * vOnly;
+        std::cout << "Max of constraint differential * gradient = " << Bv.lpNorm<Eigen::Infinity>() << std::endl;
+
         // Take a line search step using this gradient
         double ls_start = Utils::currentTimeMilliseconds();
         double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
         double ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
+
         // Correct for drift with backprojection
         double bp_start = Utils::currentTimeMilliseconds();
-        step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
+        // step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
         double bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
 

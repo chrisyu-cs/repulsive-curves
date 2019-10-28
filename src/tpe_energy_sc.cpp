@@ -72,14 +72,6 @@ namespace LWS {
         return numer / denom;
     }
 
-    double TPESC::tpe_Kf_pts(Vector3 p_x, Vector3 p_y, Vector3 tangent_x, double alpha, double beta) {
-        Vector3 disp = p_x - p_y;
-        Vector3 n_proj = disp - dot(disp, tangent_x) * tangent_x;
-        double numer = pow(norm(n_proj), alpha);
-        double denom = pow(norm(disp), beta);
-        return numer / denom;
-    }
-
     double TPESC::tpe_pair(CurveVertex* i, CurveVertex* j, double alpha, double beta) {
         double kfxy = tpe_Kf(i, j, alpha, beta);
         double l_x = i->DualLength();
