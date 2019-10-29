@@ -23,9 +23,14 @@ namespace LWS {
         nVerts = curves->NumVertices();
         constraintsSet = false;
 
+        admissibleByCluster.resize(tree->numNodes);
         while (unresolvedPairs.size() > 0) {
             splitInadmissibleNodes();
         }
+        // Set up thread pool here, since we need it for premultiplying Af
+        nThreads = 6;
+        threadpool = new progschj::ThreadPool(nThreads);
+
         // Premultiply A_f * 1, for reuse in later multiplications with G_f
         Af_1.setOnes(nVerts);
         Af_1 = MultiplyAf(Af_1);
@@ -33,6 +38,10 @@ namespace LWS {
         Af_1_low = MultiplyAfLow(Af_1_low);
 
         mode = BlockTreeMode::MatrixOnly;
+    }
+
+    BlockClusterTree::~BlockClusterTree() {
+        delete threadpool;
     }
 
     void BlockClusterTree::splitInadmissibleNodes() {
@@ -51,6 +60,7 @@ namespace LWS {
             else if (isPairAdmissible(pair, separationCoeff)) {
                 // If the pair is admissible, mark it as such and leave it
                 admissiblePairs.push_back(pair);
+                admissibleByCluster[pair.cluster1->thisNodeID].push_back(pair);
             }
             else if (isPairSmallEnough(pair)) {
                 inadmissiblePairs.push_back(pair);
@@ -112,6 +122,76 @@ namespace LWS {
         mode = m;
     }
 
+    void BlockClusterTree::sum_AIJ_VJ() const {
+        // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
+        for (size_t i = 0; i < admissibleByCluster.size(); i++) {
+            if (admissibleByCluster[i].size() > 0) {
+                for (auto &pair : admissibleByCluster[i]) {
+                    double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta,
+                        pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
+                        pair.cluster1->averageTangent, pair.cluster2->averageTangent);
+                    pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
+                }
+            }
+        }
+    }
+
+    void BlockClusterTree::sum_AIJ_VJ_Parallel() const {
+        // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
+        for (size_t i = 0; i < admissibleByCluster.size(); i++) {
+            if (admissibleByCluster[i].size() > 0) {
+                auto multiply = [&, i]() {
+                    for (auto &pair : admissibleByCluster[i]) {
+                        double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta,
+                            pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
+                            pair.cluster1->averageTangent, pair.cluster2->averageTangent);
+                        pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
+                    }
+                };
+                threadpool->enqueue(multiply);
+                // multiply();
+            }
+        }
+        
+        threadpool->wait_until_empty();
+        threadpool->wait_until_nothing_in_flight();
+    }
+
+    void BlockClusterTree::sum_AIJ_VJ_Low() const {
+        // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
+        for (size_t i = 0; i < admissibleByCluster.size(); i++) {
+            if (admissibleByCluster[i].size() > 0) {
+                for (auto &pair : admissibleByCluster[i]) {
+                    double a_IJ = SobolevCurves::MetricDistanceTermLow(alpha, beta,
+                        pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
+                        pair.cluster1->averageTangent, pair.cluster2->averageTangent);
+                    pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
+                }
+            }
+        }
+    }
+
+    void BlockClusterTree::sum_AIJ_VJ_Low_Parallel() const {
+        // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
+        for (size_t i = 0; i < admissibleByCluster.size(); i++) {
+            if (admissibleByCluster[i].size() > 0) {
+                auto multiply = [&, i]() {
+                    for (auto &pair : admissibleByCluster[i]) {
+                        double a_IJ = SobolevCurves::MetricDistanceTermLow(alpha, beta,
+                            pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
+                            pair.cluster1->averageTangent, pair.cluster2->averageTangent);
+                        pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
+                    }
+                };
+                threadpool->enqueue(multiply);
+                // multiply();
+            }
+        }
+
+        threadpool->wait_until_empty();
+        threadpool->wait_until_nothing_in_flight();
+    }
+
     void BlockClusterTree::MultiplyAdmissible(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
         for (ClusterPair pair : admissiblePairs) {
             AfApproxProduct(pair, v_hat, b_hat);
@@ -169,7 +249,7 @@ namespace LWS {
         }
     }
 
-    void BlockClusterTree::MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int nThreads) const {
+    void BlockClusterTree::MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const {
         int nPairs = inadmissiblePairs.size();
         // How many would be left if we rounded down to the nearest multiple of nThreads
         int leftovers = nPairs % nThreads;
@@ -187,7 +267,7 @@ namespace LWS {
             out_bs[i].setZero(b_mid.rows());
         }
 
-        std::vector<std::thread> threads;
+        // std::vector<std::thread> threads;
 
         int startIndex = 0;
         for (int i = 0; i < nThreads; i++) {
@@ -196,14 +276,17 @@ namespace LWS {
             auto multiply = [&, i, startIndex, endIndex]() {
                 MultiplyInadmissibleLow(v_mid, out_bs[i], startIndex, endIndex);
             };
-            threads.push_back(std::thread(multiply));
+            // threads.push_back(std::thread(multiply));
+            threadpool->enqueue(multiply);
 
             startIndex = endIndex;
         }
 
-        for (int i = 0; i < nThreads; i++) {
-            threads[i].join();
-        }
+        // for (int i = 0; i < nThreads; i++) {
+        //     threads[i].join();
+        // }
+        threadpool->wait_until_empty();
+        threadpool->wait_until_nothing_in_flight();
 
         // Add up all the result vectors
         b_mid = out_bs[0];
@@ -212,7 +295,7 @@ namespace LWS {
         }
     }
 
-    void BlockClusterTree::MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int nThreads) const {
+    void BlockClusterTree::MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
         int nPairs = inadmissiblePairs.size();
         // How many would be left if we rounded down to the nearest multiple of nThreads
         int leftovers = nPairs % nThreads;
@@ -230,7 +313,7 @@ namespace LWS {
             out_bs[i].setZero(b_hat.rows(), b_hat.cols());
         }
 
-        std::vector<std::thread> threads;
+        // std::vector<std::thread> threads;
 
         int startIndex = 0;
         for (int i = 0; i < nThreads; i++) {
@@ -239,14 +322,17 @@ namespace LWS {
             auto multiply = [&, i, startIndex, endIndex]() {
                 MultiplyInadmissible(v_hat, out_bs[i], startIndex, endIndex);
             };
-            threads.push_back(std::thread(multiply));
+            // threads.push_back(std::thread(multiply));
+            threadpool->enqueue(multiply);
 
             startIndex = endIndex;
         }
 
-        for (int i = 0; i < nThreads; i++) {
-            threads[i].join();
-        }
+        // for (int i = 0; i < nThreads; i++) {
+        //     threads[i].join();
+        // }
+        threadpool->wait_until_empty();
+        threadpool->wait_until_nothing_in_flight();
 
         // Add up all the result vectors
         b_hat = out_bs[0];

@@ -22,6 +22,7 @@ namespace LWS {
         public:
         static int globalID;
         int thisNodeID;
+        int numNodes;
 
         inline void recursivelyAssignIDs() {
             thisNodeID = globalID++;

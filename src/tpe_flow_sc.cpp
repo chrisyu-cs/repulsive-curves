@@ -441,7 +441,7 @@ namespace LWS {
             FillGradientVectorDirect(vertGradients);
         }
         
-        std::cout << "\n====== Timing ======" << std::endl;
+        std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
         double grad_end = Utils::currentTimeMilliseconds();
 
         std::cout << "  Assemble gradient: " << (grad_end - grad_start) << " ms" << std::endl;

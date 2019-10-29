@@ -197,6 +197,8 @@ namespace LWS {
       mult->Multiply(x, b_tree);
       long tree_end = Utils::currentTimeMilliseconds();
       std::cout << "Tree time = " << (tree_end - tree_start) << " ms" << std::endl;
+      std::cout << "Well-separated cluster time (total) = " << mult->wellSepTime << " ms" << std::endl;
+      std::cout << "Ill-separated cluster time (total) = " << mult->illSepTime << " ms" << std::endl;
 
       Eigen::MatrixXd A;
       A.setZero(nVerts, nVerts);
@@ -296,9 +298,8 @@ namespace LWS {
       long multigridEnd = Utils::currentTimeMilliseconds();
       std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
 
-      // std::cout << "Well-separated cluster time (total) = " << domain->tree->wellSepTime << " ms" << std::endl;
-      // std::cout << "Ill-separated cluster time (total) = " << domain->tree->illSepTime << " ms" << std::endl;
-      // std::cout << "Time spent on subtree traversals = " << domain->tree->traversalTime << " ms" << std::endl;
+      std::cout << "Well-separated cluster time (total) = " << domain->tree->wellSepTime << " ms" << std::endl;
+      std::cout << "Ill-separated cluster time (total) = " << domain->tree->illSepTime << " ms" << std::endl;
 
       // Direct solve
       long directStart = Utils::currentTimeMilliseconds();
@@ -389,7 +390,7 @@ namespace LWS {
   void LWSApp::initSolver() {
     if (!tpeSolver) {
       // Set up solver
-      tpeSolver = new TPEFlowSolverSC(curves, 2, 4);
+      tpeSolver = new TPEFlowSolverSC(curves, 3, 6);
     }
   }
 

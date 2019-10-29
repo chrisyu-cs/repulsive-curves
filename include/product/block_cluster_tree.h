@@ -6,6 +6,7 @@
 #include "sobo_slobo.h"
 #include "flow/gradient_constraints.h"
 #include "poly_curve_network.h"
+#include "ThreadPool.h"
 
 #include "Eigen/Dense"
 #include <fstream>
@@ -33,6 +34,7 @@ namespace LWS {
         static long traversalTime;
 
         BlockClusterTree(PolyCurveNetwork* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e = 0.0);
+        ~BlockClusterTree();
         // Loop over all currently inadmissible cluster pairs
         // and subdivide them to their children.
         void splitInadmissibleNodes();
@@ -61,7 +63,7 @@ namespace LWS {
 
         // Multiplies the inadmissible clusters for A * v, storing it in b.
         void MultiplyInadmissible(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int startIndex, int endIndex) const;
-        void MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int nThreads) const;
+        void MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
         void MultiplyAdmissibleFast(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
         // Multiplies the admissible clusters for A * v, storing it in b.
         void MultiplyAdmissible(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
@@ -72,7 +74,7 @@ namespace LWS {
         void MultiplyAdmissibleLowFast(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
         void MultiplyAdmissibleLowExact(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
         void MultiplyInadmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int startIndex, int endIndex) const;
-        void MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int nThreads) const;
+        void MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
 
         // Multiplies A * v, where v holds a vector3 at each vertex in a flattened column,
         //  and stores it in b.
@@ -93,6 +95,11 @@ namespace LWS {
             constraints.FillConstraintMatrix(B);
             constraintsSet = true;
         }
+
+        void sum_AIJ_VJ() const;
+        void sum_AIJ_VJ_Parallel() const;
+        void sum_AIJ_VJ_Low() const;
+        void sum_AIJ_VJ_Low_Parallel() const;
 
         void AfFullProduct(ClusterPair pair, const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
         void AfFullProductLow(ClusterPair pair, const Eigen::VectorXd &v_mid, Eigen::VectorXd &result) const;
@@ -129,6 +136,8 @@ namespace LWS {
         void TestAdmissibleMultiply(V &v) const;
 
         private:
+        progschj::ThreadPool* threadpool;
+        int nThreads;
         Eigen::VectorXd Af_1, Af_1_low;
         BlockTreeMode mode;
         int nVerts;
@@ -137,6 +146,8 @@ namespace LWS {
         PolyCurveNetwork* curves;
         BVHNode3D* tree_root;
         std::vector<ClusterPair> admissiblePairs;
+        std::vector<std::vector<ClusterPair>> admissibleByCluster;
+
         std::vector<ClusterPair> unresolvedPairs;
         std::vector<ClusterPair> inadmissiblePairs;
         bool constraintsSet;
@@ -203,30 +214,17 @@ namespace LWS {
 
     template<typename Dest>
     void BlockClusterTree::SetBIs(BVHNode3D* node, Dest &b_tilde) const {
-        // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
-        for (ClusterPair pair : admissiblePairs) {
-            double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta,
-                pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
-                pair.cluster1->averageTangent, pair.cluster2->averageTangent);
-            pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
-        }
-
+        // if (curves->NumVertices() > 1000) sum_AIJ_VJ_Parallel();
+        sum_AIJ_VJ();
+        node->aIJ_VJ = 0;
         // Now recursively propagate downward
         PropagateBIs(node, 0, b_tilde);
     }
 
     template<typename Dest>
     void BlockClusterTree::SetBIsLow(BVHNode3D* node, Dest &b_tilde) const {
-        // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
-        for (ClusterPair pair : admissiblePairs) {
-            Vector3 v1 = pair.cluster1->centerOfMass;
-            Vector3 v2 = pair.cluster2->centerOfMass;
-            Vector3 tangent1 = pair.cluster1->averageTangent;
-            Vector3 tangent2 = pair.cluster2->averageTangent;
-            double a_IJ = SobolevCurves::MetricDistanceTermLow(alpha, beta, v1, v2, tangent1, tangent2);
-            pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
-        }
-
+        // if (curves->NumVertices() > 1000) sum_AIJ_VJ_Low_Parallel();
+        sum_AIJ_VJ_Low();
         node->aIJ_VJ = 0;
         // Now recursively propagate downward
         PropagateBIs(node, 0, b_tilde);
@@ -365,13 +363,11 @@ namespace LWS {
 
         long illSepStart = Utils::currentTimeMilliseconds();
         // Multiply inadmissible blocks
-        MultiplyInadmissibleParallel(v_hat, b_hat_inadm, 6);
-        long highOrderInadm = Utils::currentTimeMilliseconds();
-        MultiplyInadmissibleLowParallel(v_mid, b_mid_inadm, 6);
+        MultiplyInadmissibleParallel(v_hat, b_hat_inadm);
+        MultiplyInadmissibleLowParallel(v_mid, b_mid_inadm);
         long middle = Utils::currentTimeMilliseconds();
         // Multiply admissible blocks
         MultiplyAdmissibleFast(v_hat, b_hat_adm);
-        long highOrderAdm = Utils::currentTimeMilliseconds();
         MultiplyAdmissibleLowFast(v_mid, b_mid_adm);
         long wellSepEnd = Utils::currentTimeMilliseconds();
         long illTime = (middle - illSepStart);
