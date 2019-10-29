@@ -46,7 +46,7 @@ namespace LWS {
         template<typename Domain, typename Smoother>
         bool BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess, MultigridHierarchy<Domain>* solver, SpatialTree* root);
 
-        double FillConstraintViolations(Eigen::VectorXd &phi);
+        double FillConstraintViolations(Eigen::VectorXd &phi, int base);
         
         void ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B);
 
@@ -99,6 +99,7 @@ namespace LWS {
     MultigridHierarchy<Domain>* solver, SpatialTree* root) {
         double delta = initGuess;
         int nVerts = curveNetwork->NumVertices();
+        int nEdges = curveNetwork->NumEdges();
         Eigen::MatrixXd correction(nVerts, 3);
 
         while (delta > ls_step_threshold) {
@@ -108,9 +109,9 @@ namespace LWS {
                 root->recomputeCentersOfMass(curveNetwork);
             }
 
-            Eigen::VectorXd phi(nVerts + 3);
+            Eigen::VectorXd phi(nEdges + 3);
 
-            double maxBefore = FillConstraintViolations(phi);
+            double maxBefore = FillConstraintViolations(phi, 0);
 
             // Compute and apply the correction
             solver->template BackprojectMultigrid<Smoother>(curveNetwork, phi, correction);
@@ -121,7 +122,7 @@ namespace LWS {
             }
 
             // Add length violations to RHS
-            double maxViolation = FillConstraintViolations(phi);
+            double maxViolation = FillConstraintViolations(phi, 0);
             std::cout << "  Constraint: " << maxBefore << " -> " << maxViolation << std::endl;
 
             if (maxViolation < backproj_threshold) {

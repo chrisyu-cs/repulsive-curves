@@ -106,7 +106,7 @@ namespace LWS {
 
             Eigen::VectorXd constraints(curves->NumEdges() + 3);
             constraints.setZero();
-            curves->FillConstraintViolations(constraints, targetLengths);
+            curves->FillConstraintViolations(constraints, targetLengths, 0);
             double constraintNorm = constraints.norm();
 
             double dotLengths = 0;
@@ -252,7 +252,7 @@ namespace LWS {
             bvh->recomputeCentersOfMass(curves);
 
             Eigen::VectorXd phi(curves->NumEdges() + 3);
-            double maxBefore = curves->FillConstraintViolations(phi, targetLengths);        
+            double maxBefore = curves->FillConstraintViolations(phi, targetLengths, 0);        
 
             // Compute and apply the correction
             solver->template BackprojectMultigrid<Smoother>(curves, phi, correction);
@@ -263,7 +263,7 @@ namespace LWS {
             }
 
             // Add length violations to RHS
-            double maxViolation = curves->FillConstraintViolations(phi, targetLengths);
+            double maxViolation = curves->FillConstraintViolations(phi, targetLengths, 0);
             std::cout << "  Constraint: " << maxBefore << " -> " << maxViolation << std::endl;
 
             if (maxViolation < backproj_threshold) {

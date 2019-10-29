@@ -179,7 +179,7 @@ namespace LWS {
             Eigen::VectorXd GB_phi = multiplier * B_pinv_phi;
             // Solve Gv = b by solving PGPv = Pb
             GB_phi = curveNetwork->constraintProjector->ProjectToNullspace(GB_phi);
-            Eigen::VectorXd v = VCycleSolve<Smoother>(GB_phi, 1e-3);
+            Eigen::VectorXd v = VCycleSolve<Smoother>(GB_phi, 1e-2);
             v = B_pinv_phi - v;
             VectorXdIntoMatrix(v, output);
         }

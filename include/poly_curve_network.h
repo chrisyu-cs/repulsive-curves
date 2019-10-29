@@ -58,7 +58,7 @@ namespace LWS
         PolyCurveNetwork(Eigen::MatrixXd &ps, std::vector<std::array<size_t, 2>> &es);
         void InitStructs(std::vector<std::array<size_t, 2>> &es);
         void FindComponents();
-        double FillConstraintViolations(Eigen::VectorXd &b, std::vector<double> &targetLengths);
+        double FillConstraintViolations(Eigen::VectorXd &b, std::vector<double> &targetLengths, int base);
 
         inline Vector3 Position(CurveVertex* v) {
             return SelectRow(positions, v->id);

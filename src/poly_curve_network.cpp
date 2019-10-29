@@ -109,22 +109,23 @@ namespace LWS {
         }
     }
 
-    double PolyCurveNetwork::FillConstraintViolations(Eigen::VectorXd &b, std::vector<double> &targetLengths) {
+    double PolyCurveNetwork::FillConstraintViolations(Eigen::VectorXd &b, std::vector<double> &targetLengths, int base) {
         // Fill 3 barycenter coordinates
         Vector3 bcenter = Barycenter();
-        b(0) = -bcenter.x;
-        b(1) = -bcenter.y;
-        b(2) = -bcenter.z;
+        b(base + 0) = -bcenter.x;
+        b(base + 1) = -bcenter.y;
+        b(base + 2) = -bcenter.z;
 
-        double maxViolation = fmax(fabs(bcenter.x), fmax(fabs(bcenter.y), fabs(bcenter.z)));
+        double maxViolation = 0;
 
         // For each edge, fill in its deviation from target length
         int nEdges = NumEdges();
         for (int i = 0; i < nEdges; i++) {
             CurveEdge* e_i = GetEdge(i);
             double curLen = e_i->Length();
-            double negError = targetLengths[i] - curLen;
-            b(3 + i) = negError;
+            int id = e_i->id;
+            double negError = targetLengths[id] - curLen;
+            b(base + 3 + id) = negError;
             maxViolation = fmax(maxViolation, fabs(negError));
         }
 
@@ -151,10 +152,13 @@ namespace LWS {
 
     Vector3 PolyCurveNetwork::Barycenter() {
         Vector3 center{0, 0, 0};
+        double totalMass = 0;
         for (int i = 0; i < nVerts; i++) {
-            center += Position(i);
+            double m = vertices[i]->DualLength();
+            center += vertices[i]->Position() * m;
+            totalMass += m;
         }
-        return center / nVerts;
+        return center / totalMass;
     }
 
     double PolyCurveNetwork::TotalLength() {

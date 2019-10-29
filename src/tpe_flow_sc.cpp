@@ -144,6 +144,8 @@ namespace LWS {
             else {
                 // delta *= 0.5;
                 // SetGradientStep(gradient, delta);
+                delta *= 0.25;
+                SetGradientStep(gradient, delta);
                 if (root) {
                     // Update the centers of mass to reflect the new positions
                     root->recomputeCentersOfMass(curveNetwork);
@@ -163,7 +165,6 @@ namespace LWS {
         else {
             std::cout << "  Energy: " << initialEnergy << " -> " << newEnergy
                 << " (step size " << delta << ", " << numBacktracks << " backtracks)" << std::endl;
-            SetGradientStep(gradient, delta);
             return delta;
         }
     }
@@ -185,6 +186,7 @@ namespace LWS {
                 return delta;
             }
             else {
+                std::cout << "Backproj unsuccessful; halving step size" << std::endl;
                 delta /= 2;
             }
         }
@@ -280,8 +282,8 @@ namespace LWS {
             // so we only need one solve.
 
             // Place all 3 barycenter coordinates on RHS
-            double maxViolation = curveNetwork->FillConstraintViolations(b, initialLengths);
-            
+            double maxViolation = curveNetwork->FillConstraintViolations(b, initialLengths, 3 * nVerts);
+
             // Solve for correction
             Eigen::VectorXd corr = lu.solve(b);
             // Apply correction
@@ -388,6 +390,7 @@ namespace LWS {
 
             // Duplicate the saddle matrix portion into the larger matrix
             ExpandMatrix3x(A_temp, A);
+
             // Add rows for edge length constraint
             SobolevCurves::AddEdgeLengthConstraints(curveNetwork, A, 3 * nVerts + 3);
             double ss_end = Utils::currentTimeMilliseconds();
@@ -439,8 +442,6 @@ namespace LWS {
         else {
             FillGradientVectorDirect(vertGradients);
         }
-
-        Eigen::MatrixXd l2gradients = vertGradients;
         
         std::cout << "\n====== Timing ======" << std::endl;
         double grad_end = Utils::currentTimeMilliseconds();
@@ -455,24 +456,15 @@ namespace LWS {
         // Compute the Sobolev gradient
         double dot_acc = ComputeAndProjectGradient(vertGradients, A, lu);
 
-        Eigen::MatrixXd vertGradientsOnly = vertGradients.block(0, 0, nVerts, 3);
-        Eigen::VectorXd vOnly(3 * nVerts);
-        vOnly.setZero();
-        MatrixIntoVectorX3(vertGradientsOnly, vOnly);
-        Eigen::MatrixXd B = A.block(3 * nVerts, 0, curveNetwork->NumEdges() + 3, 3 * nVerts);
-        Eigen::VectorXd Bv = B * vOnly;
-        std::cout << "Max of constraint differential * gradient = " << Bv.lpNorm<Eigen::Infinity>() << std::endl;
-
         // Take a line search step using this gradient
         double ls_start = Utils::currentTimeMilliseconds();
         double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
         double ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
-
         // Correct for drift with backprojection
         double bp_start = Utils::currentTimeMilliseconds();
-        // step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
+        step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
         double bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
 
@@ -488,8 +480,8 @@ namespace LWS {
         return step_size > 0;
     }
 
-    double TPEFlowSolverSC::FillConstraintViolations(Eigen::VectorXd &phi) {
-        return curveNetwork->FillConstraintViolations(phi, initialLengths);
+    double TPEFlowSolverSC::FillConstraintViolations(Eigen::VectorXd &phi, int base) {
+        return curveNetwork->FillConstraintViolations(phi, initialLengths, base);
     }
 
     bool TPEFlowSolverSC::StepSobolevLSIterative(double epsilon) {

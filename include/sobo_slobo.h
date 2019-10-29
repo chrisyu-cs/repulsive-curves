@@ -100,11 +100,13 @@ namespace LWS {
             // double dist_term = 1.0 / pow(norm(v1 - v2), s_pow);
             // return dist_term;
 
-            double a = alpha - 2;
-            double b = beta - 2;
-            double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, a, b);
-            double kf_ts = TPESC::tpe_Kf_pts(v1, v2, t2, a, b);
-            return (kf_st + kf_ts) / 2;
+            // double a = alpha - 2;
+            // double b = beta - 2;
+            // double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, a, b);
+            // double kf_ts = TPESC::tpe_Kf_pts(v1, v2, t2, a, b);
+            // return (kf_st + kf_ts) / 2;
+            double denom = pow(norm(v1 - v2), beta - alpha);
+            return 1.0 / denom;
         }
 
         static inline double MetricDistanceTermLow(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2) {
@@ -112,11 +114,16 @@ namespace LWS {
             // double d_proj = norm(diff - dot(diff, t1) * t1);
             // double d_normal = norm(diff);
             // return pow(d_proj, alpha) / pow(d_normal, beta);
-            double a = alpha;
-            double b = beta + 2;
-            double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, a, b);
-            double kf_ts = TPESC::tpe_Kf_pts(v1, v2, t2, a, b);
-            return (kf_st + kf_ts) / 2;
+
+            double denom = pow(norm(v1 - v2), 2);
+            double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, alpha, beta);
+            return kf_st / denom;
+
+            // double a = alpha;
+            // double b = beta + 2;
+            // double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, a, b);
+            // double kf_ts = TPESC::tpe_Kf_pts(v1, v2, t2, a, b);
+            // return (kf_st + kf_ts) / 2;
         }
     };
 

@@ -68,6 +68,6 @@ namespace LWS {
         Vector3 n_proj = disp - dot(disp, tangent_x) * tangent_x;
         double numer = pow(norm(n_proj), alpha);
         double denom = pow(norm(disp), beta);
-        return 1.0 / denom;
+        return numer / denom;
     }
 }

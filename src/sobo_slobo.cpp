@@ -246,7 +246,7 @@ namespace LWS {
                 if (pc_i == pc_j || pc_i->IsNeighbors(pc_j)) continue;
 
                 AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
-                // AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
+                AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
             }
             A(i, i) += diagEps * curves->GetVertex(i)->DualLength();
         }

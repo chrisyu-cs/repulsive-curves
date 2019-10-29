@@ -153,26 +153,26 @@ namespace LWS {
     }
 
     if (ImGui::Button("Check derivative")) {
-      tpeSolver->SetExponents(3, 6);
+      tpeSolver->SetExponents(2, 4);
       int nVerts = curves->NumVertices();
-      Eigen::MatrixXd initGradients;
-      initGradients.setZero(nVerts, 3);
-      Eigen::MatrixXd bhGradients = initGradients;
-      tpeSolver->FillGradientVectorDirect(initGradients);
+      // Eigen::MatrixXd initGradients;
+      // initGradients.setZero(nVerts, 3);
+      // Eigen::MatrixXd bhGradients = initGradients;
+      // tpeSolver->FillGradientVectorDirect(initGradients);
 
       double energyDirect = tpeSolver->CurrentEnergyDirect();
 
       LWS::BVHNode3D* vert_tree = CreateBVHFromCurve(curves);
-      tpeSolver->FillGradientVectorBH(vert_tree, bhGradients);
-
+      // tpeSolver->FillGradientVectorBH(vert_tree, bhGradients);
       double energyBH = tpeSolver->CurrentEnergyBH(vert_tree);
 
-      std::cout << "BH gradient norm = " << bhGradients.norm() << std::endl;
+      // std::cout << "BH gradient norm = " << bhGradients.norm() << std::endl;
       std::cout << "BH energy = " << energyBH << std::endl;
-      std::cout << "Direct gradient norm = " << initGradients.norm() << std::endl;
+      // std::cout << "Direct gradient norm = " << initGradients.norm() << std::endl;
       std::cout << "Direct energy = " << energyDirect << std::endl;
 
-      std::cout << 100 * (bhGradients - initGradients).norm() / initGradients.norm() << "%" << std::endl;
+      // std::cout << 100 * (bhGradients - initGradients).norm() / initGradients.norm() << "%" << std::endl;
+
     }
 
     if (ImGui::Button("Test multiply")) {
