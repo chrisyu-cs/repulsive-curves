@@ -1,3 +1,6 @@
+# Misc data
+*.mp4
+
 # Build directories
 build/
 build_debug/

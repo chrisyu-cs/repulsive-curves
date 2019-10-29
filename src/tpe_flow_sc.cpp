@@ -144,8 +144,6 @@ namespace LWS {
             else {
                 // delta *= 0.5;
                 // SetGradientStep(gradient, delta);
-                delta *= 0.25;
-                SetGradientStep(gradient, delta);
                 if (root) {
                     // Update the centers of mass to reflect the new positions
                     root->recomputeCentersOfMass(curveNetwork);

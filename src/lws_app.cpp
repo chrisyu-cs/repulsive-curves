@@ -389,7 +389,7 @@ namespace LWS {
   void LWSApp::initSolver() {
     if (!tpeSolver) {
       // Set up solver
-      tpeSolver = new TPEFlowSolverSC(curves, 3, 6);
+      tpeSolver = new TPEFlowSolverSC(curves, 2, 4);
     }
   }
 
