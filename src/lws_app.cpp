@@ -126,6 +126,12 @@ namespace LWS {
       inadmfile.close();
     }
 
+    if (ImGui::Button("Scale 2x")) {
+      curves->positions *= 2;
+      UpdateCurvePositions();
+      tpeSolver->UpdateTargetLengths();
+    }
+
     if (ImGui::Button("Test scaling")) {
       Eigen::MatrixXd initGradients;
       initGradients.setZero(curves->NumVertices(), 3);
@@ -547,6 +553,7 @@ int main(int argc, char** argv) {
 
   polyscope::SurfaceMesh* m = polyscope::registerSurfaceMesh("empty", vertexPositions, faceIndices);
   app->DisplayCurves(app->curves, app->surfaceName);
+
   app->initSolver();
 
   // Show the gui

@@ -2,11 +2,10 @@
 #include "utils.h"
 #include "product/dense_matrix.h"
 
-#include "circle_search.h"
-
 namespace LWS {
 
     TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveNetwork* g, double a, double b) :
+    constraint(g),
     originalPositions(g->NumVertices()),
     initialLengths(g->NumEdges())
     {
@@ -18,10 +17,12 @@ namespace LWS {
         backproj_threshold = 1e-4;
         iterNum = 0;
 
-        useEdgeLengthConstraint = true;
+        UpdateTargetLengths();
+    }
 
-        for (int i = 0; i < g->NumEdges(); i++) {
-            CurveEdge* p = g->GetEdge(i);
+    void TPEFlowSolverSC::UpdateTargetLengths() {
+        for (int i = 0; i < curveNetwork->NumEdges(); i++) {
+            CurveEdge* p = curveNetwork->GetEdge(i);
             initialLengths[i] = p->Length();
         }
     }
@@ -117,6 +118,11 @@ namespace LWS {
         double sigma = 0.01f;
         double newEnergy = initialEnergy;
 
+        if (gradNorm < 1e-10) {
+            std::cout << "  Gradient is very close to zero" << std::endl;
+            return 0;
+        }
+
         // std::cout << "Initial energy " << initialEnergy << std::endl;
 
         while (delta > ls_step_threshold) {
@@ -202,51 +208,26 @@ namespace LWS {
     }
 
     double TPEFlowSolverSC::ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients) {
+        // If using per-edge length constraints, then the matrix has all coordinates merged,
+        // so we only need one solve
         int nVerts = curveNetwork->NumVertices();
         Eigen::VectorXd b;
-        b.setZero(matrixNumRows());
+        b.setZero(constraint.NumConstraintRows() + constraint.NumExpectedCols());
 
-        if (useEdgeLengthConstraint) {
-            // If using per-edge length constraints, then the matrix has all coordinates merged,
-            // so we only need one solve
+        // Fill in RHS with all coordinates
+        for (int i = 0; i < nVerts; i++) {
+            b(3 * i) = gradients(i, 0);
+            b(3 * i + 1) = gradients(i, 1);
+            b(3 * i + 2) = gradients(i, 2);
+        }
+        // Solve for all coordinates
+        Eigen::VectorXd ss_grad = lu.solve(b);
 
-            // Fill in RHS with all coordinates
-            for (int i = 0; i < nVerts; i++) {
-                b(3 * i) = gradients(i, 0);
-                b(3 * i + 1) = gradients(i, 1);
-                b(3 * i + 2) = gradients(i, 2);
-            }
-            // Solve for all coordinates
-            Eigen::VectorXd ss_grad = lu.solve(b);
-
-            for (int i = 0; i < nVerts; i++) {
-                SetRow(gradients, i, Vector3{ss_grad(3 * i), ss_grad(3 * i + 1), ss_grad(3 * i + 2)});
-            }
-
-            return 1;
+        for (int i = 0; i < nVerts; i++) {
+            SetRow(gradients, i, Vector3{ss_grad(3 * i), ss_grad(3 * i + 1), ss_grad(3 * i + 2)});
         }
 
-        else {
-            // If not using per-edge length constraints, we solve each coordinate separately
-            // Solve for x
-            b = gradients.col(0);
-            Eigen::VectorXd ss_grad_x = lu.solve(b);
-
-            // Solve for y
-            b = gradients.col(1);
-            Eigen::VectorXd ss_grad_y = lu.solve(b);
-
-            // Solve for z
-            b = gradients.col(2);
-            Eigen::VectorXd ss_grad_z = lu.solve(b);
-
-            // Copy the projected gradients back into the vector
-            for (int i = 0; i < nVerts; i++) {
-                SetRow(gradients, i, Vector3{ss_grad_x(i), ss_grad_y(i), ss_grad_z(i)});
-            }
-
-            return 1;
-        }
+        return 1;
     }
 
     template<typename T>
@@ -271,64 +252,26 @@ namespace LWS {
     bool TPEFlowSolverSC::BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
         int nVerts = curveNetwork->NumVertices();
         Eigen::VectorXd b;
-        b.setZero(matrixNumRows());
+        b.setZero(constraint.NumExpectedCols() + constraint.NumConstraintRows());
 
         Vector3 barycenter = curveNetwork->Barycenter();
 
-        if (useEdgeLengthConstraint) {
-            // If using per-edge length constraints, matrix has all coordinates merged,
-            // so we only need one solve.
+        // If using per-edge length constraints, matrix has all coordinates merged,
+        // so we only need one solve.
 
-            // Place all 3 barycenter coordinates on RHS
-            double maxViolation = curveNetwork->FillConstraintViolations(b, initialLengths, 3 * nVerts);
+        // Place all 3 barycenter coordinates on RHS
+        double maxViolation = curveNetwork->FillConstraintViolations(b, initialLengths, 3 * nVerts);
 
-            // Solve for correction
-            Eigen::VectorXd corr = lu.solve(b);
-            // Apply correction
-            for (int i = 0; i < nVerts; i++) {
-                Vector3 correction{corr(3 * i), corr(3 * i + 1), corr(3 * i + 2)};
-                CurveVertex* pt = curveNetwork->GetVertex(i);
-                pt->SetPosition(pt->Position() + correction);
-            }
-
-            return maxViolation < backproj_threshold;
+        // Solve for correction
+        Eigen::VectorXd corr = lu.solve(b);
+        // Apply correction
+        for (int i = 0; i < nVerts; i++) {
+            Vector3 correction{corr(3 * i), corr(3 * i + 1), corr(3 * i + 2)};
+            CurveVertex* pt = curveNetwork->GetVertex(i);
+            pt->SetPosition(pt->Position() + correction);
         }
 
-        else {
-            // If not using per-edge length constraints, matrix is per-coordinate and not merged,
-            // so we need to solve separately for each coordinate.
-
-            // Solve for x correction
-            b(nVerts) = -barycenter.x;
-            Eigen::VectorXd corr_x = lu.solve(b);
-            // Solve for y correction
-            b(nVerts) = -barycenter.y;
-            Eigen::VectorXd corr_y = lu.solve(b);
-            // Solve for z correction
-            b(nVerts) = -barycenter.z;
-            Eigen::VectorXd corr_z = lu.solve(b);
-
-            // Apply the correction
-            for (int i = 0; i < nVerts; i++) {
-                Vector3 correction{corr_x(i), corr_y(i), corr_z(i)};
-                CurveVertex* pt = curveNetwork->GetVertex(i);
-                pt->SetPosition(pt->Position() + correction);
-            }
-
-            return true;
-        }
-    }
-
-    int TPEFlowSolverSC::matrixNumRows() {
-        if (useEdgeLengthConstraint) {
-            int nVerts = curveNetwork->NumVertices();
-            // 3V rows for all vertex values; 3 rows for barycenter constraint; V rows for edge length constraints
-            return 3 * nVerts + 3 + curveNetwork->NumEdges();
-        }
-        else {
-            // V rows for vertex values by coordinate; 1 row for barycenter constraints by coordinate
-            return curveNetwork->NumVertices() + 1;
-        }
+        return maxViolation < backproj_threshold;
     }
 
     double TPEFlowSolverSC::ComputeAndProjectGradient(Eigen::MatrixXd &gradients) {
@@ -338,72 +281,22 @@ namespace LWS {
     }
 
     double TPEFlowSolverSC::ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
-        int nRows = matrixNumRows();
         size_t nVerts = curveNetwork->NumVertices();
-
         Eigen::MatrixXd l2gradients = gradients;
-        Eigen::MatrixXd vertConstraints;
-        vertConstraints.setZero(curveNetwork->NumEdges() + 1, 3);
 
-        // If we're not using the per-edge length constraints, use total length instead
-        if (!useEdgeLengthConstraint) {
-            double ss_start = Utils::currentTimeMilliseconds();
-            // Fill the Sobo-Slobo matrix, one entry per vertex
-            A.setZero(nRows, nRows);
-            SobolevCurves::SobolevPlusBarycenter(curveNetwork, alpha, beta, A);
-            double ss_end = Utils::currentTimeMilliseconds();
+        // Assemble the Sobolev gram matrix with constraints
+        double ss_start = Utils::currentTimeMilliseconds();
+        SobolevCurves::Sobolev3XWithConstraints(curveNetwork, constraint, alpha, beta, A);
+        double ss_end = Utils::currentTimeMilliseconds();
+        std::cout << "  Assemble saddle matrix: " << (ss_end - ss_start) << " ms" << std::endl;
 
-            std::cout << "  Assemble saddle matrix: " << (ss_end - ss_start) << " ms" << std::endl;
+        // Factorize and solve
+        double factor_start = Utils::currentTimeMilliseconds();
+        lu.compute(A);
+        ProjectSoboSloboGradient(lu, gradients);
+        double factor_end = Utils::currentTimeMilliseconds();
 
-            double factor_start = Utils::currentTimeMilliseconds();
-            // Factorize it
-            lu.compute(A);
-
-            // Solve for the Sobolev gradient
-            ProjectSoboSloboGradient(lu, gradients);
-            double factor_end = Utils::currentTimeMilliseconds();
-
-            std::cout << "  Solve for descent direction: " << (factor_end - factor_start) << " ms" << std::endl;
-
-            double constr_start = Utils::currentTimeMilliseconds();
-            // Compute gradient of total length constraint
-            FillConstraintVector(vertConstraints);
-            // Solve for Sobolev gradient of total length
-            ProjectSoboSloboGradient(lu, vertConstraints);
-            // Project out the length gradient direction
-            SobolevCurves::SobolevOrthoProjection(gradients, vertConstraints, A);
-            double constr_end = Utils::currentTimeMilliseconds();
-
-            std::cout << "  Project total length constraint: " << (constr_end - constr_start) << " ms" << std::endl;
-        }
-
-        else {
-            double ss_start = Utils::currentTimeMilliseconds();
-            Eigen::MatrixXd A_temp;
-            // A is the saddle matrix with the correct dimensions (one row for each coordinate of each gradient entry, plus constraints)
-            A.setZero(nRows, nRows);
-            // A_temp is a smaller saddle matrix (one row for each gradient entry, only gradient + barycenter, with coordinates lumped together)
-            A_temp.setZero(nVerts + 1, nVerts + 1);
-            SobolevCurves::SobolevPlusBarycenter(curveNetwork, alpha, beta, A_temp);
-
-            // Duplicate the saddle matrix portion into the larger matrix
-            ExpandMatrix3x(A_temp, A);
-
-            // Add rows for edge length constraint
-            SobolevCurves::AddEdgeLengthConstraints(curveNetwork, A, 3 * nVerts + 3);
-            double ss_end = Utils::currentTimeMilliseconds();
-
-            std::cout << "  Assemble saddle matrix: " << (ss_end - ss_start) << " ms" << std::endl;
-
-            double factor_start = Utils::currentTimeMilliseconds();
-            // Factorize it
-            lu.compute(A);
-            // Solve for the Sobolev gradient
-            ProjectSoboSloboGradient(lu, gradients);
-            double factor_end = Utils::currentTimeMilliseconds();
-
-            std::cout << "  Solve for descent direction: " << (factor_end - factor_start) << " ms" << std::endl;
-        }
+        std::cout << "  Solve for descent direction: " << (factor_end - factor_start) << " ms" << std::endl;
 
         double dot_acc = 0;
         double norm_l2 = l2gradients.norm();
@@ -424,7 +317,6 @@ namespace LWS {
         long start = Utils::currentTimeMilliseconds();
 
         size_t nVerts = curveNetwork->NumVertices();
-        int nRows = matrixNumRows();
 
         Eigen::MatrixXd vertGradients;
         vertGradients.setZero(nVerts + 1, 3);
@@ -460,6 +352,11 @@ namespace LWS {
         double ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
+        if (step_size <= 0) {
+            std::cout << "  No line search step taken; stopping." << std::endl;
+            return 0;
+        }
+
         // Correct for drift with backprojection
         double bp_start = Utils::currentTimeMilliseconds();
         step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
@@ -487,7 +384,6 @@ namespace LWS {
         long all_start = Utils::currentTimeMilliseconds();
 
         size_t nVerts = curveNetwork->NumVertices();
-        int nRows = matrixNumRows();
         BVHNode3D* tree_root = 0;
 
         Eigen::MatrixXd vertGradients;
@@ -503,7 +399,7 @@ namespace LWS {
 
         // Set up multigrid stuff
         long mg_setup_start = Utils::currentTimeMilliseconds();
-        using MultigridDomain = EdgeLengthNullProjectorDomain;
+        using MultigridDomain = ConstraintProjectorDomain<EdgeLengthConstraint>;
         using MultigridSolver = MultigridHierarchy<MultigridDomain>;
         MultigridDomain* domain = new MultigridDomain(curveNetwork, alpha, beta, 0.5, epsilon);
         MultigridSolver* multigrid = new MultigridSolver(domain);

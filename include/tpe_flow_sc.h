@@ -7,6 +7,7 @@
 
 #include "product/matrix_free.h"
 #include "multigrid/multigrid_hierarchy.h"
+#include "flow/gradient_constraint_types.h"
 
 namespace LWS {
 
@@ -19,6 +20,10 @@ namespace LWS {
     class TPEFlowSolverSC {
         public:
         TPEFlowSolverSC(PolyCurveNetwork* p, double a, double b);
+        EdgeLengthConstraint constraint;
+
+        void UpdateTargetLengths();
+
         double CurrentEnergy(SpatialTree *root = 0);
         double CurrentEnergyDirect();
         double CurrentEnergyBH(SpatialTree *root);
@@ -56,9 +61,6 @@ namespace LWS {
         double LineSearchStep(Eigen::MatrixXd &gradients, double initGuess, int doublingLimit, double gradDot, SpatialTree* root);
         double LSBackproject(Eigen::MatrixXd &gradients, double initGuess,
             Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, SpatialTree* root);
-
-        bool useEdgeLengthConstraint;
-        int matrixNumRows();
 
         private:
         int iterNum;

@@ -51,13 +51,13 @@ namespace LWS {
         static void SobolevPlusBarycenter(PolyCurveNetwork* loop, double alpha,
             double beta, Eigen::MatrixXd &A, double diagEps = 0);
 
-        // Fills the global Sobolev-Slobodeckij Gram matrix, plus an
-        // extra row for a barycenter constraint.
-        static void SobolevPlusBarycenter3X(PolyCurveNetwork* loop, double alpha,
+        template<typename T>
+        static void Sobolev3XWithConstraints(PolyCurveNetwork* loop, double alpha,
             double beta, Eigen::MatrixXd &A, double diagEps = 0);
 
-        // Fills the matrix A with edge length constraints, starting from the row baseIndex.
-        static void AddEdgeLengthConstraints(PolyCurveNetwork* curves, Eigen::MatrixXd &A, int baseIndex);
+        template<typename T>
+        static void Sobolev3XWithConstraints(PolyCurveNetwork* loop, GradientConstraints<T> &constraints,
+            double alpha, double beta, Eigen::MatrixXd &A, double diagEps = 0);
         
         // Computes the inner product of the two given vectors, under the metric
         // whose Gram matrix is given.
@@ -96,28 +96,47 @@ namespace LWS {
             // double dist_term = 1.0 / pow(norm(v1 - v2), (s_pow - 1 + 0.5) * 2);
             // return dist_term;
 
-            // double a = alpha - 2;
-            // double b = beta - 2;
+            double a = alpha - 2;
+            double b = beta - 2;
             // double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, a, b);
             // double kf_ts = TPESC::tpe_Kf_pts(v1, v2, t2, a, b);
             // return (kf_st + kf_ts) / 2;
+            return TPESC::tpe_Kf_pts_sym(v1, v2, t1, t2, a, b);
 
-            double denom = pow(norm(v1 - v2), beta - alpha);
-            return 1.0 / denom;
+            // double denom = pow(norm(v1 - v2), beta - alpha);
+            // return 1.0 / denom;
         }
 
         static inline double MetricDistanceTermLow(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2) {
             // double denom = pow(norm(v1 - v2), 2);
-            // double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, alpha, beta);
-            // return kf_st / denom;
+            // double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, alpha, beta + 2);
+            // return kf_st;
 
             double a = alpha;
             double b = beta + 2;
-            double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, a, b);
-            double kf_ts = TPESC::tpe_Kf_pts(v1, v2, t2, a, b);
-            return (kf_st + kf_ts) / 2;
+            // double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, a, b);
+            // double kf_ts = TPESC::tpe_Kf_pts(v1, v2, t2, a, b);
+            // return (kf_st + kf_ts) / 2;
+            return TPESC::tpe_Kf_pts_sym(v1, v2, t1, t2, a, b);
         }
     };
+
+    template<typename T>
+    void SobolevCurves::Sobolev3XWithConstraints(PolyCurveNetwork* loop, double alpha,
+    double beta, Eigen::MatrixXd &A, double diagEps) {
+        T constraints(loop);
+        Sobolev3XWithConstraints(loop, constraints, alpha, beta, A, diagEps);
+    }
+
+
+    template<typename T>
+    void SobolevCurves::Sobolev3XWithConstraints(PolyCurveNetwork* loop, GradientConstraints<T> &constraints,
+    double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
+        int nRows = constraints.NumConstraintRows() + constraints.NumExpectedCols();
+        A.setZero(nRows, nRows);
+        SobolevGramMatrix3X(loop, alpha, beta, A, diagEps);
+        constraints.FillDenseBlock(A);
+    }
 
     template<typename V, typename M>
     void SobolevCurves::ApplyDf(PolyCurveNetwork* loop, V &as, M &out) {

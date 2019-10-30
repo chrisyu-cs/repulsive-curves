@@ -28,7 +28,7 @@ namespace LWS {
             splitInadmissibleNodes();
         }
         // Set up thread pool here, since we need it for premultiplying Af
-        nThreads = 6;
+        nThreads = 12;
         threadpool = new progschj::ThreadPool(nThreads);
 
         // Premultiply A_f * 1, for reuse in later multiplications with G_f

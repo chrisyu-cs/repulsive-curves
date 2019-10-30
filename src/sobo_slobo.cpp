@@ -284,6 +284,7 @@ namespace LWS {
         }
     }
 
+    /*
     void SobolevCurves::SobolevPlusBarycenter3X(PolyCurveNetwork* loop, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
         int nVerts = loop->NumVertices();
         Eigen::MatrixXd topLeft;
@@ -330,6 +331,7 @@ namespace LWS {
             A(3 * j2 + 2, curRow) = -grad1.z;
         }
     }
+    */
 
     double SobolevCurves::SobolevDot(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J) {
         double dot_x = as.col(0).transpose() * J * bs.col(0);

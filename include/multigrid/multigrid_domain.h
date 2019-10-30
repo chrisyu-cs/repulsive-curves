@@ -98,9 +98,9 @@ namespace LWS {
         Eigen::MatrixXd GetFullMatrix() const {
             int rows = nVerts + 1;
             Eigen::MatrixXd A;
-            A.setZero(4 * nVerts + 3, 4 * nVerts + 3);
-            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A);
-            SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
+            SobolevCurves::Sobolev3XWithConstraints<EdgeLengthConstraint>(curves, alpha, beta, A);
+            // SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A);
+            // SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
             return A;
         }
 
@@ -168,9 +168,9 @@ namespace LWS {
         Eigen::MatrixXd GetFullMatrix() const {
             int rows = nVerts + 1;
             Eigen::MatrixXd A;
-            A.setZero(4 * nVerts + 3, 4 * nVerts + 3);
-            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A, epsilon);
-            SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
+            SobolevCurves::Sobolev3XWithConstraints<EdgeLengthConstraint>(curves, alpha, beta, A, epsilon);
+            // SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A, epsilon);
+            // SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
             return A;
         }
 
@@ -201,6 +201,88 @@ namespace LWS {
             return curves->constraintProjector;
         }
 
+    };
+
+    template<typename Constraint>
+    class ConstraintProjectorDomain : public MultigridDomain<ConstraintProjectorDomain<Constraint>, BlockClusterTree> {
+        public:
+        PolyCurveNetwork* curves;
+        BVHNode3D* bvh;
+        BlockClusterTree* tree;
+        double alpha, beta;
+        double sepCoeff;
+        int nVerts;
+        double epsilon;
+        Constraint constraint;
+
+        ConstraintProjectorDomain<Constraint>(PolyCurveNetwork* c, double a, double b, double sep, double diagEps = 0)
+        : constraint(c) {
+            curves = c;
+            alpha = a;
+            beta = b;
+            sepCoeff = sep;
+            nVerts = curves->NumVertices();
+            epsilon = diagEps;
+
+            bvh = CreateEdgeBVHFromCurve(curves);
+            tree = new BlockClusterTree(curves, bvh, sepCoeff, alpha, beta, epsilon);
+            tree->SetBlockTreeMode(BlockTreeMode::Matrix3AndProjector);
+
+            curves->AddConstraintProjector(constraint);
+            // std::cout << "Made level with " << nVerts << std::endl;
+        }
+
+        ~ConstraintProjectorDomain<Constraint>() {
+            delete tree;
+            delete bvh;
+        }
+
+        MultigridDomain<ConstraintProjectorDomain<Constraint>, BlockClusterTree>* Coarsen(MultigridOperator &prolongOp) const {
+            PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
+            ConstraintProjectorDomain<Constraint>* coarseDomain = new ConstraintProjectorDomain<Constraint>(coarsened, alpha, beta, sepCoeff, epsilon);
+            prolongOp.lowerP = coarseDomain->GetConstraintProjector();
+            prolongOp.upperP = GetConstraintProjector();
+            return coarseDomain;
+        }
+
+        BlockClusterTree* GetMultiplier() const {
+            return tree;
+        }
+
+        Eigen::MatrixXd GetFullMatrix() const {
+            Eigen::MatrixXd A;
+            SobolevCurves::Sobolev3XWithConstraints<Constraint>(curves, alpha, beta, A);
+            return A;
+        }
+
+        Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
+            int fullRows = constraint.SaddleNumRows();
+            int constraintRows = constraint.NumConstraintRows();
+
+            Eigen::VectorXd b_aug(fullRows);
+            b_aug.block(0, 0, b.rows(), 1) = b;
+            b_aug.block(b.rows(), 0, constraintRows, 1).setZero();
+
+            Eigen::MatrixXd A = GetFullMatrix();
+            b_aug = A.partialPivLu().solve(b_aug);
+            return b_aug.block(0, 0, b.rows(), 1);
+        }
+
+        int NumVertices() const {
+            return nVerts;
+        }
+
+        int NumRows() const {
+            return 3 * nVerts;
+        }
+
+        ProlongationMode GetMode() const {
+            return ProlongationMode::Matrix3AndProjector;
+        }
+
+        NullSpaceProjector* GetConstraintProjector() const {
+            return curves->constraintProjector;
+        }
     };
 
     class EdgeLengthNullProjectorDomain : public MultigridDomain<EdgeLengthNullProjectorDomain, BlockClusterTree> {
@@ -251,15 +333,18 @@ namespace LWS {
         Eigen::MatrixXd GetFullMatrix() const {
             int rows = nVerts + 1;
             Eigen::MatrixXd A;
-            A.setZero(4 * nVerts + 3, 4 * nVerts + 3);
-            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A, epsilon);
-            SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
+            SobolevCurves::Sobolev3XWithConstraints<EdgeLengthConstraint>(curves, alpha, beta, A);
+            // SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A, epsilon);
+            // SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
             return A;
         }
 
         Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
-            Eigen::VectorXd b_aug(4 * nVerts + 3);
-            int constraintRows = nVerts + 3;
+            EdgeLengthConstraint constraint(curves);
+            int fullRows = constraint.SaddleNumRows();
+            int constraintRows = constraint.NumConstraintRows();
+
+            Eigen::VectorXd b_aug(fullRows);
             b_aug.block(0, 0, b.rows(), 1) = b;
             b_aug.block(b.rows(), 0, constraintRows, 1).setZero();
 
@@ -283,7 +368,6 @@ namespace LWS {
         NullSpaceProjector* GetConstraintProjector() const {
             return curves->constraintProjector;
         }
-
     };
 
     class DenseEdgeNullProjectorDomain : public MultigridDomain<DenseEdgeNullProjectorDomain, DenseMatrixMult> {
@@ -336,9 +420,9 @@ namespace LWS {
         Eigen::MatrixXd GetFullMatrix() const {
             int rows = nVerts + 1;
             Eigen::MatrixXd A;
-            A.setZero(4 * nVerts + 3, 4 * nVerts + 3);
-            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A, epsilon);
-            SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
+            SobolevCurves::Sobolev3XWithConstraints<EdgeLengthConstraint>(curves, alpha, beta, A);
+            // SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A, epsilon);
+            // SobolevCurves::AddEdgeLengthConstraints(curves, A, 3 * nVerts + 3);
             return A;
         }
 
@@ -411,8 +495,9 @@ namespace LWS {
 
         Eigen::MatrixXd GetFullMatrix() const {
             Eigen::MatrixXd A;
-            A.setZero(3 * nVerts + 3, 3 * nVerts + 3);
-            SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A);
+            
+            SobolevCurves::Sobolev3XWithConstraints<BarycenterConstraint3X>(curves, alpha, beta, A);
+            // SobolevCurves::SobolevPlusBarycenter3X(curves, alpha, beta, A);
             return A;
         }
 

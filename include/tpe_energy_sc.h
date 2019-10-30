@@ -26,6 +26,7 @@ namespace LWS {
 
         static double tpe_Kf(CurveVertex* i, CurveVertex* j, double alpha, double beta);
         static inline double tpe_Kf_pts(Vector3 p_x, Vector3 p_y, Vector3 tangent_x, double alpha, double beta);
+        static inline double tpe_Kf_pts_sym(Vector3 p_x, Vector3 p_y, Vector3 tangent_x, Vector3 tangent_y, double alpha, double beta);
 
         static double tpe_pair(CurveVertex* i, CurveVertex* j, double alpha, double beta);
         static double tpe_pair_pts(Vector3 p_x, Vector3 p_y, Vector3 tangent_x, double l_x, double l_y, double alpha, double beta);
@@ -69,5 +70,17 @@ namespace LWS {
         double numer = pow(norm(n_proj), alpha);
         double denom = pow(norm(disp), beta);
         return numer / denom;
+    }
+
+    inline double TPESC::tpe_Kf_pts_sym(Vector3 p_x, Vector3 p_y, Vector3 tangent_x, Vector3 tangent_y, double alpha, double beta) {
+        Vector3 disp = p_x - p_y;
+        Vector3 n_proj_x = disp - dot(disp, tangent_x) * tangent_x;
+        Vector3 n_proj_y = disp - dot(disp, tangent_y) * tangent_y;
+
+        double numer_x = pow(norm(n_proj_x), alpha);
+        double numer_y = pow(norm(n_proj_y), alpha);
+        double denom = pow(norm(disp), beta);
+        
+        return 0.5 * (numer_x + numer_y) / denom;
     }
 }
