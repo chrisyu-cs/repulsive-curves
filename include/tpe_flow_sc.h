@@ -17,10 +17,13 @@ namespace LWS {
         Eigen::PartialPivLU<Eigen::MatrixXd> lu_z;
     };
 
+
     class TPEFlowSolverSC {
         public:
+        using ConstraintType = EdgeLengthConstraint;
+
         TPEFlowSolverSC(PolyCurveNetwork* p, double a, double b);
-        EdgeLengthConstraint constraint;
+        ConstraintType constraint;
 
         void UpdateTargetLengths();
 
@@ -36,7 +39,6 @@ namespace LWS {
             beta = b;
         }
 
-        void FillConstraintVector(Eigen::MatrixXd &gradients);
         bool StepNaive(double h);
         bool StepLS();
         bool StepSobolevLS(bool useBH);
@@ -50,8 +52,6 @@ namespace LWS {
         double ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output);
         template<typename Domain, typename Smoother>
         bool BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess, MultigridHierarchy<Domain>* solver, SpatialTree* root);
-
-        double FillConstraintViolations(Eigen::VectorXd &phi, int base);
         
         void ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B);
 
@@ -70,6 +70,7 @@ namespace LWS {
         PolyCurveNetwork* curveNetwork;
         std::vector<Vector3> originalPositions;
         std::vector<double> initialLengths;
+        Eigen::VectorXd constraintTargets;
         double alpha;
         double beta;
         void SetGradientStep(Eigen::MatrixXd gradient, double delta);
@@ -111,9 +112,8 @@ namespace LWS {
                 root->recomputeCentersOfMass(curveNetwork);
             }
 
-            Eigen::VectorXd phi(nEdges + 3);
-
-            double maxBefore = FillConstraintViolations(phi, 0);
+            Eigen::VectorXd phi(constraint.NumConstraintRows());
+            double maxBefore = constraint.FillConstraintValues(phi, constraintTargets, 0);
 
             // Compute and apply the correction
             solver->template BackprojectMultigrid<Smoother>(curveNetwork, phi, correction);
@@ -124,7 +124,7 @@ namespace LWS {
             }
 
             // Add length violations to RHS
-            double maxViolation = FillConstraintViolations(phi, 0);
+            double maxViolation = constraint.FillConstraintValues(phi, constraintTargets, 0);
             std::cout << "  Constraint: " << maxBefore << " -> " << maxViolation << std::endl;
 
             if (maxViolation < backproj_threshold) {

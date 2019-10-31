@@ -23,6 +23,7 @@ namespace LWS {
         void customWindow();
         void initSolver();
         void processFileOBJ(std::string filename);
+        void processLoopFile(std::string filename);
         void DisplayCurves(PolyCurveNetwork* curves, std::string name);
         void DisplayCyclicList(std::vector<Vector3> &positions, std::string name);
         std::string surfaceName;

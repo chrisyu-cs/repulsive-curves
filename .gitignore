@@ -1,5 +1,8 @@
 # Misc data
 *.mp4
+loops/
+models/
+__pycache__
 
 # Build directories
 build/

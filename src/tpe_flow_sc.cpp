@@ -23,8 +23,10 @@ namespace LWS {
     void TPEFlowSolverSC::UpdateTargetLengths() {
         for (int i = 0; i < curveNetwork->NumEdges(); i++) {
             CurveEdge* p = curveNetwork->GetEdge(i);
-            initialLengths[i] = p->Length();
+            double len_p = p->Length();
+            initialLengths[i] = len_p;
         }
+        constraint.UpdateTargetValues(constraintTargets);
     }
 
     double TPEFlowSolverSC::CurrentEnergy(SpatialTree *root) {
@@ -47,20 +49,6 @@ namespace LWS {
     void TPEFlowSolverSC::FillGradientVectorBH(SpatialTree *root, Eigen::MatrixXd &gradients) {
         // Use the spatial tree and Barnes-Hut to evaluate the gradient
         SpatialTree::TPEGradientBarnesHut(curveNetwork, root, gradients, alpha, beta);
-    }
-
-    void TPEFlowSolverSC::FillConstraintVector(Eigen::MatrixXd &gradients) {
-        int nVerts = curveNetwork->NumVertices();
-
-        for (int i = 0; i < gradients.rows(); i++) {
-            SetRow(gradients, i, Vector3{0, 0, 0});
-        }
-
-        for (int i = 0; i < nVerts; i++) {
-            CurveVertex* i_pt = curveNetwork->GetVertex(i);
-            Vector3 len_grad = i_pt->TotalLengthGradient();
-            SetRow(gradients, i_pt->GlobalIndex(), len_grad);
-        }
     }
 
     bool TPEFlowSolverSC::StepNaive(double h) {
@@ -259,8 +247,8 @@ namespace LWS {
         // If using per-edge length constraints, matrix has all coordinates merged,
         // so we only need one solve.
 
-        // Place all 3 barycenter coordinates on RHS
-        double maxViolation = curveNetwork->FillConstraintViolations(b, initialLengths, 3 * nVerts);
+        // Fill RHS with negative constraint values
+        double maxViolation = constraint.FillConstraintValues(b, constraintTargets, 3 * nVerts);
 
         // Solve for correction
         Eigen::VectorXd corr = lu.solve(b);
@@ -375,10 +363,6 @@ namespace LWS {
         return step_size > 0;
     }
 
-    double TPEFlowSolverSC::FillConstraintViolations(Eigen::VectorXd &phi, int base) {
-        return curveNetwork->FillConstraintViolations(phi, initialLengths, base);
-    }
-
     bool TPEFlowSolverSC::StepSobolevLSIterative(double epsilon) {
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
         long all_start = Utils::currentTimeMilliseconds();
@@ -399,7 +383,7 @@ namespace LWS {
 
         // Set up multigrid stuff
         long mg_setup_start = Utils::currentTimeMilliseconds();
-        using MultigridDomain = ConstraintProjectorDomain<EdgeLengthConstraint>;
+        using MultigridDomain = ConstraintProjectorDomain<ConstraintType>;
         using MultigridSolver = MultigridHierarchy<MultigridDomain>;
         MultigridDomain* domain = new MultigridDomain(curveNetwork, alpha, beta, 0.5, epsilon);
         MultigridSolver* multigrid = new MultigridSolver(domain);

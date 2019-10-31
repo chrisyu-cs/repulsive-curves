@@ -19,6 +19,10 @@
 
 #include <limits>
 #include <random>
+#include <iostream>
+#include <fstream>
+
+#include "curve_io.h"
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
@@ -417,9 +421,41 @@ namespace LWS {
     polyscope::requestRedraw();
   }
 
+  void LWSApp::DisplayCurves(PolyCurveNetwork* curves, std::string name) {
+
+    std::vector<glm::vec3> nodes;
+    std::vector<std::array<size_t, 2>> edges;
+    
+    for (int i = 0; i < curves->NumVertices(); i++) {
+      // Add interior edges and vertices
+      Vector3 p = curves->GetVertex(i)->Position();
+      nodes.push_back(glm::vec3{p.x, p.y, p.z});
+    }
+    for (int i = 0; i < curves->NumEdges(); i++) {
+      CurveEdge* e = curves->GetEdge(i);
+      edges.push_back({(size_t)e->prevVert->GlobalIndex(), (size_t)e->nextVert->GlobalIndex()});
+    }
+
+    polyscope::registerCurveNetwork(name, nodes, edges);
+    polyscope::getCurveNetwork(name)->radius *= 5;
+
+    centerLoopBarycenter(curves);
+  }
+
+  void LWSApp::DisplayCyclicList(std::vector<Vector3> &positions, std::string name) {
+    std::vector<std::array<size_t, 2>> edges;
+
+    for (size_t i = 0; i < positions.size() - 1; i++) {
+      edges.push_back({i, i+1});
+    }
+    edges.push_back({positions.size() - 1, 0});
+    polyscope::registerCurveNetwork(name, positions, edges);
+    polyscope::getCurveNetwork(name)->radius *= 5;
+  }
+
   void LWSApp::processFileOBJ(std::string filename) {
     if (curves) delete curves;
-    std::cout << "Make curves for " << filename << std::endl;
+    std::cout << "Make curves from OBJ " << filename << std::endl;
 
     std::tie(mesh, geom) = loadMesh(filename);
     geom->requireVertexPositions();
@@ -452,40 +488,19 @@ namespace LWS {
     }
 
     curves = new PolyCurveNetwork(all_positions, all_edges);
-
     surfaceName = polyscope::guessNiceNameFromPath(filename);
   }
 
-  void LWSApp::DisplayCurves(PolyCurveNetwork* curves, std::string name) {
+  void LWSApp::processLoopFile(std::string filename) {
+    if (curves) delete curves;
+    std::cout << "Make curves from indexed loop in " << filename << std::endl;
 
-    std::vector<glm::vec3> nodes;
-    std::vector<std::array<size_t, 2>> edges;
-    
-    for (int i = 0; i < curves->NumVertices(); i++) {
-      // Add interior edges and vertices
-      Vector3 p = curves->GetVertex(i)->Position();
-      nodes.push_back(glm::vec3{p.x, p.y, p.z});
-    }
-    for (int i = 0; i < curves->NumEdges(); i++) {
-      CurveEdge* e = curves->GetEdge(i);
-      edges.push_back({(size_t)e->prevVert->GlobalIndex(), (size_t)e->nextVert->GlobalIndex()});
-    }
+    std::vector<Vector3> all_positions;
+    std::vector<std::array<size_t, 2>> all_edges;
+    CurveIO::readVerticesAndEdges(filename, all_positions, all_edges);
 
-    polyscope::registerCurveNetwork(name, nodes, edges);
-    polyscope::getCurveNetwork(name)->radius *= 5;
-
-    centerLoopBarycenter(curves);
-  }
-
-  void LWSApp::DisplayCyclicList(std::vector<Vector3> &positions, std::string name) {
-    std::vector<std::array<size_t, 2>> edges;
-
-    for (size_t i = 0; i < positions.size() - 1; i++) {
-      edges.push_back({i, i+1});
-    }
-    edges.push_back({positions.size() - 1, 0});
-    polyscope::registerCurveNetwork(name, positions, edges);
-    polyscope::getCurveNetwork(name)->radius *= 5;
+    curves = new PolyCurveNetwork(all_positions, all_edges);
+    surfaceName = polyscope::guessNiceNameFromPath(filename);
   }
 }
 
@@ -496,10 +511,14 @@ bool endsWith(const std::string& str, const std::string& suffix) {
 }
 
 void processFile(LWS::LWSApp* app, string filename) {
-  // Dispatch to correct varient
+  // Dispatch to correct variant
   if (endsWith(filename, ".obj")) {
     app->processFileOBJ(filename);
-  } else {
+  }
+  else if (endsWith(filename, ".loop")) {
+    app->processLoopFile(filename);
+  }
+  else {
     cerr << "Unrecognized file type for " << filename << endl;
   }
 }

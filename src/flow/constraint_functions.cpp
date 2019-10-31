@@ -3,6 +3,30 @@
 
 namespace LWS {
     
+    void ConstraintFunctions::NegativeBarycenterViolation(PolyCurveNetwork* curves,
+    Eigen::VectorXd &b, Eigen::VectorXd &targets, int rowStart) {
+        Vector3 barycenter = curves->Barycenter();
+
+        // Fill in difference from barycenter to target point
+        b(rowStart + 0) = targets(rowStart + 0) - barycenter.x;
+        b(rowStart + 1) = targets(rowStart + 1) - barycenter.y;
+        b(rowStart + 2) = targets(rowStart + 2) - barycenter.z;
+    }
+
+    void ConstraintFunctions::NegativeEdgeLengthViolation(PolyCurveNetwork* curves,
+    Eigen::VectorXd &b, Eigen::VectorXd &targets, int rowStart) {
+        int nEdges = curves->NumEdges();
+
+        // For each edge, fill in its deviation from target length
+        for (int i = 0; i < nEdges; i++) {
+            CurveEdge* e_i = curves->GetEdge(i);
+            double curLen = e_i->Length();
+            int id = e_i->id;
+            double negError = targets[rowStart + id] - curLen;
+            b(rowStart + id) = negError;
+        }
+    }
+
     void ConstraintFunctions::AddBarycenterTriplets3X(PolyCurveNetwork* curves,
     std::vector<Eigen::Triplet<double>> &triplets, int rowStart) {
         int nVerts = curves->NumVertices();
@@ -44,7 +68,6 @@ namespace LWS {
             triplets.push_back(Eigen::Triplet<double>(start, 3 * j2 + 1, -grad1.y));
             triplets.push_back(Eigen::Triplet<double>(start, 3 * j2 + 2, -grad1.z));
         }
-
     }
 
 }

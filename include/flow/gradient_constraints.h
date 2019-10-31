@@ -44,8 +44,22 @@ namespace LWS {
             }
         }
         
-        void FillConstraintViolations(Eigen::VectorXd &b, Eigen::VectorXd &targets) {
-            // TODO: fill values of constraint function in a generic way
+        void UpdateTargetValues(Eigen::VectorXd &targets) const {
+            int nConstrs = NumConstraintRows();
+            if (targets.rows() != nConstrs) {
+                targets.setZero(nConstrs);
+            }
+            static_cast<const T&>(*this).SetTargetValues(targets);
+        }
+
+        double FillConstraintValues(Eigen::VectorXd &b, Eigen::VectorXd &targets, int offset) {
+            // Fill values of constraint function in a generic way
+            int nConstrs = NumConstraintRows();
+            Eigen::VectorXd b_constrs(nConstrs);
+            static_cast<const T&>(*this).NegativeConstraintValues(b_constrs, targets);
+            b.block(offset, 0, nConstrs, 1) = b_constrs;
+
+            return b_constrs.lpNorm<Eigen::Infinity>();
         }
     };
 }

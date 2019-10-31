@@ -19,10 +19,10 @@ namespace LWS {
         static Eigen::VectorXd SolveSecondDerivative(PolyCurveNetwork* curves, Eigen::MatrixXd &projectedGradient,
         Eigen::MatrixXd &dE, BVHNode3D* bvh, Solver* solver, double alpha, double beta, double epsilon);
 
-        template<typename Solver, typename Smoother>
+        template<typename Solver, typename Smoother, typename T>
         static double CircleSearchStep(PolyCurveNetwork* curves, Eigen::MatrixXd &projectedGradient,
-        Eigen::MatrixXd &dE, BVHNode3D* bvh, Solver* solver, std::vector<double> &targetLengths,
-        double gradDot, double alpha, double beta, double epsilon);
+        Eigen::MatrixXd &dE, BVHNode3D* bvh, Solver* solver, GradientConstraints<T> &constraints,
+        Eigen::VectorXd &constraintTargets, double gradDot, double alpha, double beta, double epsilon);
 
     };
 
@@ -94,41 +94,10 @@ namespace LWS {
         // curves->positions = origPos + -p_dot * t;
     }
 
-    inline void plotSteps(PolyCurveNetwork* curves, Eigen::MatrixXd &origPos, Eigen::MatrixXd &p_dot, Eigen::MatrixXd &K,
-    double R, double alpha_0, double alpha_1, BVHNode3D* bvh, std::vector<double> &targetLengths, double gradDot, Eigen::MatrixXd &dE) {
-        for (double t = 0; t < 2e-2; t += 1e-4) {
-            // Eigen::MatrixXd realDE(curves->NumVertices(), 3);
-            // realDE.setZero();
-            // TPESC::FillGradientVectorDirect(curves, realDE, 2, 4);
-
-            setCircleStep(curves, origPos, p_dot, K, t, R, alpha_0, alpha_1, p_dot);
-            bvh->recomputeCentersOfMass(curves);
-
-            Eigen::VectorXd constraints(curves->NumEdges() + 3);
-            constraints.setZero();
-            curves->FillConstraintViolations(constraints, targetLengths, 0);
-            double constraintNorm = constraints.norm();
-
-            double dotLengths = 0;
-
-            for (int i = 0; i < curves->NumVertices(); i++) {
-                for (int j = 0; j < 3; j++) {
-                    dotLengths += p_dot(i, j) * dE(i, j);
-                }
-            }
-
-            double targetDecrease = dotLengths * t;
-
-            double energy = SpatialTree::TPEnergyBH(curves, bvh, 2, 4);
-            double realEnergy = 0; //TPESC::tpe_total(curves, 2, 4);
-
-            std::cout << t << ", " << energy << ", " << -targetDecrease << ", " << realEnergy << std::endl;
-        }
-    }
-
-    template<typename Solver, typename Smoother>
+    template<typename Solver, typename Smoother, typename T>
     double CircleSearch::CircleSearchStep(PolyCurveNetwork* curves, Eigen::MatrixXd &projectedGradient,
-    Eigen::MatrixXd &dE, BVHNode3D* bvh, Solver* solver, std::vector<double> &targetLengths,
+    Eigen::MatrixXd &dE, BVHNode3D* bvh, Solver* solver, 
+    GradientConstraints<T> &constraints, Eigen::VectorXd &constraintTargets,
     double gradDot, double alpha, double beta, double epsilon) {
         int nVerts = curves->NumVertices();
         Eigen::VectorXd p_dotdot = SolveSecondDerivative<Solver, Smoother>(curves, projectedGradient, dE,
@@ -201,8 +170,6 @@ namespace LWS {
         int numBacktracks = 0;
         double ls_step_threshold = 1e-10;
 
-        // plotSteps(curves, origPos, projectedGradient, K_matrix, R, alpha_0, alpha_1, bvh, targetLengths, gradDot, dE);
-
         // Line search
         while (fabs(t_guess) > ls_step_threshold) {
             // Search along this direction
@@ -252,7 +219,7 @@ namespace LWS {
             bvh->recomputeCentersOfMass(curves);
 
             Eigen::VectorXd phi(curves->NumEdges() + 3);
-            double maxBefore = curves->FillConstraintViolations(phi, targetLengths, 0);        
+            double maxBefore = constraints.FillConstraintValues(phi, constraintTargets, 0);        
 
             // Compute and apply the correction
             solver->template BackprojectMultigrid<Smoother>(curves, phi, correction);
@@ -263,7 +230,7 @@ namespace LWS {
             }
 
             // Add length violations to RHS
-            double maxViolation = curves->FillConstraintViolations(phi, targetLengths, 0);
+            double maxViolation = constraints.FillConstraintValues(phi, constraintTargets, 0);
             std::cout << "  Constraint: " << maxBefore << " -> " << maxViolation << std::endl;
 
             if (maxViolation < backproj_threshold) {

@@ -20,6 +20,8 @@ namespace LWS {
         void AddTriplets(std::vector<Eigen::Triplet<double>> &triplets) const;
         int NumConstraintRows() const;
         int NumExpectedCols() const;
+        void SetTargetValues(Eigen::VectorXd &targets) const;
+        void NegativeConstraintValues(Eigen::VectorXd &b, Eigen::VectorXd &targets) const;
     };
 
     class BarycenterConstraint3X : public GradientConstraints<BarycenterConstraint3X> {
@@ -34,6 +36,8 @@ namespace LWS {
         void AddTriplets(std::vector<Eigen::Triplet<double>> &triplets) const;
         int NumConstraintRows() const;
         int NumExpectedCols() const;
+        void SetTargetValues(Eigen::VectorXd &targets) const;
+        void NegativeConstraintValues(Eigen::VectorXd &b, Eigen::VectorXd &targets) const;
     };
 
     class BarycenterConstraint : public GradientConstraints<BarycenterConstraint> {
@@ -48,5 +52,7 @@ namespace LWS {
         void AddTriplets(std::vector<Eigen::Triplet<double>> &triplets) const;
         int NumConstraintRows() const;
         int NumExpectedCols() const;
+        void SetTargetValues(Eigen::VectorXd &targets) const;
+        void NegativeConstraintValues(Eigen::VectorXd &b, Eigen::VectorXd &targets) const;
     };
 }
