@@ -22,7 +22,7 @@ namespace LWS {
 
     class TPEFlowSolverSC {
         public:
-        using ConstraintType = EdgeLengthConstraint;
+        using ConstraintType = LengthsAndPinsConstraint;
         std::vector<Obstacle*> obstacles;
 
         TPEFlowSolverSC(PolyCurveNetwork* p, double a, double b);

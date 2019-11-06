@@ -5,6 +5,7 @@
 #include "Eigen/Core"
 #include "utils.h"
 #include "multigrid/multigrid_operator.h"
+#include <unordered_set>
 
 namespace LWS
 {
@@ -58,6 +59,7 @@ namespace LWS
         
         void InitStructs(std::vector<std::array<size_t, 2>> &es);
         void FindComponents();
+        void PinVertex(int i);
         void PinAllSpecialVertices();
         void PrintPins();
 
@@ -75,6 +77,10 @@ namespace LWS
 
         inline int NumEdges() {
             return edges.size();
+        }
+
+        inline int NumPins() {
+            return pinnedVertices.size();
         }
 
         inline int NumComponents() {
@@ -101,6 +107,10 @@ namespace LWS
             return vertices[pinnedVertices[i]];
         }
 
+        inline bool isPinned(int i) {
+            return pinnedSet.count(i) > 0;
+        }
+
         inline CurveEdge* GetEdge(int i) {
             return edges[i];
         }
@@ -124,10 +134,11 @@ namespace LWS
         }
 
         Eigen::MatrixXd positions;
-        std::vector<int> pinnedVertices;
 
         private:
         int nVerts;
+        std::vector<int> pinnedVertices;
+        std::unordered_set<int> pinnedSet;
         std::vector<CurveVertex*> vertices;
         std::vector<CurveEdge*> edges;
         std::vector<std::vector<CurveEdge*>> adjacency;

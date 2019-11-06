@@ -14,7 +14,7 @@ namespace LWS {
 
     int LengthsAndPinsConstraint::NumConstraintRows() const {
         // Each pinned vertex gets 3 rows
-        int nPinRows = 3 * curves->pinnedVertices.size();
+        int nPinRows = 3 * curves->NumPins();
         // Plus 3 rows for barycenter, and |E| rows for edge lengths
         return curves->NumEdges() + nPinRows;
     }
@@ -31,7 +31,7 @@ namespace LWS {
         }
 
         // Set pinned vertices to current positions
-        int nPins = curves->pinnedVertices.size();
+        int nPins = curves->NumPins();
         int pinBase = nEdges;
         for (int i = 0; i < nPins; i++) {
             Vector3 p_i = curves->GetPinnedVertex(i)->Position();
@@ -55,7 +55,7 @@ namespace LWS {
 
     int PinsConstraint::NumConstraintRows() const {
         // Each pinned vertex gets 3 rows
-        return 3 * curves->pinnedVertices.size();
+        return 3 * curves->NumPins();
     }
 
     int PinsConstraint::NumExpectedCols() const {
@@ -64,7 +64,7 @@ namespace LWS {
 
     void PinsConstraint::SetTargetValues(Eigen::VectorXd &targets) const {
         // Set pinned vertices to current positions
-        int nPins = curves->pinnedVertices.size();
+        int nPins = curves->NumPins();
         for (int i = 0; i < nPins; i++) {
             Vector3 p_i = curves->GetPinnedVertex(i)->Position();
             targets(3 * i    ) = p_i.x;

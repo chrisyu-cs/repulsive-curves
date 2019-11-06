@@ -22,7 +22,6 @@ namespace LWS {
 
         InitStructs(es);
         FindComponents();
-        PinAllSpecialVertices();
     }
 
     PolyCurveNetwork::PolyCurveNetwork(Eigen::MatrixXd &ps, std::vector<std::array<size_t, 2>> &es) {
@@ -32,7 +31,6 @@ namespace LWS {
         
         InitStructs(es);
         FindComponents();
-        PinAllSpecialVertices();
     }
 
     PolyCurveNetwork::~PolyCurveNetwork() {
@@ -128,11 +126,18 @@ namespace LWS {
     }
 
     void PolyCurveNetwork::PinAllSpecialVertices() {
-        pinnedVertices.clear();
         for (CurveVertex* v : vertices) {
             if (v->numEdges() != 2) {
-                pinnedVertices.push_back(v->id);
+                PinVertex(v->id);
             }
+        }
+    }
+
+    void PolyCurveNetwork::PinVertex(int i) {
+        // Add if not already pinned
+        if (!pinnedSet.count(i)) {
+            pinnedVertices.push_back(i);
+            pinnedSet.insert(i);
         }
     }
 
@@ -188,7 +193,7 @@ namespace LWS {
         std::vector<bool> explored(nVerts);
         std::vector<bool> seenEdges(nEdges);
         std::queue<std::pair<CurveVertex*, bool>> frontier;
-        // Map coarsened indices back to finer ones in this curve
+        // Map fine indices to coarse ones in the next curve
         std::vector<int> fineToCoarse(nVerts);
         int coarseCount = 0;
 
@@ -212,9 +217,20 @@ namespace LWS {
             frontier.pop();
             if (!explored[next->id]) {
                 explored[next->id] = true;
-                // Keep it either if we previous said we should, or if
+                // Keep it either if we previous said we should, if the vertex is pinned, or if
                 // the vertex is an "interesting" one (i.e. degree neq 2)
-                bool keep = tentativeKeep || (next->numEdges() != 2);
+                bool keep = tentativeKeep || (next->numEdges() != 2) || isPinned(next->id);
+                // Also check if any of the neighbors are already marked to be deleted
+                int nEdges_i = next->numEdges();
+                for (int i = 0; i < nEdges_i; i++) {
+                    CurveVertex* neighbor = next->edge(i)->Opposite(next);
+                    // If any neighbor is already marked to be deleted, then we need to
+                    // keep this one
+                    if (explored[neighbor->id] && !shouldKeep[neighbor->id]) {
+                        keep = true;
+                    }
+                }
+
                 shouldKeep[next->id] = keep;
                 if (keep) {
                     int coarseID = coarseCount;
@@ -222,7 +238,7 @@ namespace LWS {
                     fineToCoarse[next->id] = coarseID;
                 }
                 else {
-                    fineToCoarse[next->id] = -1;
+                    fineToCoarse[next->id] = -42;
                 }
                 for (int e = 0; e < next->numEdges(); e++) {
                     CurveVertex* neighbor = next->edge(e)->Opposite(next);
@@ -338,6 +354,10 @@ namespace LWS {
         op.lowerSize = p->NumVertices();
         op.upperSize = NumVertices();
 
+        // Pin corresponding vertices in the coarsened curve
+        for (int pin : pinnedVertices) {
+            p->PinVertex(fineToCoarse[pin]);
+        }
         return p;
     }
 }

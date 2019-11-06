@@ -30,7 +30,7 @@ namespace LWS {
     void ConstraintFunctions::NegativePinViolation(PolyCurveNetwork* curves,
     Eigen::VectorXd &b, Eigen::VectorXd &targets, int rowStart) {
 
-        int nPins = curves->pinnedVertices.size();
+        int nPins = curves->NumPins();
         for (int i = 0; i < nPins; i++) {
             CurveVertex* v_i = curves->GetPinnedVertex(i);
             Vector3 p_i = v_i->Position();
@@ -85,10 +85,10 @@ namespace LWS {
 
     void ConstraintFunctions::AddPinTriplets(PolyCurveNetwork* curves,
     std::vector<Eigen::Triplet<double>> &triplets, int rowStart) {
-        int nPins = curves->pinnedVertices.size();
+        int nPins = curves->NumPins();
 
         for (int i = 0; i < nPins; i++) {
-            int id = curves->pinnedVertices[i];
+            int id = curves->GetPinnedVertex(i)->id;
             triplets.push_back(Eigen::Triplet<double>(rowStart + 3 * i,     3 * id,     1));
             triplets.push_back(Eigen::Triplet<double>(rowStart + 3 * i + 1, 3 * id + 1, 1));
             triplets.push_back(Eigen::Triplet<double>(rowStart + 3 * i + 2, 3 * id + 2, 1));

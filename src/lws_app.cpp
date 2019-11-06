@@ -608,11 +608,16 @@ int main(int argc, char** argv) {
 
   polyscope::SurfaceMesh* m = polyscope::registerSurfaceMesh("empty", vertexPositions, faceIndices);
   app->DisplayCurves(app->curves, app->surfaceName);
+  // app->curves->PinAllSpecialVertices();
+
+  app->curves->PinVertex(10);
+
   std::cout << "Set up curve" << std::endl;
   app->initSolver();
   std::cout << "Set up solver" << std::endl;
 
-  app->AddPlaneObstacle(Vector3{-1, 0, 0}, Vector3{1, 0, 0});
+
+  // app->AddPlaneObstacle(Vector3{0, -1, 0}, Vector3{0, 1, 0});
   // app->AddPlaneObstacle(Vector3{1, 0, 0}, Vector3{-1, 0, 0});
 
   // Show the gui
