@@ -52,12 +52,14 @@ namespace LWS
         friend struct CurveVertex;
 
         public:
-        Eigen::MatrixXd positions;
-        
         PolyCurveNetwork(std::vector<Vector3> &ps, std::vector<std::array<size_t, 2>> &es);
         PolyCurveNetwork(Eigen::MatrixXd &ps, std::vector<std::array<size_t, 2>> &es);
+        ~PolyCurveNetwork();
+        
         void InitStructs(std::vector<std::array<size_t, 2>> &es);
         void FindComponents();
+        void PinAllSpecialVertices();
+        void PrintPins();
 
         inline Vector3 Position(CurveVertex* v) {
             return SelectRow(positions, v->id);
@@ -95,6 +97,10 @@ namespace LWS
             return vertices[i];
         }
 
+        inline CurveVertex* GetPinnedVertex(int i) {
+            return vertices[pinnedVertices[i]];
+        }
+
         inline CurveEdge* GetEdge(int i) {
             return edges[i];
         }
@@ -117,6 +123,9 @@ namespace LWS
             constraintProjector = new NullSpaceProjector(constraints);
         }
 
+        Eigen::MatrixXd positions;
+        std::vector<int> pinnedVertices;
+
         private:
         int nVerts;
         std::vector<CurveVertex*> vertices;
@@ -125,6 +134,8 @@ namespace LWS
 
         std::vector<std::vector<CurveVertex*>> verticesByComponent;
         std::vector<std::vector<CurveEdge*>> edgesByComponent;
+
+        void CleanUpStructs();
 
         inline Vector3 Position(int i) {
             return SelectRow(positions, i);

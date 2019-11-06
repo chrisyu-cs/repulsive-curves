@@ -91,32 +91,52 @@ namespace LWS {
 
         static void MultiplyComponents(Eigen::MatrixXd &A, std::vector<Vector3> &x, std::vector<Vector3> &out);
 
+        static inline bool UseNewton() {
+            return false;
+        }
+
         static inline double MetricDistanceTerm(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2) {
-            // double s_pow = (beta - 1) / alpha;
-            // double dist_term = 1.0 / pow(norm(v1 - v2), (s_pow - 1 + 0.5) * 2);
-            // return dist_term;
-
-            double a = alpha - 2;
-            double b = beta - 2;
-            // double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, a, b);
-            // double kf_ts = TPESC::tpe_Kf_pts(v1, v2, t2, a, b);
-            // return (kf_st + kf_ts) / 2;
-            return TPESC::tpe_Kf_pts_sym(v1, v2, t1, t2, a, b);
-
-            // double denom = pow(norm(v1 - v2), beta - alpha);
-            // return 1.0 / denom;
+            if (UseNewton()) {
+                return MetricDistanceTermNewton(alpha, beta, v1, v2, t1, t2);
+            }
+            else {
+                return MetricDistanceTermPure(alpha, beta, v1, v2, t1, t2);
+            }
         }
 
         static inline double MetricDistanceTermLow(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2) {
-            // double denom = pow(norm(v1 - v2), 2);
-            // double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, alpha, beta + 2);
-            // return kf_st;
+            if (UseNewton()) {
+                return MetricDistanceTermLowNewton(alpha, beta, v1, v2, t1, t2);
+            }
+            else {
+                return MetricDistanceTermLowPure(alpha, beta, v1, v2, t1, t2);
+            }
+        }
 
+        private:
+        static inline double MetricDistanceTermPure(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2) {
+            double s_pow = (beta - 1) / alpha;
+            double dist_term = 1.0 / pow(norm(v1 - v2), (s_pow - 1 + 0.5) * 2);
+            return dist_term;
+        }
+
+        static inline double MetricDistanceTermNewton(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2) {
+            double a = alpha - 2;
+            double b = beta - 2;
+            return TPESC::tpe_Kf_pts_sym(v1, v2, t1, t2, a, b);
+        }
+
+        static inline double MetricDistanceTermLowPure(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2) {
+            double s_pow = (beta - 1) / alpha;
+            s_pow = (s_pow - 1 + 0.5) * 2;
+            double a = 2;
+            double b = 4 + s_pow;
+            return TPESC::tpe_Kf_pts_sym(v1, v2, t1, t2, a, b);
+        }
+
+        static inline double MetricDistanceTermLowNewton(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2) {
             double a = alpha;
             double b = beta + 2;
-            // double kf_st = TPESC::tpe_Kf_pts(v1, v2, t1, a, b);
-            // double kf_ts = TPESC::tpe_Kf_pts(v1, v2, t2, a, b);
-            // return (kf_st + kf_ts) / 2;
             return TPESC::tpe_Kf_pts_sym(v1, v2, t1, t2, a, b);
         }
     };

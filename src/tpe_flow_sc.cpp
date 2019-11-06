@@ -20,6 +20,13 @@ namespace LWS {
         UpdateTargetLengths();
     }
 
+    TPEFlowSolverSC::~TPEFlowSolverSC() {
+        for (size_t i = 0; i < obstacles.size(); i++) {
+            delete obstacles[i];
+        }
+        obstacles.clear();
+    }
+
     void TPEFlowSolverSC::UpdateTargetLengths() {
         for (int i = 0; i < curveNetwork->NumEdges(); i++) {
             CurveEdge* p = curveNetwork->GetEdge(i);
@@ -49,6 +56,12 @@ namespace LWS {
     void TPEFlowSolverSC::FillGradientVectorBH(SpatialTree *root, Eigen::MatrixXd &gradients) {
         // Use the spatial tree and Barnes-Hut to evaluate the gradient
         SpatialTree::TPEGradientBarnesHut(curveNetwork, root, gradients, alpha, beta);
+    }
+
+    void TPEFlowSolverSC::AddObstacleGradients(Eigen::MatrixXd &gradients) {
+        for (Obstacle* obs : obstacles) {
+            obs->AddGradient(curveNetwork, gradients, alpha, beta);
+        }
     }
 
     bool TPEFlowSolverSC::StepNaive(double h) {
@@ -136,8 +149,10 @@ namespace LWS {
             }
             // Otherwise, accept the current step.
             else {
-                // delta *= 0.5;
-                // SetGradientStep(gradient, delta);
+                // Empirically we observe that we often need to cut the step size by at least this much
+                // before backprojection succeeds, so we just do it now.
+                delta *= 0.25;
+                SetGradientStep(gradient, delta);
                 if (root) {
                     // Update the centers of mass to reflect the new positions
                     root->recomputeCentersOfMass(curveNetwork);
@@ -164,6 +179,7 @@ namespace LWS {
     double TPEFlowSolverSC::LSBackproject(Eigen::MatrixXd &gradient, double initGuess,
     Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, SpatialTree* root) {
         double delta = initGuess;
+        double lastValue = -1;
 
         while (delta > ls_step_threshold) {
             SetGradientStep(gradient, delta);
@@ -172,19 +188,20 @@ namespace LWS {
                 root->recomputeCentersOfMass(curveNetwork);
             }
 
-            bool backprojSuccess = BackprojectConstraints(lu);
+            double maxValue = BackprojectConstraints(lu);
             
-            if (backprojSuccess) {
+            if (maxValue < backproj_threshold) {
                 return delta;
             }
             else {
                 std::cout << "Backproj unsuccessful; halving step size" << std::endl;
+                lastValue = maxValue;
                 delta /= 2;
             }
         }
         std::cout << "Couldn't make backprojection succeed (initial step " << initGuess << ")" << std::endl;
         BackprojectConstraints(lu);
-        return 0;
+        return delta;
     }
 
     bool TPEFlowSolverSC::StepLS() {
@@ -237,12 +254,10 @@ namespace LWS {
         }
     }
 
-    bool TPEFlowSolverSC::BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
+    double TPEFlowSolverSC::BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
         int nVerts = curveNetwork->NumVertices();
         Eigen::VectorXd b;
         b.setZero(constraint.NumExpectedCols() + constraint.NumConstraintRows());
-
-        Vector3 barycenter = curveNetwork->Barycenter();
 
         // If using per-edge length constraints, matrix has all coordinates merged,
         // so we only need one solve.
@@ -259,7 +274,9 @@ namespace LWS {
             pt->SetPosition(pt->Position() + correction);
         }
 
-        return maxViolation < backproj_threshold;
+        std::cout << "  Constraint value = " << maxViolation << std::endl;
+
+        return maxViolation;
     }
 
     double TPEFlowSolverSC::ComputeAndProjectGradient(Eigen::MatrixXd &gradients) {
@@ -320,6 +337,9 @@ namespace LWS {
         else {
             FillGradientVectorDirect(vertGradients);
         }
+
+        // Add gradient contributions from obstacles
+        AddObstacleGradients(vertGradients);
         
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
         double grad_end = Utils::currentTimeMilliseconds();
@@ -380,6 +400,9 @@ namespace LWS {
         Eigen::MatrixXd l2gradients = vertGradients;
         long bh_end = Utils::currentTimeMilliseconds();
         std::cout << "  Barnes-Hut: " << (bh_end - bh_start) << " ms" << std::endl;
+
+        // Add gradient contributions from obstacles
+        AddObstacleGradients(vertGradients);
 
         // Set up multigrid stuff
         long mg_setup_start = Utils::currentTimeMilliseconds();

@@ -24,6 +24,10 @@ namespace LWS {
         void initSolver();
         void processFileOBJ(std::string filename);
         void processLoopFile(std::string filename);
+
+        void AddPlaneObstacle(Vector3 center, Vector3 normal);
+        
+        void DisplayPlane(Vector3 center, Vector3 normal, std::string name);
         void DisplayCurves(PolyCurveNetwork* curves, std::string name);
         void DisplayCyclicList(std::vector<Vector3> &positions, std::string name);
         std::string surfaceName;

@@ -16,6 +16,7 @@
 #include "multigrid/nullspace_projector.h"
 
 #include "poly_curve_network.h"
+#include "obstacles/plane_obstacle.h"
 
 #include <limits>
 #include <random>
@@ -421,6 +422,41 @@ namespace LWS {
     polyscope::requestRedraw();
   }
 
+  void LWSApp::AddPlaneObstacle(Vector3 center, Vector3 normal) {
+    int numObs = tpeSolver->obstacles.size();
+    tpeSolver->obstacles.push_back(new PlaneObstacle(center, normal));
+    DisplayPlane(center, normal, "obstacle" + std::to_string(numObs));
+  }
+
+  void LWSApp::DisplayPlane(Vector3 center, Vector3 normal, std::string name) {
+    Vector3 v1{1, 0, 0};
+    // If this axis is too close to parallel, then switch to a different one
+    if (dot(v1, normal) > 0.99 || dot(v1, normal) < -0.99) {
+      v1 = Vector3{0, 1, 0};
+    }
+    // Orthogonalize
+    v1 = v1 - dot(v1, normal) * normal;
+    v1 = v1.normalize();
+    Vector3 v2 = cross(normal, v1).normalize();
+
+    std::vector<glm::vec3> nodes;
+    std::vector<std::array<size_t, 3>> triangles;
+
+    Vector3 c1 = center - v1 - v2;
+    Vector3 c2 = center + v1 - v2;
+    Vector3 c3 = center - v1 + v2;
+    Vector3 c4 = center + v1 + v2;
+    nodes.push_back(glm::vec3{c1.x, c1.y, c1.z});
+    nodes.push_back(glm::vec3{c2.x, c2.y, c2.z});
+    nodes.push_back(glm::vec3{c3.x, c3.y, c3.z});
+    nodes.push_back(glm::vec3{c4.x, c4.y, c4.z});
+
+    triangles.push_back({0, 1, 2});
+    triangles.push_back({2, 1, 3});
+
+    polyscope::registerSurfaceMesh(name, nodes, triangles);
+  }
+
   void LWSApp::DisplayCurves(PolyCurveNetwork* curves, std::string name) {
 
     std::vector<glm::vec3> nodes;
@@ -572,8 +608,12 @@ int main(int argc, char** argv) {
 
   polyscope::SurfaceMesh* m = polyscope::registerSurfaceMesh("empty", vertexPositions, faceIndices);
   app->DisplayCurves(app->curves, app->surfaceName);
-
+  std::cout << "Set up curve" << std::endl;
   app->initSolver();
+  std::cout << "Set up solver" << std::endl;
+
+  app->AddPlaneObstacle(Vector3{-1, 0, 0}, Vector3{1, 0, 0});
+  // app->AddPlaneObstacle(Vector3{1, 0, 0}, Vector3{-1, 0, 0});
 
   // Show the gui
   polyscope::show();

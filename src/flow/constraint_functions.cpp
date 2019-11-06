@@ -27,6 +27,19 @@ namespace LWS {
         }
     }
 
+    void ConstraintFunctions::NegativePinViolation(PolyCurveNetwork* curves,
+    Eigen::VectorXd &b, Eigen::VectorXd &targets, int rowStart) {
+
+        int nPins = curves->pinnedVertices.size();
+        for (int i = 0; i < nPins; i++) {
+            CurveVertex* v_i = curves->GetPinnedVertex(i);
+            Vector3 p_i = v_i->Position();
+            b(rowStart + 3 * i    ) = targets(rowStart + 3 * i    ) - p_i.x;
+            b(rowStart + 3 * i + 1) = targets(rowStart + 3 * i + 1) - p_i.y;
+            b(rowStart + 3 * i + 2) = targets(rowStart + 3 * i + 2) - p_i.z;
+        }
+    }
+
     void ConstraintFunctions::AddBarycenterTriplets3X(PolyCurveNetwork* curves,
     std::vector<Eigen::Triplet<double>> &triplets, int rowStart) {
         int nVerts = curves->NumVertices();
@@ -67,6 +80,18 @@ namespace LWS {
             triplets.push_back(Eigen::Triplet<double>(start, 3 * j2,     -grad1.x));
             triplets.push_back(Eigen::Triplet<double>(start, 3 * j2 + 1, -grad1.y));
             triplets.push_back(Eigen::Triplet<double>(start, 3 * j2 + 2, -grad1.z));
+        }
+    }
+
+    void ConstraintFunctions::AddPinTriplets(PolyCurveNetwork* curves,
+    std::vector<Eigen::Triplet<double>> &triplets, int rowStart) {
+        int nPins = curves->pinnedVertices.size();
+
+        for (int i = 0; i < nPins; i++) {
+            int id = curves->pinnedVertices[i];
+            triplets.push_back(Eigen::Triplet<double>(rowStart + 3 * i,     3 * id,     1));
+            triplets.push_back(Eigen::Triplet<double>(rowStart + 3 * i + 1, 3 * id + 1, 1));
+            triplets.push_back(Eigen::Triplet<double>(rowStart + 3 * i + 2, 3 * id + 2, 1));
         }
     }
 

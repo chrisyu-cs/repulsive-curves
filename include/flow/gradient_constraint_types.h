@@ -8,6 +8,38 @@ namespace LWS {
 
     class PolyCurveNetwork;
 
+    class LengthsAndPinsConstraint : public GradientConstraints<LengthsAndPinsConstraint> {
+        private:
+        PolyCurveNetwork* curves;
+
+        public:
+        LengthsAndPinsConstraint(PolyCurveNetwork* c) {
+            curves = c;
+        }
+
+        void AddTriplets(std::vector<Eigen::Triplet<double>> &triplets) const;
+        int NumConstraintRows() const;
+        int NumExpectedCols() const;
+        void SetTargetValues(Eigen::VectorXd &targets) const;
+        void NegativeConstraintValues(Eigen::VectorXd &b, Eigen::VectorXd &targets) const;
+    };
+
+    class PinsConstraint : public GradientConstraints<PinsConstraint> {
+        private:
+        PolyCurveNetwork* curves;
+
+        public:
+        PinsConstraint(PolyCurveNetwork* c) {
+            curves = c;
+        }
+
+        void AddTriplets(std::vector<Eigen::Triplet<double>> &triplets) const;
+        int NumConstraintRows() const;
+        int NumExpectedCols() const;
+        void SetTargetValues(Eigen::VectorXd &targets) const;
+        void NegativeConstraintValues(Eigen::VectorXd &b, Eigen::VectorXd &targets) const;
+    };
+
     class EdgeLengthConstraint : public GradientConstraints<EdgeLengthConstraint> {
         private:
         PolyCurveNetwork* curves;

@@ -549,8 +549,17 @@ namespace LWS {
         }
 
         if (tangentVert->numEdges() != 2) {
-            std::cerr << "TODO: handle junction case" << std::endl;
-            return VertJacobian{Vector3{0, 0, 0}, Vector3{0, 0, 0}, Vector3{0, 0, 0}};
+            if (tangentVert->numEdges() == 1) {
+                CurveEdge* edge = tangentVert->edge(0);
+                Vector3 tangent = edge->Tangent();
+                // Derivative of T
+                return edge_tangent_wrt_vert(edge, wrtVert);
+            }
+
+            else {
+                std::cerr << "TODO: handle junction case" << std::endl;
+                return VertJacobian{Vector3{0, 0, 0}, Vector3{0, 0, 0}, Vector3{0, 0, 0}};
+            }
         }
 
         CurveEdge* prevEdge = tangentVert->edge(0);
@@ -564,6 +573,7 @@ namespace LWS {
         Vector3 vertTangent = sumTangents;
         vertTangent = vertTangent.normalize();
 
+        // Quotient rule on (T1 + T2) / |T1 + T2| 
         VertJacobian derivSumTs = edge_tangent_wrt_vert(prevEdge, wrtVert)
             + edge_tangent_wrt_vert(nextEdge, wrtVert);
 

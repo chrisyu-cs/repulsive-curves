@@ -22,6 +22,7 @@ namespace LWS {
 
         InitStructs(es);
         FindComponents();
+        PinAllSpecialVertices();
     }
 
     PolyCurveNetwork::PolyCurveNetwork(Eigen::MatrixXd &ps, std::vector<std::array<size_t, 2>> &es) {
@@ -31,6 +32,11 @@ namespace LWS {
         
         InitStructs(es);
         FindComponents();
+        PinAllSpecialVertices();
+    }
+
+    PolyCurveNetwork::~PolyCurveNetwork() {
+        CleanUpStructs();
     }
 
     void PolyCurveNetwork::InitStructs(std::vector<std::array<size_t, 2>> &es) {
@@ -52,6 +58,18 @@ namespace LWS {
             adjacency[es[i][0]].push_back(edges[i]);
             adjacency[es[i][1]].push_back(edges[i]);
             edges[i]->id = i;
+        }
+    }
+
+    void PolyCurveNetwork::CleanUpStructs() {
+        // Delete all vertex structs
+        for (int i = 0; i < nVerts; i++) {
+            delete vertices[i];
+        }
+        // Delete all edge structs
+        int nEdges = NumEdges();
+        for (int i = 0; i < nEdges; i++) {
+            delete edges[i];
         }
     }
 
@@ -106,6 +124,22 @@ namespace LWS {
                     }
                 }
             }
+        }
+    }
+
+    void PolyCurveNetwork::PinAllSpecialVertices() {
+        pinnedVertices.clear();
+        for (CurveVertex* v : vertices) {
+            if (v->numEdges() != 2) {
+                pinnedVertices.push_back(v->id);
+            }
+        }
+    }
+
+    void PolyCurveNetwork::PrintPins() {
+        for (size_t i = 0; i < pinnedVertices.size(); i++) {
+            CurveVertex* v = GetPinnedVertex(i);
+            std::cout << "Pin " << i << " = " << v->id << " (position " << v->Position() << ")" << std::endl;
         }
     }
 

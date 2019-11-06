@@ -9,6 +9,8 @@
 #include "multigrid/multigrid_hierarchy.h"
 #include "flow/gradient_constraint_types.h"
 
+#include "obstacles/obstacle.h"
+
 namespace LWS {
 
     struct CoordinateLUs {
@@ -21,8 +23,10 @@ namespace LWS {
     class TPEFlowSolverSC {
         public:
         using ConstraintType = EdgeLengthConstraint;
+        std::vector<Obstacle*> obstacles;
 
         TPEFlowSolverSC(PolyCurveNetwork* p, double a, double b);
+        ~TPEFlowSolverSC();
         ConstraintType constraint;
 
         void UpdateTargetLengths();
@@ -32,8 +36,9 @@ namespace LWS {
         double CurrentEnergyBH(SpatialTree *root);
         void FillGradientSingle(Eigen::MatrixXd &gradients, int i, int j);
         void FillGradientVectorDirect(Eigen::MatrixXd &gradients);
-
         void FillGradientVectorBH(SpatialTree *root, Eigen::MatrixXd &gradients);
+        void AddObstacleGradients(Eigen::MatrixXd &gradients);
+
         inline void SetExponents(double a, double b) {
             alpha = a;
             beta = b;
@@ -74,7 +79,7 @@ namespace LWS {
         double alpha;
         double beta;
         void SetGradientStep(Eigen::MatrixXd gradient, double delta);
-        bool BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
+        double BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
     };
 
     template<typename Domain, typename Smoother>

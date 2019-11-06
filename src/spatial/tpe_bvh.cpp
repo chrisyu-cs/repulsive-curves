@@ -86,7 +86,7 @@ namespace LWS {
         BVHNode3D::globalID = 0;
         tree->recursivelyAssignIDs();
 
-        std::cout << "Created vertex BVH with " << BVHNode3D::globalID << " nodes" << std::endl;
+        // std::cout << "Created vertex BVH with " << BVHNode3D::globalID << " nodes" << std::endl;
         tree->numNodes = BVHNode3D::globalID;
 
         return tree;
@@ -108,7 +108,7 @@ namespace LWS {
         BVHNode3D::globalID = 0;
         tree->recursivelyAssignIDs();
 
-        std::cout << "Created edge BVH with " << BVHNode3D::globalID << " nodes" << std::endl;
+        // std::cout << "Created edge BVH with " << BVHNode3D::globalID << " nodes" << std::endl;
         tree->numNodes = BVHNode3D::globalID;
 
         return tree;
