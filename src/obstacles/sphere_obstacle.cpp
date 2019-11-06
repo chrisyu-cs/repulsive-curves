@@ -1,21 +1,23 @@
-#include "obstacles/plane_obstacle.h"
+#include "obstacles/sphere_obstacle.h"
 #include "tpe_energy_sc.h"
 
 namespace LWS {
     
-    PlaneObstacle::PlaneObstacle(Vector3 c, Vector3 n) {
+    SphereObstacle::SphereObstacle(Vector3 c, double r) {
         center = c;
-        normal = n.normalize();
+        radius = r;
     }
 
-    PlaneObstacle::~PlaneObstacle() {}
+    SphereObstacle::~SphereObstacle() {}
 
-    void PlaneObstacle::AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient, double alpha, double beta) {
+    void SphereObstacle::AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient, double alpha, double beta) {
         int nVerts = curves->NumVertices();
 
         for (int i = 0; i < nVerts; i++) {
             CurveVertex* v_i = curves->GetVertex(i);
             Vector3 p_i = v_i->Position();
+            // If we're very close to the center of the sphere, gradient is 0
+            if ((p_i - center).norm() < 1e-6) continue;
             // Find the closest point on the plane
             Vector3 nearest = ClosestPoint(p_i);
             // Simulate an energy contribution of 1 / r^(b - a)
@@ -23,6 +25,10 @@ namespace LWS {
             double distance = (nearest - p_i).norm();
             toPoint /= distance;
             Vector3 grad_i = toPoint * 1.0 / pow(distance, beta - alpha + 1);
+
+            // Add an antipodal component
+            // double oppDistance = 2 * radius - distance;
+            // grad_i += -toPoint * 1.0 / pow(oppDistance, beta - alpha + 1); 
 
             AddToRow(gradient, v_i->GlobalIndex(), grad_i);
         }

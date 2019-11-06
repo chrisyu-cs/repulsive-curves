@@ -26,7 +26,9 @@ namespace LWS {
         void processLoopFile(std::string filename);
 
         void AddPlaneObstacle(Vector3 center, Vector3 normal);
-        
+        void AddSphereObstacle(Vector3 center, double radius);
+
+        void DisplayWireSphere(Vector3 center, double radius, std::string name);
         void DisplayPlane(Vector3 center, Vector3 normal, std::string name);
         void DisplayCurves(PolyCurveNetwork* curves, std::string name);
         void DisplayCyclicList(std::vector<Vector3> &positions, std::string name);

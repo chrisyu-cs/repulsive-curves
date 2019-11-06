@@ -17,6 +17,7 @@
 
 #include "poly_curve_network.h"
 #include "obstacles/plane_obstacle.h"
+#include "obstacles/sphere_obstacle.h"
 
 #include <limits>
 #include <random>
@@ -428,6 +429,12 @@ namespace LWS {
     DisplayPlane(center, normal, "obstacle" + std::to_string(numObs));
   }
 
+  void LWSApp::AddSphereObstacle(Vector3 center, double radius) {
+    int numObs = tpeSolver->obstacles.size();
+    tpeSolver->obstacles.push_back(new SphereObstacle(center, 2));
+    DisplayWireSphere(center, radius, "obstacle" + std::to_string(numObs));
+  }
+
   void LWSApp::DisplayPlane(Vector3 center, Vector3 normal, std::string name) {
     Vector3 v1{1, 0, 0};
     // If this axis is too close to parallel, then switch to a different one
@@ -455,6 +462,31 @@ namespace LWS {
     triangles.push_back({2, 1, 3});
 
     polyscope::registerSurfaceMesh(name, nodes, triangles);
+  }
+
+  void LWSApp::DisplayWireSphere(Vector3 center, double radius, std::string name) {
+    size_t numSegments = 32;
+    size_t base = 0;
+
+    std::vector<glm::vec3> nodes;
+    std::vector<std::array<size_t, 2>> edges;
+
+    for (int c = 0; c < 3; c++) {
+      for (size_t i = 0; i < numSegments; i++) {
+        double theta = i * (2 * M_PI) / numSegments;
+
+        double x = cos(theta) * radius;
+        double y = sin(theta) * radius;
+
+        if (c == 0) nodes.push_back(glm::vec3{x, 0, y});
+        else if (c == 1) nodes.push_back(glm::vec3{x, y, 0});
+        else if (c == 2) nodes.push_back(glm::vec3{0, x, y});
+        edges.push_back({base + i, base + (i + 1) % numSegments});
+      }
+      base += numSegments;
+    }
+
+    polyscope::registerCurveNetwork(name, nodes, edges);
   }
 
   void LWSApp::DisplayCurves(PolyCurveNetwork* curves, std::string name) {
@@ -609,16 +641,15 @@ int main(int argc, char** argv) {
   polyscope::SurfaceMesh* m = polyscope::registerSurfaceMesh("empty", vertexPositions, faceIndices);
   app->DisplayCurves(app->curves, app->surfaceName);
   // app->curves->PinAllSpecialVertices();
-
-  app->curves->PinVertex(10);
+  // app->curves->PinVertex(10);
 
   std::cout << "Set up curve" << std::endl;
   app->initSolver();
   std::cout << "Set up solver" << std::endl;
 
-
-  // app->AddPlaneObstacle(Vector3{0, -1, 0}, Vector3{0, 1, 0});
-  // app->AddPlaneObstacle(Vector3{1, 0, 0}, Vector3{-1, 0, 0});
+  // app->AddPlaneObstacle(Vector3{-2, 0, 0}, Vector3{1, 0, 0});
+  // app->AddPlaneObstacle(Vector3{2, 0, 0}, Vector3{-1, 0, 0});
+  app->AddSphereObstacle(Vector3{0, 0, 0}, 1.5);
 
   // Show the gui
   polyscope::show();
