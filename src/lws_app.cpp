@@ -161,30 +161,29 @@ namespace LWS {
 
       std::cout << "Gradient ratio = \n" << gradientRatio << std::endl;
       std::cout << "Energy ratio = " << scaledEnergy << " / " << initEnergy << " = " << (scaledEnergy / initEnergy) << std::endl;
-
     }
 
-    if (ImGui::Button("Check derivative")) {
-      tpeSolver->SetExponents(2, 4);
+    if (ImGui::Button("Check BH gradient")) {
+      std::cout << "Directly computing gradient..." << std::endl;
+      tpeSolver->SetExponents(3, 6);
       int nVerts = curves->NumVertices();
-      // Eigen::MatrixXd initGradients;
-      // initGradients.setZero(nVerts, 3);
-      // Eigen::MatrixXd bhGradients = initGradients;
-      // tpeSolver->FillGradientVectorDirect(initGradients);
+      Eigen::MatrixXd initGradients;
+      initGradients.setZero(nVerts, 3);
+      Eigen::MatrixXd bhGradients = initGradients;
+      tpeSolver->FillGradientVectorDirect(initGradients);
 
-      double energyDirect = tpeSolver->CurrentEnergyDirect();
-
+      std::cout << "Using Barnes-Hut..." << std::endl;
+      long bhstart = Utils::currentTimeMilliseconds();
       LWS::BVHNode3D* vert_tree = CreateBVHFromCurve(curves);
-      // tpeSolver->FillGradientVectorBH(vert_tree, bhGradients);
-      double energyBH = tpeSolver->CurrentEnergyBH(vert_tree);
+      tpeSolver->FillGradientVectorBH(vert_tree, bhGradients);
+      long bhend = Utils::currentTimeMilliseconds();
 
-      // std::cout << "BH gradient norm = " << bhGradients.norm() << std::endl;
-      std::cout << "BH energy = " << energyBH << std::endl;
-      // std::cout << "Direct gradient norm = " << initGradients.norm() << std::endl;
-      std::cout << "Direct energy = " << energyDirect << std::endl;
+      std::cout << "Direct norm = " << initGradients.norm() << std::endl;
+      std::cout << "BH norm     = " << bhGradients.norm() << std::endl;
+      std::cout << "Rel error   = " << 100 * (initGradients - bhGradients).norm() / initGradients.norm() << " %" << std::endl;
+      std::cout << "Runtime     = " << (bhend - bhstart) << " ms" << std::endl;
 
-      // std::cout << 100 * (bhGradients - initGradients).norm() / initGradients.norm() << "%" << std::endl;
-
+      delete vert_tree;
     }
 
     if (ImGui::Button("Test multiply")) {
@@ -421,6 +420,16 @@ namespace LWS {
 
     curveNetwork->updateNodePositions(curve_vecs);
     polyscope::requestRedraw();
+  }
+
+  void LWSApp::AddMeshObstacle(std::string objName, Vector3 center) {
+    std::unique_ptr<HalfedgeMesh> mesh;
+    std::unique_ptr<VertexPositionGeometry> geometry;
+    std::tie(mesh, geometry) = loadMesh(objName);
+
+    geometry->requireVertexPositions();
+    geometry->requireVertexNormals();
+    geometry->requireVertexDualAreas();
   }
 
   void LWSApp::AddPlaneObstacle(Vector3 center, Vector3 normal) {

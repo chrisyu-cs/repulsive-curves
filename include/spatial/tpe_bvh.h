@@ -3,6 +3,8 @@
 #include "spatial_tree.h"
 #include "../tpe_energy_sc.h"
 #include "geometrycentral/utilities/vector2.h"
+#include "geometrycentral/surface/halfedge_mesh.h"
+#include "geometrycentral/surface/vertex_position_geometry.h"
 #include "utils.h"
 
 #include <fstream>
@@ -123,8 +125,29 @@ namespace LWS {
         int numElements;
         bool shouldUseCell(Vector3 vertPos);
         double AxisSplittingPlane(std::vector<VertexBody6D> &points, int axis);
-        inline double nodeRadius();
-        void setLeafData(PolyCurveNetwork* curves);
+        
+        inline double nodeRatio(double d) {
+            // Compute diagonal distance from corner to corner
+            // double diag = norm(maxCoords.position - minCoords.position);
+            Vector3 diag = maxCoords.position - minCoords.position;
+            double maxCoord = fmax(diag.x, fmax(diag.y, diag.z));
+
+            Vector3 tanDiag = maxCoords.tangent - minCoords.tangent;
+            double maxTanCoord = fmax(tanDiag.x, fmax(tanDiag.y, tanDiag.z));
+
+            // return (maxCoord * sqrt(3.0) / 2) / d;
+            return fmax((maxCoord * sqrt(3.0) / 2) / d, maxTanCoord * sqrt(3.0) / 2);
+        }
+
+        inline bool testTangent() {
+            Vector3 tanDiag = maxCoords.tangent - minCoords.tangent;
+            double maxTanCoord = fmax(tanDiag.x, fmax(tanDiag.y, tanDiag.z));
+            double r = maxTanCoord * sqrt(3.0) / 2;
+            return r < thresholdTheta;
+        }
+
+        template<typename T>
+        void setLeafData(T &curves);
 
         int splitAxis;
         double splitPoint;
@@ -136,6 +159,41 @@ namespace LWS {
         double thresholdTheta;
     };
 
+    template<typename T>
+    void BVHNode3D::setLeafData(T &curves) {
+        std::cerr << "Type not supported" << std::endl;
+        throw 1;
+    }
+    
+    template<>
+    inline void BVHNode3D::setLeafData(PolyCurveNetwork* &curves) {
+        if (body.type == BodyType::Vertex) {
+            CurveVertex* p = curves->GetVertex(body.elementIndex);
+            body.mass = p->DualLength();
+            body.pt.position = p->Position();
+            body.pt.tangent = p->Tangent();
+        }
+        else if (body.type == BodyType::Edge) {
+            CurveEdge* p1 = curves->GetEdge(body.elementIndex);
+
+            // Mass of an edge is its length
+            body.mass = p1->Length();
+            // Use midpoint as center of mass
+            body.pt.position = p1->Midpoint();
+            // Tangent direction is normalized edge vector
+            body.pt.tangent = p1->Tangent();
+        }
+
+        totalMass = body.mass;
+        centerOfMass = body.pt.position;
+        averageTangent = body.pt.tangent;
+
+        minCoords = PosTan{body.pt.position, body.pt.tangent};
+        maxCoords = minCoords;
+    }
+
     BVHNode3D* CreateBVHFromCurve(PolyCurveNetwork *curves);
     BVHNode3D* CreateEdgeBVHFromCurve(PolyCurveNetwork *curves);
+    BVHNode3D* CreateBVHFromMesh(std::shared_ptr<geometrycentral::surface::HalfedgeMesh> &mesh,
+        std::shared_ptr<geometrycentral::surface::VertexPositionGeometry> &geom);
 }

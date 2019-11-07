@@ -114,6 +114,38 @@ namespace LWS {
         return tree;
     }
 
+    using HalfedgeMesh = geometrycentral::surface::HalfedgeMesh;
+    using VertGeometry = geometrycentral::surface::VertexPositionGeometry;
+    using VertIndices = geometrycentral::surface::VertexData<size_t>;
+    using GCVertex = geometrycentral::surface::Vertex;
+
+    inline VertexBody6D meshVertToBody(const GCVertex &v, std::shared_ptr<VertGeometry> &geom, VertIndices &indices) {
+        Vector3 pos = geom->vertexPositions[v];
+        Vector3 tan = geom->vertexNormals[v];
+        PosTan pt{pos, tan};
+        double mass = geom->vertexDualAreas[v];
+
+        int ind_v = indices[v];
+
+        return VertexBody6D{pt, mass, ind_v, BodyType::Vertex};
+    }
+
+    BVHNode3D* CreateBVHFromMesh(std::shared_ptr<HalfedgeMesh> &mesh, std::shared_ptr<VertGeometry> &geom) {
+        int nVerts = mesh->nVertices();
+        std::vector<VertexBody6D> verts(nVerts);
+        VertIndices indices = mesh->getVertexIndices();
+
+        // Loop over all the vertices
+        for (const GCVertex &v : mesh->vertices()) {
+            VertexBody6D curBody = meshVertToBody(v, geom, indices);
+            // Put vertex body into full list
+            verts[indices[v]] = curBody;
+        }
+
+        BVHNode3D* tree = new BVHNode3D(verts, 0, 0);
+        return tree;
+    }
+
     BVHNode3D::BVHNode3D(std::vector<VertexBody6D> &points, int axis, BVHNode3D* root) {
         // Split the points into sets somehow
         thresholdTheta = 0.25;
@@ -239,32 +271,6 @@ namespace LWS {
         return splitPoint;
     }
 
-    void BVHNode3D::setLeafData(PolyCurveNetwork* curves) {
-        if (body.type == BodyType::Vertex) {
-            CurveVertex* p = curves->GetVertex(body.elementIndex);
-            body.mass = p->DualLength();
-            body.pt.position = p->Position();
-            body.pt.tangent = p->Tangent();
-        }
-        else if (body.type == BodyType::Edge) {
-            CurveEdge* p1 = curves->GetEdge(body.elementIndex);
-
-            // Mass of an edge is its length
-            body.mass = p1->Length();
-            // Use midpoint as center of mass
-            body.pt.position = p1->Midpoint();
-            // Tangent direction is normalized edge vector
-            body.pt.tangent = p1->Tangent();
-        }
-
-        totalMass = body.mass;
-        centerOfMass = body.pt.position;
-        averageTangent = body.pt.tangent;
-
-        minCoords = PosTan{body.pt.position, body.pt.tangent};
-        maxCoords = minCoords;
-    }
-
     void BVHNode3D::refreshWeightsVector(PolyCurveNetwork* curves, BodyType bType) {
         if (bType == BodyType::Vertex) {
             int nVerts = curves->NumVertices();
@@ -332,13 +338,7 @@ namespace LWS {
     int BVHNode3D::NumElements() {
         return numElements;
     }
-
-    inline double BVHNode3D::nodeRadius() {
-        // Compute diagonal distance from corner to corner
-        double diag = norm(maxCoords.position - minCoords.position);
-        return diag;
-    }
-
+    
     Vector2 BVHNode3D::viewspaceBounds(Vector3 point) {
         Vector3 center = (maxCoords.position + minCoords.position) / 2;
         Vector3 offset = (maxCoords.position - minCoords.position) / 2;
@@ -381,10 +381,10 @@ namespace LWS {
 
     bool BVHNode3D::shouldUseCell(Vector3 vertPos) {
         double d = norm(centerOfMass - vertPos);
-        Vector2 ratios = viewspaceBounds(vertPos) / d;
+        // Vector2 ratios = viewspaceBounds(vertPos) / d;
         // TODO: take into account some tangent-related criteria?
-        return fmax(ratios.x, ratios.y) < thresholdTheta;
-        // return (nodeRadius() / d) < thresholdTheta;
+        // return fmax(ratios.x, ratios.y) < thresholdTheta;
+        return nodeRatio(d) < thresholdTheta;
     }
 
     void BVHNode3D::accumulateVertexEnergy(double &result, CurveVertex* &i_pt,
