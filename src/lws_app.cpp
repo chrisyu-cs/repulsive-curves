@@ -379,10 +379,33 @@ namespace LWS {
     }
 
     if (ImGui::Button("Curve to OBJ")) {
-      std::cout << "TODO" << std::endl;
+       std::vector<Vector3> all_positions;
+       std::vector<std::vector<size_t> > components;
+
+       // TODO build vector all_positions
+       int nV = curves->NumVertices();
+       all_positions.resize(nV);
+       for (int i = 0; i < nV; i++) {
+          CurveVertex* vi = curves->GetVertex(i);
+          all_positions[i] = vi->Position();
+       }
+
+       // build vector<vector<size_t>> components
+       int n = curves->NumComponents();
+       components.resize(n);
+       for (int c = 0; c < n; c++) {
+          int m = curves->NumVerticesInComponent(c);
+          components[c].resize(m);
+          for (int i=0; i < m; i++) {
+             CurveVertex* vi = curves->GetVertexInComponent(c,i);
+             components[c][i] = vi->id;
+          }
+       }
+
+       CurveIO::writeOBJLineElements("out.obj", all_positions, components);
     }
 
-    ImGui::Checkbox("Use Sobalev", &LWSOptions::useSobalev);
+    ImGui::Checkbox("Use Sobolev", &LWSOptions::useSobalev);
 
     double delta = 0.001;
 

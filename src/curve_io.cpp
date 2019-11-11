@@ -44,6 +44,29 @@ namespace LWS {
 
             std::cout << "Read " << all_positions.size() << " vertices, " << all_edges.size() << " edges" << std::endl;
         }
+
+        void writeOBJLineElements(std::string fname, const std::vector<Vector3> &all_positions,
+        const std::vector<std::vector<size_t> > &components) {
+
+            ofstream myfile(fname);
+
+            // write vertices
+            for(const Vector3& v : all_positions) {
+                myfile << "v " << v.x << " " << v.y << " " << v.z << endl;
+            }
+
+            // write polylines
+            for(const auto& c : components) {
+                myfile << "l";
+                for( size_t i : c ) {
+                    myfile << " " << (1+i);
+                }
+                myfile << endl;
+            }
+            myfile.close();
+
+            std::cout << "Wrote " << all_positions.size() << " vertices, " << components.size() << " polylines" << std::endl;
+        }
     }
 }
 
