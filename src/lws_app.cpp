@@ -16,6 +16,7 @@
 #include "multigrid/nullspace_projector.h"
 
 #include "poly_curve_network.h"
+#include "obstacles/mesh_obstacle.h"
 #include "obstacles/plane_obstacle.h"
 #include "obstacles/sphere_obstacle.h"
 
@@ -177,6 +178,8 @@ namespace LWS {
       LWS::BVHNode3D* vert_tree = CreateBVHFromCurve(curves);
       tpeSolver->FillGradientVectorBH(vert_tree, bhGradients);
       long bhend = Utils::currentTimeMilliseconds();
+
+      std::cout << vert_tree->countBadNodes() << " bad nodes out of " << vert_tree->numNodes << " total" << std::endl;
 
       std::cout << "Direct norm = " << initGradients.norm() << std::endl;
       std::cout << "BH norm     = " << bhGradients.norm() << std::endl;
@@ -427,9 +430,20 @@ namespace LWS {
     std::unique_ptr<VertexPositionGeometry> geometry;
     std::tie(mesh, geometry) = loadMesh(objName);
 
-    geometry->requireVertexPositions();
-    geometry->requireVertexNormals();
-    geometry->requireVertexDualAreas();
+    std::string name = polyscope::guessNiceNameFromPath(objName);
+    polyscope::registerSurfaceMesh(name, geometry->inputVertexPositions,
+      mesh->getFaceVertexList(), polyscopePermutations(*mesh));
+
+    std::shared_ptr<HalfedgeMesh> mesh_shared(std::move(mesh));
+    std::shared_ptr<VertexPositionGeometry> geom_shared(std::move(geometry));
+
+    geom_shared->requireVertexPositions();
+    geom_shared->requireVertexNormals();
+    geom_shared->requireVertexDualAreas();
+
+    std::cout << "Making mesh obstacle" << std::endl;
+    tpeSolver->obstacles.push_back(new MeshObstacle(mesh_shared, geom_shared));
+    std::cout << "Made mesh obstacle" << std::endl;
   }
 
   void LWSApp::AddPlaneObstacle(Vector3 center, Vector3 normal) {
@@ -607,10 +621,11 @@ void customWindow() {
 
 int main(int argc, char** argv) {
   // Configure the argument parser
-  args::ArgumentParser parser("A simple demo of Polyscope.\nBy "
-                              "Nick Sharp (nsharp@cs.cmu.edu)",
+  args::ArgumentParser parser("An optimizer for self-avoiding curve energies.",
                               "");
-  args::PositionalList<string> files(parser, "files", "One or more files to visualize");
+  args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
+  args::Positional<string> file(parser, "curve", "Space curve to process");
+  args::ValueFlagList<string> obstacleFiles(parser, "obstacles", "Obstacles to add", {'o'});
 
   // Parse args
   try {
@@ -624,6 +639,12 @@ int main(int argc, char** argv) {
     std::cerr << parser;
     return 1;
   }
+
+  if (!file) {
+    std::cout << "Must specify one space curve file." << std::endl;
+    return 1;
+  }
+
   // Options
   polyscope::options::autocenterStructures = false;
   // polyscope::view::windowWidth = 600;
@@ -640,9 +661,7 @@ int main(int argc, char** argv) {
   // Add a few gui elements
   polyscope::state::userCallback = &customWindow;
 
-  for (string f : files) {
-    processFile(LWS::LWSApp::instance, f);
-  }
+  processFile(LWS::LWSApp::instance, file.Get());
 
   std::vector<std::array<double, 3>> vertexPositions;
   std::vector<std::vector<size_t>> faceIndices;
@@ -656,9 +675,15 @@ int main(int argc, char** argv) {
   app->initSolver();
   std::cout << "Set up solver" << std::endl;
 
+  if (obstacleFiles) {
+    for (string obsFile : obstacleFiles) {
+      app->AddMeshObstacle(obsFile, Vector3{0, 0, 0});
+    }
+  }
+
   // app->AddPlaneObstacle(Vector3{-2, 0, 0}, Vector3{1, 0, 0});
   // app->AddPlaneObstacle(Vector3{2, 0, 0}, Vector3{-1, 0, 0});
-  app->AddSphereObstacle(Vector3{0, 0, 0}, 1.5);
+  // app->AddSphereObstacle(Vector3{0, 0, 0}, 1.5);
 
   // Show the gui
   polyscope::show();

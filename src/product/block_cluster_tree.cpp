@@ -88,16 +88,15 @@ namespace LWS {
 
     bool BlockClusterTree::isPairAdmissible(ClusterPair pair, double theta) {
         if (pair.cluster1 == pair.cluster2) return false;
-
-        Vector2 c1spread = pair.cluster1->viewspaceBounds(pair.cluster2->centerOfMass);
-        Vector2 c2spread = pair.cluster2->viewspaceBounds(pair.cluster1->centerOfMass);
-
-        double maxRadial = fmax(c1spread.x, c2spread.x);
-        double maxLinear = fmax(c1spread.y, c2spread.y);
-
         double distance = norm(pair.cluster1->centerOfMass - pair.cluster2->centerOfMass);
+        double radius1 = norm(pair.cluster1->maxBound().position - pair.cluster1->minBound().position) / 2;
+        double radius2 = norm(pair.cluster2->maxBound().position - pair.cluster2->minBound().position) / 2;
+        if (distance < radius1 || distance < radius2) return false;
 
-        bool isAdm = fmax(maxRadial, maxLinear) < theta * distance;
+        double ratio1 = pair.cluster1->nodeRatio(distance - radius2);
+        double ratio2 = pair.cluster2->nodeRatio(distance - radius1);
+
+        bool isAdm = fmax(ratio1, ratio2) < theta;
         return isAdm;
     }
 

@@ -56,16 +56,16 @@ namespace LWS {
         template<typename Domain, typename Smoother>
         double ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output);
         template<typename Domain, typename Smoother>
-        bool BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess, MultigridHierarchy<Domain>* solver, SpatialTree* root);
+        bool BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess, MultigridHierarchy<Domain>* solver, BVHNode3D* root);
         
         void ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B);
 
         void SaveCurrentPositions();
         void RestoreOriginalPositions();
-        double LineSearchStep(Eigen::MatrixXd &gradients, double gradDot = 1, SpatialTree* root = 0);
-        double LineSearchStep(Eigen::MatrixXd &gradients, double initGuess, int doublingLimit, double gradDot, SpatialTree* root);
+        double LineSearchStep(Eigen::MatrixXd &gradients, double gradDot = 1, BVHNode3D* root = 0);
+        double LineSearchStep(Eigen::MatrixXd &gradients, double initGuess, int doublingLimit, double gradDot, BVHNode3D* root);
         double LSBackproject(Eigen::MatrixXd &gradients, double initGuess,
-            Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, SpatialTree* root);
+            Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, BVHNode3D* root);
 
         private:
         int iterNum;
@@ -104,7 +104,7 @@ namespace LWS {
 
     template<typename Domain, typename Smoother>
     bool TPEFlowSolverSC::BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess,
-    MultigridHierarchy<Domain>* solver, SpatialTree* root) {
+    MultigridHierarchy<Domain>* solver, BVHNode3D* root) {
         double delta = initGuess;
         int nVerts = curveNetwork->NumVertices();
         int nEdges = curveNetwork->NumEdges();

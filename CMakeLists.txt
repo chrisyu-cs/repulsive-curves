@@ -81,6 +81,7 @@ set(SRCS
   src/flow/constraint_functions.cpp
   src/flow/gradient_constraint_types.cpp
   src/obstacles/obstacle.cpp
+  src/obstacles/mesh_obstacle.cpp
   src/obstacles/plane_obstacle.cpp
   src/obstacles/sphere_obstacle.cpp
   src/product/block_cluster_tree.cpp

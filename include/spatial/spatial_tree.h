@@ -10,11 +10,6 @@ namespace LWS {
         public:
         // Virtual destructor
         virtual ~SpatialTree() = 0;
-
-        virtual void refreshWeightsVector(PolyCurveNetwork* curves, BodyType bType) = 0;
-
-        // Recursively recompute all centers of mass in this tree
-        virtual void recomputeCentersOfMass(PolyCurveNetwork* curves) = 0;
         
         // Compute the total energy contribution from a single vertex
         virtual void accumulateVertexEnergy(double &result, CurveVertex* &i_pt,

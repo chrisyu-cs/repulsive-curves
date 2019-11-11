@@ -20,5 +20,6 @@ namespace LWS {
 
         private:
         BVHNode3D* bvh;
+        Vector3 AccumulateForce(BVHNode3D* node, Vector3 point, double alpha, double beta);
     };
 }

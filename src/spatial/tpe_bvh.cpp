@@ -45,6 +45,18 @@ namespace LWS {
         }
     }
 
+    inline int NextSpatialAxis(int axis) {
+        switch (axis) {
+            case 0: return 1;
+            case 1: return 2;
+            case 2: return 0;
+            case 3: return 0;
+            case 4: return 0;
+            case 5: return 0;
+            default: return 0;
+        }
+    }
+
     inline VertexBody6D vertToBody(PolyCurveNetwork* curves, int i) {
         CurveVertex* p = curves->GetVertex(i);
         Vector3 pos = p->Position();
@@ -81,7 +93,7 @@ namespace LWS {
             verts[curBody.elementIndex] = curBody;
         }
 
-        BVHNode3D* tree = new BVHNode3D(verts, 0, 0);
+        BVHNode3D* tree = new BVHNode3D(verts, 3, 0, true);
         tree->recomputeCentersOfMass(curves);
         BVHNode3D::globalID = 0;
         tree->recursivelyAssignIDs();
@@ -103,7 +115,7 @@ namespace LWS {
             verts[curBody.elementIndex] = curBody;
         }
 
-        BVHNode3D* tree = new BVHNode3D(verts, 0, 0);
+        BVHNode3D* tree = new BVHNode3D(verts, 0, 0, true);
         tree->recomputeCentersOfMass(curves);
         BVHNode3D::globalID = 0;
         tree->recursivelyAssignIDs();
@@ -142,11 +154,15 @@ namespace LWS {
             verts[indices[v]] = curBody;
         }
 
-        BVHNode3D* tree = new BVHNode3D(verts, 0, 0);
+        BVHNode3D* tree = new BVHNode3D(verts, 0, 0, false);
+        auto pair = std::pair<std::shared_ptr<HalfedgeMesh>, std::shared_ptr<VertGeometry>>(mesh, geom);
+        tree->recomputeCentersOfMass(pair);
+        BVHNode3D::globalID = 0;
+        tree->recursivelyAssignIDs();
         return tree;
     }
 
-    BVHNode3D::BVHNode3D(std::vector<VertexBody6D> &points, int axis, BVHNode3D* root) {
+    BVHNode3D::BVHNode3D(std::vector<VertexBody6D> &points, int axis, BVHNode3D* root, bool splitTangents) {
         // Split the points into sets somehow
         thresholdTheta = 0.25;
         splitAxis = axis;
@@ -206,11 +222,20 @@ namespace LWS {
             //std::cout << "Split " << nPoints << " into " << lesserPoints.size() << " and " << greaterPoints.size() << std::endl;
 
             // Recursively construct children
-            int nextAxis = NextAxis(axis);
+            int nextAxis;
+            if (splitTangents) {
+                nextAxis = NextAxis(axis);
+            }
+            else {
+                nextAxis = NextSpatialAxis(axis);
+            }
+            // If this cell is "good" in terms of the tangent test, then split in spatial axes
+            // Otherwise, continue splitting in tangent axes
+            // int nextAxis = (testTangent()) ? NextSpatialAxis(axis) : NextAxis(axis);
 
             BVHNode3D* nextRoot = (root) ? root : this;
-            BVHNode3D* lesserNode = new BVHNode3D(lesserPoints, nextAxis, nextRoot);
-            BVHNode3D* greaterNode = new BVHNode3D(greaterPoints, nextAxis, nextRoot);
+            BVHNode3D* lesserNode = new BVHNode3D(lesserPoints, nextAxis, nextRoot, splitTangents);
+            BVHNode3D* greaterNode = new BVHNode3D(greaterPoints, nextAxis, nextRoot, splitTangents);
 
             children.push_back(lesserNode);
             children.push_back(greaterNode);
@@ -284,53 +309,6 @@ namespace LWS {
             for (int i = 0; i < nEdges; i++) {
                 CurveEdge* e = curves->GetEdge(i);
                 fullMasses(e->id) = e->Length();
-            }
-        }
-    }
-
-    void BVHNode3D::recomputeCentersOfMass(PolyCurveNetwork* curves) {
-        if (isEmpty) {
-            totalMass = 0;
-            numElements = 0;
-        }
-        // For a leaf, just set centers and bounds from the one body
-        else if (isLeaf) {
-            setLeafData(curves);
-            numElements = 1;
-        }
-        else {
-            // Recursively compute bounds for all children
-            for (size_t i = 0; i < children.size(); i++) {
-                children[i]->recomputeCentersOfMass(curves);
-            }
-
-            minCoords = children[0]->minCoords;
-            maxCoords = children[0]->maxCoords;
-
-            totalMass = 0;
-            centerOfMass = Vector3{0, 0, 0};
-            averageTangent = Vector3{0, 0, 0};
-            
-            // Accumulate max/min over all nonempty children
-            for (size_t i = 0; i < children.size(); i++) {
-                if (!children[i]->isEmpty) {
-                    minCoords = postan_min(children[i]->minCoords, minCoords);
-                    maxCoords = postan_max(children[i]->maxCoords, maxCoords);
-
-                    totalMass += children[i]->totalMass;
-                    centerOfMass += children[i]->centerOfMass * children[i]->totalMass;
-                    averageTangent += children[i]->averageTangent * children[i]->totalMass;
-                }
-            }
-
-            centerOfMass /= totalMass;
-            averageTangent /= totalMass;
-
-            averageTangent = averageTangent.normalize();
-
-            numElements = 0;
-            for (size_t i = 0; i < children.size(); i++) {
-                numElements += children[i]->numElements;
             }
         }
     }

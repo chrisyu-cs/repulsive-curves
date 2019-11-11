@@ -99,7 +99,7 @@ namespace LWS {
         }
     }
 
-    double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double gradDot, SpatialTree* root) {
+    double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double gradDot, BVHNode3D* root) {
         double gradNorm = gradient.norm();
         //std::cout << "Norm of gradient = " << gradNorm << std::endl;
         double initGuess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
@@ -107,7 +107,7 @@ namespace LWS {
     }
 
     double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double initGuess, int doublingLimit,
-    double gradDot, SpatialTree* root) {
+    double gradDot, BVHNode3D* root) {
         double delta = initGuess;
 
         // Save initial positions
@@ -177,7 +177,7 @@ namespace LWS {
     }
 
     double TPEFlowSolverSC::LSBackproject(Eigen::MatrixXd &gradient, double initGuess,
-    Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, SpatialTree* root) {
+    Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, BVHNode3D* root) {
         double delta = initGuess;
         double lastValue = -1;
 
@@ -327,7 +327,7 @@ namespace LWS {
         vertGradients.setZero(nVerts + 1, 3);
 
         long grad_start = Utils::currentTimeMilliseconds();
-        SpatialTree *tree_root = 0;
+        BVHNode3D *tree_root = 0;
 
         // Barnes-Hut for gradient accumulation
         if (useBH) {

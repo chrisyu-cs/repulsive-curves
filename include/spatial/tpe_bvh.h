@@ -48,7 +48,7 @@ namespace LWS {
         }
 
         // Build a BVH of the given points
-        BVHNode3D(std::vector<VertexBody6D> &points, int axis, BVHNode3D* root);
+        BVHNode3D(std::vector<VertexBody6D> &points, int axis, BVHNode3D* root, bool splitTangents);
         virtual ~BVHNode3D();
 
         double totalMass;
@@ -82,9 +82,12 @@ namespace LWS {
         void findCurveSegments(std::vector<VertexBody6D> &points, PolyCurveNetwork* curves);
 
         // Copy the new weights from the curves
-        virtual void refreshWeightsVector(PolyCurveNetwork* curves, BodyType bType);
+        void refreshWeightsVector(PolyCurveNetwork* curves, BodyType bType);
+
         // Recursively recompute all centers of mass in this tree
-        virtual void recomputeCentersOfMass(PolyCurveNetwork* curves);
+        template<typename T>
+        void recomputeCentersOfMass(T &curves);
+        
         // Compute the total energy contribution from a single vertex
         virtual void accumulateVertexEnergy(double &result, CurveVertex* &i_pt, PolyCurveNetwork* curves, double alpha, double beta);
         virtual void accumulateTPEGradient(Eigen::MatrixXd &gradients, CurveVertex* &i_pt, 
@@ -121,28 +124,45 @@ namespace LWS {
             return body.elementIndex;
         }
 
-        private:
-        int numElements;
-        bool shouldUseCell(Vector3 vertPos);
-        double AxisSplittingPlane(std::vector<VertexBody6D> &points, int axis);
-        
+        inline int countBadNodes() {
+            if (isEmpty) return 0;
+            else if (isLeaf) {
+                if (testTangent()) return 0;
+                else return 1;
+            }
+            else {
+                int sum = 0;
+                if (!testTangent()) sum++;
+                for (BVHNode3D* child : children) {
+                    sum += child->countBadNodes();
+                } 
+                return sum;
+            }
+        }
+
         inline double nodeRatio(double d) {
             // Compute diagonal distance from corner to corner
             // double diag = norm(maxCoords.position - minCoords.position);
             Vector3 diag = maxCoords.position - minCoords.position;
             double maxCoord = fmax(diag.x, fmax(diag.y, diag.z));
+            // double spatialR = diag.norm() / 2;
+            return diag.norm() / d;
 
-            Vector3 tanDiag = maxCoords.tangent - minCoords.tangent;
-            double maxTanCoord = fmax(tanDiag.x, fmax(tanDiag.y, tanDiag.z));
-
-            // return (maxCoord * sqrt(3.0) / 2) / d;
-            return fmax((maxCoord * sqrt(3.0) / 2) / d, maxTanCoord * sqrt(3.0) / 2);
+            // Vector3 tanDiag = maxCoords.tangent - minCoords.tangent;
+            // double maxTanCoord = fmax(tanDiag.x, fmax(tanDiag.y, tanDiag.z));
+            // double tangentR = tanDiag.norm() / 2;
+            // return fmax(spatialR / d, tangentR);
         }
 
+        bool shouldUseCell(Vector3 vertPos);
+
+        private:
+        int numElements;
+        double AxisSplittingPlane(std::vector<VertexBody6D> &points, int axis);
+        
         inline bool testTangent() {
             Vector3 tanDiag = maxCoords.tangent - minCoords.tangent;
-            double maxTanCoord = fmax(tanDiag.x, fmax(tanDiag.y, tanDiag.z));
-            double r = maxTanCoord * sqrt(3.0) / 2;
+            double r = tanDiag.norm() / 2;
             return r < thresholdTheta;
         }
 
@@ -190,6 +210,82 @@ namespace LWS {
 
         minCoords = PosTan{body.pt.position, body.pt.tangent};
         maxCoords = minCoords;
+    }
+
+    template<>
+    inline void BVHNode3D::setLeafData(std::pair<std::shared_ptr<geometrycentral::surface::HalfedgeMesh>,
+    std::shared_ptr<geometrycentral::surface::VertexPositionGeometry>> &pair) {
+        std::shared_ptr<geometrycentral::surface::HalfedgeMesh> mesh = pair.first;
+        std::shared_ptr<geometrycentral::surface::VertexPositionGeometry> geom = pair.second;
+
+        using namespace geometrycentral;
+        using namespace surface;
+
+        if (body.type == BodyType::Vertex) {
+            Vertex v = mesh->vertex(body.elementIndex);
+            body.mass = geom->vertexDualAreas[v];
+            body.pt.position = geom->vertexPositions[v];
+            body.pt.tangent = geom->vertexNormals[v];
+        }
+        else {
+            std::cerr << "Element types besides vertex are not supported for meshes" << std::endl;
+            throw 1;
+        }
+
+        totalMass = body.mass;
+        centerOfMass = body.pt.position;
+        averageTangent = body.pt.tangent;
+
+        minCoords = PosTan{body.pt.position, body.pt.tangent};
+        maxCoords = minCoords;
+    }
+    
+    template<typename T>
+    inline void BVHNode3D::recomputeCentersOfMass(T &curves) {
+        if (isEmpty) {
+            totalMass = 0;
+            numElements = 0;
+        }
+        // For a leaf, just set centers and bounds from the one body
+        else if (isLeaf) {
+            setLeafData(curves);
+            numElements = 1;
+        }
+        else {
+            // Recursively compute bounds for all children
+            for (size_t i = 0; i < children.size(); i++) {
+                children[i]->recomputeCentersOfMass(curves);
+            }
+
+            minCoords = children[0]->minCoords;
+            maxCoords = children[0]->maxCoords;
+
+            totalMass = 0;
+            centerOfMass = Vector3{0, 0, 0};
+            averageTangent = Vector3{0, 0, 0};
+            
+            // Accumulate max/min over all nonempty children
+            for (size_t i = 0; i < children.size(); i++) {
+                if (!children[i]->isEmpty) {
+                    minCoords = postan_min(children[i]->minCoords, minCoords);
+                    maxCoords = postan_max(children[i]->maxCoords, maxCoords);
+
+                    totalMass += children[i]->totalMass;
+                    centerOfMass += children[i]->centerOfMass * children[i]->totalMass;
+                    averageTangent += children[i]->averageTangent * children[i]->totalMass;
+                }
+            }
+
+            centerOfMass /= totalMass;
+            averageTangent /= totalMass;
+
+            averageTangent = averageTangent.normalize();
+
+            numElements = 0;
+            for (size_t i = 0; i < children.size(); i++) {
+                numElements += children[i]->numElements;
+            }
+        }
     }
 
     BVHNode3D* CreateBVHFromCurve(PolyCurveNetwork *curves);
