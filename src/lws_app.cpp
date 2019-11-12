@@ -391,15 +391,14 @@ namespace LWS {
        }
 
        // build vector<vector<size_t>> components
-       int n = curves->NumComponents();
-       components.resize(n);
-       for (int c = 0; c < n; c++) {
-          int m = curves->NumVerticesInComponent(c);
-          components[c].resize(m);
-          for (int i=0; i < m; i++) {
-             CurveVertex* vi = curves->GetVertexInComponent(c,i);
-             components[c][i] = vi->id;
-          }
+       int nE = curves->NumEdges();
+       components.resize(nE);
+       for (int i = 0; i < nE; i++) {
+          std::vector<size_t> edge(2);
+          CurveEdge* ei = curves->GetEdge(i);
+          edge[0] = ei->prevVert->GlobalIndex();
+          edge[1] = ei->nextVert->GlobalIndex();
+          components[i] = edge;
        }
 
        CurveIO::writeOBJLineElements("out.obj", all_positions, components);
