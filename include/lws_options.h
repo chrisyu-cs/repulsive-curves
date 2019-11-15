@@ -12,7 +12,7 @@ namespace LWS {
         static bool runLWSFlow;
         static bool runBoundaryFlow;
         static bool runTPE;
-        static bool useSobalev;
+        static bool useSobolev;
         static bool useMultigrid;
     };
 }

@@ -24,6 +24,7 @@
 #include <random>
 #include <iostream>
 #include <fstream>
+#include <queue>
 
 #include "curve_io.h"
 
@@ -404,7 +405,66 @@ namespace LWS {
        CurveIO::writeOBJLineElements("out.obj", all_positions, components);
     }
 
-    ImGui::Checkbox("Use Sobolev", &LWSOptions::useSobalev);
+    if (ImGui::Button("BVH to OBJ")) { // write bounding volume hierarchy to mesh file
+       std::ofstream outPos( "bvh_pos.obj" ); // bounding boxes around positions
+       std::ofstream outTan( "bvh_tan.obj" ); // bounding boxes around tangents
+
+       // re-build the tree (can't always assume it was already built by solver)
+       LWS::BVHNode3D* tree = CreateEdgeBVHFromCurve(curves);
+       tree->assignIDs();
+
+       // iterate over nodes of tree in breadth-first order
+       std::queue<BVHNode3D*> Q;
+       Q.push( tree );
+       int nBoxes = 0; // track the total number of boxes
+       while( !Q.empty() )
+       {
+          BVHNode3D* n = Q.front(); Q.pop(); // get a node
+
+          // get the box corners
+          PosTan b[2] = { n->minBound(), n->maxBound() };
+
+          // output eight corners of the box by alternating max/min for each coordinate
+          for( int i = 0; i < 2; i++ )
+          for( int j = 0; j < 2; j++ )
+          for( int k = 0; k < 2; k++ )
+          {
+             // write both position and tangent coordinates
+             outPos << "v " << b[i].position.x << " " << b[j].position.y << " " << b[k].position.z << endl;
+             outTan << "v " << b[i].tangent.x << " " << b[j].tangent.y << " " << b[k].tangent.z << endl;
+          }
+          nBoxes++;
+
+          for( BVHNode3D* c : n->children )
+          {
+             Q.push(c);
+          }
+       }
+       
+       // write faces for all boxes (using 1-based indices)
+       for( int i = 0; i < nBoxes; i++ )
+       {
+          int I = 1 + 8*i;
+
+          // position faces
+          outPos << "f " << I+0 << " " << I+1 << " " << I+3 << " " << I+2 << endl;
+          outPos << "f " << I+6 << " " << I+7 << " " << I+5 << " " << I+4 << endl;
+          outPos << "f " << I+0 << " " << I+2 << " " << I+6 << " " << I+4 << endl;
+          outPos << "f " << I+5 << " " << I+7 << " " << I+3 << " " << I+1 << endl;
+          outPos << "f " << I+4 << " " << I+5 << " " << I+1 << " " << I+0 << endl;
+          outPos << "f " << I+2 << " " << I+3 << " " << I+7 << " " << I+6 << endl;
+
+          // tangent faces (which have identical indices)
+          outTan << "f " << I+0 << " " << I+1 << " " << I+3 << " " << I+2 << endl;
+          outTan << "f " << I+6 << " " << I+7 << " " << I+5 << " " << I+4 << endl;
+          outTan << "f " << I+0 << " " << I+2 << " " << I+6 << " " << I+4 << endl;
+          outTan << "f " << I+5 << " " << I+7 << " " << I+3 << " " << I+1 << endl;
+          outTan << "f " << I+4 << " " << I+5 << " " << I+1 << " " << I+0 << endl;
+          outTan << "f " << I+2 << " " << I+3 << " " << I+7 << " " << I+6 << endl;
+       }
+    }
+
+    ImGui::Checkbox("Use Sobolev", &LWSOptions::useSobolev);
 
     double delta = 0.001;
 
