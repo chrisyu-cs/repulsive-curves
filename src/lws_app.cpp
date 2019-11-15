@@ -381,14 +381,17 @@ namespace LWS {
 
     if (ImGui::Button("Curve to OBJ")) {
        std::vector<Vector3> all_positions;
+       std::vector<Vector3> all_tangents;
        std::vector<std::vector<size_t> > components;
 
-       // TODO build vector all_positions
+       // build vectors of positions and tangents
        int nV = curves->NumVertices();
        all_positions.resize(nV);
+       all_tangents.resize(nV);
        for (int i = 0; i < nV; i++) {
           CurveVertex* vi = curves->GetVertex(i);
           all_positions[i] = vi->Position();
+          all_tangents[i] = vi->Tangent();
        }
 
        // build vector<vector<size_t>> components
@@ -402,7 +405,8 @@ namespace LWS {
           components[i] = edge;
        }
 
-       CurveIO::writeOBJLineElements("out.obj", all_positions, components);
+       CurveIO::writeOBJLineElements("curve_positions.obj", all_positions, components);
+       CurveIO::writeOBJLineElements("curve_tangents.obj", all_tangents, components);
     }
 
     if (ImGui::Button("BVH to OBJ")) { // write bounding volume hierarchy to mesh file
