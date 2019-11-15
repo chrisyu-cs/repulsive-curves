@@ -135,9 +135,10 @@ namespace LWS {
         template<typename V>
         void TestAdmissibleMultiply(V &v) const;
 
+        static progschj::ThreadPool* threadpool;
+        static int nThreads;
+
         private:
-        progschj::ThreadPool* threadpool;
-        int nThreads;
         Eigen::VectorXd Af_1, Af_1_low;
         BlockTreeMode mode;
         int nVerts;

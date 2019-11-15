@@ -9,6 +9,11 @@ namespace LWS {
     long BlockClusterTree::wellSepTime = 0;
     long BlockClusterTree::traversalTime = 0;
 
+    // Set up thread pool here, since we need it for premultiplying Af
+    int nMachineThreads = std::thread::hardware_concurrency();
+    int BlockClusterTree::nThreads = std::max( 2, nMachineThreads );
+    progschj::ThreadPool* BlockClusterTree::threadpool = new progschj::ThreadPool(nThreads);
+
     BlockClusterTree::BlockClusterTree(PolyCurveNetwork* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e) {
         curves = cg;
         alpha = a;
@@ -27,9 +32,6 @@ namespace LWS {
         while (unresolvedPairs.size() > 0) {
             splitInadmissibleNodes();
         }
-        // Set up thread pool here, since we need it for premultiplying Af
-        nThreads = 12;
-        threadpool = new progschj::ThreadPool(nThreads);
 
         // Premultiply A_f * 1, for reuse in later multiplications with G_f
         Af_1.setOnes(nVerts);
@@ -41,7 +43,7 @@ namespace LWS {
     }
 
     BlockClusterTree::~BlockClusterTree() {
-        delete threadpool;
+        //delete threadpool;
     }
 
     void BlockClusterTree::splitInadmissibleNodes() {
