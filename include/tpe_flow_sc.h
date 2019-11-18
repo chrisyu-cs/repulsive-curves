@@ -8,6 +8,7 @@
 #include "product/matrix_free.h"
 #include "multigrid/multigrid_hierarchy.h"
 #include "flow/gradient_constraint_types.h"
+#include "flow/gradient_constraint_enum.h"
 
 #include "obstacles/obstacle.h"
 
@@ -22,7 +23,7 @@ namespace LWS {
 
     class TPEFlowSolverSC {
         public:
-        using ConstraintType = EdgeLengthConstraint;
+        using ConstraintType = VariableConstraintSet;
         std::vector<Obstacle*> obstacles;
 
         TPEFlowSolverSC(PolyCurveNetwork* p, double a, double b);
@@ -74,7 +75,6 @@ namespace LWS {
         CoordinateLUs coord_lus;
         PolyCurveNetwork* curveNetwork;
         std::vector<Vector3> originalPositions;
-        std::vector<double> initialLengths;
         Eigen::VectorXd constraintTargets;
         double alpha;
         double beta;

@@ -6,10 +6,8 @@ namespace LWS {
 
     TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveNetwork* g, double a, double b) :
     constraint(g),
-    originalPositions(g->NumVertices()),
-    initialLengths(g->NumEdges())
+    originalPositions(g->NumVertices())
     {
-
         curveNetwork = g;
         alpha = a;
         beta = b;
@@ -28,11 +26,6 @@ namespace LWS {
     }
 
     void TPEFlowSolverSC::UpdateTargetLengths() {
-        for (int i = 0; i < curveNetwork->NumEdges(); i++) {
-            CurveEdge* p = curveNetwork->GetEdge(i);
-            double len_p = p->Length();
-            initialLengths[i] = len_p;
-        }
         constraint.UpdateTargetValues(constraintTargets);
     }
 

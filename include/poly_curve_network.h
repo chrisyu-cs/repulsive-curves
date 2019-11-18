@@ -6,6 +6,7 @@
 #include "utils.h"
 #include "multigrid/multigrid_operator.h"
 #include <unordered_set>
+#include "flow/gradient_constraint_enum.h"
 
 namespace LWS
 {
@@ -134,6 +135,7 @@ namespace LWS
         }
 
         Eigen::MatrixXd positions;
+        std::vector<ConstraintType> appliedConstraints;
 
         private:
         int nVerts;

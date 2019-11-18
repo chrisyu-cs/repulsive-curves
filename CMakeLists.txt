@@ -79,6 +79,7 @@ set(SRCS
   src/utils.cpp
   src/vert_jacobian.cpp
   src/flow/constraint_functions.cpp
+  src/flow/gradient_constraint_enum.cpp
   src/flow/gradient_constraint_types.cpp
   src/obstacles/obstacle.cpp
   src/obstacles/mesh_obstacle.cpp

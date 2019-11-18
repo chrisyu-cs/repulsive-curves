@@ -24,21 +24,11 @@ namespace LWS {
     }
 
     void LengthsAndPinsConstraint::SetTargetValues(Eigen::VectorXd &targets) const {
-        // Set target edge lengths to current lengths
         int nEdges = curves->NumEdges();
-        for (int i = 0; i < nEdges; i++) {
-            targets(i) = curves->GetEdge(i)->Length();
-        }
-
-        // Set pinned vertices to current positions
-        int nPins = curves->NumPins();
-        int pinBase = nEdges;
-        for (int i = 0; i < nPins; i++) {
-            Vector3 p_i = curves->GetPinnedVertex(i)->Position();
-            targets(pinBase + 3 * i    ) = p_i.x;
-            targets(pinBase + 3 * i + 1) = p_i.y;
-            targets(pinBase + 3 * i + 2) = p_i.z;
-        }
+        // Set target edge lengths to current lengths
+        ConstraintFunctions::SetEdgeLengthTargets(curves, targets, 0);
+        // Pin targets to current positions
+        ConstraintFunctions::SetPinTargets(curves, targets, nEdges);
     }
 
     void LengthsAndPinsConstraint::NegativeConstraintValues(Eigen::VectorXd &b, Eigen::VectorXd &targets) const {
@@ -63,14 +53,7 @@ namespace LWS {
     }
 
     void PinsConstraint::SetTargetValues(Eigen::VectorXd &targets) const {
-        // Set pinned vertices to current positions
-        int nPins = curves->NumPins();
-        for (int i = 0; i < nPins; i++) {
-            Vector3 p_i = curves->GetPinnedVertex(i)->Position();
-            targets(3 * i    ) = p_i.x;
-            targets(3 * i + 1) = p_i.y;
-            targets(3 * i + 2) = p_i.z;
-        }
+        ConstraintFunctions::SetPinTargets(curves, targets, 0);
     }
 
     void PinsConstraint::NegativeConstraintValues(Eigen::VectorXd &b, Eigen::VectorXd &targets) const {
@@ -95,15 +78,9 @@ namespace LWS {
 
     void EdgeLengthConstraint::SetTargetValues(Eigen::VectorXd &targets) const {
         // Fix barycenter at origin
-        targets(0) = 0;
-        targets(1) = 0;
-        targets(2) = 0;
-
+        ConstraintFunctions::SetBarycenterTargets(curves, targets, 0);
         // Set target edge lengths to current lengths
-        int nEdges = curves->NumEdges();
-        for (int i = 0; i < nEdges; i++) {
-            targets(3 + i) = curves->GetEdge(i)->Length();
-        }
+        ConstraintFunctions::SetEdgeLengthTargets(curves, targets, 3);
     }
 
     void EdgeLengthConstraint::NegativeConstraintValues(Eigen::VectorXd &b, Eigen::VectorXd &targets) const {

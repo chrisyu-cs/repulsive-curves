@@ -489,6 +489,8 @@ namespace LWS {
 
   void LWSApp::initSolver() {
     if (!tpeSolver) {
+      curves->appliedConstraints.push_back(ConstraintType::Barycenter);
+      curves->appliedConstraints.push_back(ConstraintType::EdgeLengths);
       // Set up solver
       tpeSolver = new TPEFlowSolverSC(curves, 3, 6);
     }
@@ -749,10 +751,6 @@ int main(int argc, char** argv) {
 
   processFile(LWS::LWSApp::instance, file.Get());
 
-  std::vector<std::array<double, 3>> vertexPositions;
-  std::vector<std::vector<size_t>> faceIndices;
-
-  polyscope::SurfaceMesh* m = polyscope::registerSurfaceMesh("empty", vertexPositions, faceIndices);
   app->DisplayCurves(app->curves, app->surfaceName);
   // app->curves->PinAllSpecialVertices();
   // app->curves->PinVertex(10);

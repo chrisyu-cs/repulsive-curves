@@ -95,4 +95,28 @@ namespace LWS {
         }
     }
 
+    void ConstraintFunctions::SetBarycenterTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {
+        // Set the three barycenter target entries to 0
+        targets(rowStart + 0) = 0;
+        targets(rowStart + 1) = 0;
+        targets(rowStart + 2) = 0;
+    }
+
+    void ConstraintFunctions::SetEdgeLengthTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {
+        int nEdges = curves->NumEdges();
+        for (int i = 0; i < nEdges; i++) {
+            targets(rowStart + i) = curves->GetEdge(i)->Length();
+        }
+    }
+
+    void ConstraintFunctions::SetPinTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {
+        int nPins = curves->NumPins();
+        for (int i = 0; i < nPins; i++) {
+            Vector3 p_i = curves->GetPinnedVertex(i)->Position();
+            targets(rowStart + 3 * i    ) = p_i.x;
+            targets(rowStart + 3 * i + 1) = p_i.y;
+            targets(rowStart + 3 * i + 2) = p_i.z;
+        }
+    }
+
 }
