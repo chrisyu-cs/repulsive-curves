@@ -373,7 +373,7 @@ namespace LWS {
         }
       }
       else {
-        good_step = tpeSolver->StepLS();
+        good_step = tpeSolver->StepLSConstrained();
       }
       
       UpdateCurvePositions();
@@ -495,9 +495,9 @@ namespace LWS {
 
   void LWSApp::initSolver() {
     if (!tpeSolver) {
-      // curves->appliedConstraints.push_back(ConstraintType::Barycenter);
-      curves->appliedConstraints.push_back(ConstraintType::Pins);
-      curves->appliedConstraints.push_back(ConstraintType::TangentPins);
+      curves->appliedConstraints.push_back(ConstraintType::Barycenter);
+      // curves->appliedConstraints.push_back(ConstraintType::Pins);
+      // curves->appliedConstraints.push_back(ConstraintType::TangentPins);
       curves->appliedConstraints.push_back(ConstraintType::EdgeLengths);
       // Set up solver
       tpeSolver = new TPEFlowSolverSC(curves, 3, 6);
@@ -647,7 +647,7 @@ namespace LWS {
     }
 
     polyscope::registerCurveNetwork(name, nodes, edges);
-    polyscope::getCurveNetwork(name)->radius *= 5;
+    polyscope::getCurveNetwork(name)->radius = 0.01f;
 
     centerLoopBarycenter(curves);
   }
@@ -660,7 +660,7 @@ namespace LWS {
     }
     edges.push_back({positions.size() - 1, 0});
     polyscope::registerCurveNetwork(name, positions, edges);
-    polyscope::getCurveNetwork(name)->radius *= 5;
+    polyscope::getCurveNetwork(name)->radius = 0.01f;
   }
 
   void LWSApp::processFileOBJ(std::string filename) {

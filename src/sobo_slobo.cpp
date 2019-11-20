@@ -284,55 +284,6 @@ namespace LWS {
         }
     }
 
-    /*
-    void SobolevCurves::SobolevPlusBarycenter3X(PolyCurveNetwork* loop, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
-        int nVerts = loop->NumVertices();
-        Eigen::MatrixXd topLeft;
-        topLeft.setZero(nVerts + 1, nVerts + 1);
-        SobolevPlusBarycenter(loop, alpha, beta, topLeft, diagEps);
-
-        for (int i = 0; i < nVerts + 1; i++) {
-            for (int j = 0; j < nVerts + 1; j++) {
-                A(3 * i, 3 * j) = topLeft(i, j);
-                A(3 * i + 1, 3 * j + 1) = topLeft(i, j);
-                A(3 * i + 2, 3 * j + 2) = topLeft(i, j);
-            }
-        }
-    }
-
-    void SobolevCurves::AddEdgeLengthConstraints(PolyCurveNetwork* curves, Eigen::MatrixXd &A, int baseIndex) {
-        int nEdges = curves->NumEdges();
-        for (int i = 0; i < nEdges; i++) {
-            CurveEdge* e_i = curves->GetEdge(i);
-            CurveVertex* pt1 = e_i->prevVert;
-            CurveVertex* pt2 = e_i->nextVert;
-            // This is the gradient of edge length wrt pt1; the gradient wrt pt2 is just negative of this.
-            Vector3 grad1 = pt1->Position() - pt2->Position();
-            grad1 = grad1.normalize();
-
-            int j1 = pt1->GlobalIndex();
-            int j2 = pt2->GlobalIndex();
-            int curRow = baseIndex + i;
-
-            // Write the three gradient entries for pt1 into the row and column
-            A(curRow, 3 * j1    ) = grad1.x;
-            A(curRow, 3 * j1 + 1) = grad1.y;
-            A(curRow, 3 * j1 + 2) = grad1.z;
-            A(3 * j1,     curRow) = grad1.x;
-            A(3 * j1 + 1, curRow) = grad1.y;
-            A(3 * j1 + 2, curRow) = grad1.z;
-
-            // Similarly write the three gradient entries for pt2 into the same row and column
-            A(curRow, 3 * j2    ) = -grad1.x;
-            A(curRow, 3 * j2 + 1) = -grad1.y;
-            A(curRow, 3 * j2 + 2) = -grad1.z;
-            A(3 * j2,     curRow) = -grad1.x;
-            A(3 * j2 + 1, curRow) = -grad1.y;
-            A(3 * j2 + 2, curRow) = -grad1.z;
-        }
-    }
-    */
-
     double SobolevCurves::SobolevDot(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J) {
         double dot_x = as.col(0).transpose() * J * bs.col(0);
         double dot_y = as.col(1).transpose() * J * bs.col(1);

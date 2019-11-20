@@ -46,6 +46,7 @@ namespace LWS {
 
         bool StepNaive(double h);
         bool StepLS();
+        bool StepLSConstrained();
         bool StepSobolevLS(bool useBH);
         bool StepSobolevLSIterative(double epsilon);
 

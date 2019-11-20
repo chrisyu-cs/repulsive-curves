@@ -173,6 +173,7 @@ namespace LWS {
     Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, BVHNode3D* root) {
         double delta = initGuess;
         double lastValue = -1;
+        int attempts = 1;
 
         while (delta > ls_step_threshold) {
             SetGradientStep(gradient, delta);
@@ -184,15 +185,17 @@ namespace LWS {
             double maxValue = BackprojectConstraints(lu);
             
             if (maxValue < backproj_threshold) {
+                std::cout << "Backprojection successful after " << attempts << " attempts" << std::endl;
                 return delta;
             }
             else {
-                std::cout << "Backproj unsuccessful; halving step size" << std::endl;
+                // std::cout << "Backproj unsuccessful; halving step size" << std::endl;
                 lastValue = maxValue;
                 delta /= 2;
+                attempts++;
             }
         }
-        std::cout << "Couldn't make backprojection succeed (initial step " << initGuess << ")" << std::endl;
+        std::cout << "Couldn't make backprojection succeed after " << attempts << " attempts (initial step " << initGuess << ")" << std::endl;
         BackprojectConstraints(lu);
         return delta;
     }
@@ -201,8 +204,50 @@ namespace LWS {
         int nVerts = curveNetwork->NumVertices();
         Eigen::MatrixXd gradients(nVerts, 3);
         gradients.setZero();
+
         FillGradientVectorDirect(gradients);
-        return LineSearchStep(gradients);
+        bool good_step = LineSearchStep(gradients);
+
+        return good_step;
+    }
+
+    bool TPEFlowSolverSC::StepLSConstrained() {
+        std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
+        // Compute gradient
+        int nVerts = curveNetwork->NumVertices();
+        Eigen::MatrixXd gradients(nVerts, 3);
+        gradients.setZero();
+        FillGradientVectorDirect(gradients);
+
+        // Set up saddle matrix
+        Eigen::MatrixXd A;
+        int nRows = constraint.NumConstraintRows() + constraint.NumExpectedCols();
+        A.setZero(nRows, nRows);
+
+        // Assemble constraint saddle matrix with identity in the upper-left
+        Eigen::MatrixXd mass;
+        mass.setIdentity(nVerts * 3, nVerts * 3);
+        for (int i = 0; i < nVerts; i++) {
+            double m = 1.0 / curveNetwork->GetVertex(i)->DualLength();
+            mass(3 * i, 3 * i) = m;
+            mass(3 * i + 1, 3 * i + 1) = m;
+            mass(3 * i + 2, 3 * i + 2) = m;
+        }
+
+        A.block(0, 0, nVerts * 3, nVerts * 3) = mass;
+        constraint.FillDenseBlock(A);
+        // Factorize it
+        Eigen::PartialPivLU<Eigen::MatrixXd> lu;
+        lu.compute(A);
+
+        // Project gradient onto constraint differential
+        ProjectSoboSloboGradient(lu, gradients);
+        double step_size = LineSearchStep(gradients);
+
+        // Backprojection
+        LSBackproject(gradients, step_size, lu, 1, 0);
+
+        return (step_size > 0);
     }
 
     double TPEFlowSolverSC::ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients) {
@@ -312,7 +357,7 @@ namespace LWS {
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
         double grad_end = Utils::currentTimeMilliseconds();
 
-        std::cout << "  Assemble gradient: " << (grad_end - grad_start) << " ms" << std::endl;
+        std::cout << "  Assemble gradient " << (useBH ? "(Barnes-Hut)" : "(direct)") << ": " << (grad_end - grad_start) << " ms" << std::endl;
 
         double length1 = curveNetwork->TotalLength();
 
