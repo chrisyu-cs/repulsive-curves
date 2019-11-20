@@ -9,7 +9,7 @@ namespace LWS {
     bool LWSOptions::runLWSFlow;
     bool LWSOptions::runBoundaryFlow;
     bool LWSOptions::runTPE;
-    bool LWSOptions::useSobolev;
+    bool LWSOptions::useSobolev = true;
     bool LWSOptions::useMultigrid = true;
     bool LWSOptions::normalizeView = true;
 }

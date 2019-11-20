@@ -356,6 +356,7 @@ namespace LWS {
     bool buttonStepTPE = ImGui::Button("Single TPE step");
     bool buttonPlotTPE = ImGui::Button("Plot TPE gradient");
 
+    ImGui::Checkbox("Use Sobolev", &LWSOptions::useSobolev);
     ImGui::Checkbox("Use multigrid", &LWSOptions::useMultigrid);
 
     if (LWSOptions::runTPE || buttonStepTPE) {
@@ -363,11 +364,16 @@ namespace LWS {
         outputFrame();
       }
       bool good_step;
-      if (LWSOptions::useMultigrid) {
-        good_step = tpeSolver->StepSobolevLSIterative(0);
+      if (LWSOptions::useSobolev) {
+        if (LWSOptions::useMultigrid) {
+          good_step = tpeSolver->StepSobolevLSIterative(0);
+        }
+        else {
+          good_step = tpeSolver->StepSobolevLS(true);
+        }
       }
       else {
-        good_step = tpeSolver->StepSobolevLS(true);
+        good_step = tpeSolver->StepLS();
       }
       
       UpdateCurvePositions();
@@ -469,8 +475,6 @@ namespace LWS {
           outTan << "f " << I+2 << " " << I+3 << " " << I+7 << " " << I+6 << endl;
        }
     }
-
-    ImGui::Checkbox("Use Sobolev", &LWSOptions::useSobolev);
 
     double delta = 0.001;
 

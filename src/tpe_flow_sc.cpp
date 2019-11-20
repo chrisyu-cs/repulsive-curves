@@ -228,25 +228,6 @@ namespace LWS {
         return 1;
     }
 
-    template<typename T>
-    void TestMultiply(T &mult, Eigen::VectorXd &xVec, Eigen::VectorXd &result) {
-        mult->Multiply(xVec, result);
-    }
-
-    void TPEFlowSolverSC::ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B) {
-        int nRows = A.rows();
-        int nCols = A.cols();
-
-        for (int i = 0; i < nRows; i++) {
-            for (int j = 0; j < nCols; j++) {
-                // Duplicate this value 3 times along the diagonal of a corresponding 3x3 block
-                B(3 * i,     3 * j    ) = A(i, j);
-                B(3 * i + 1, 3 * j + 1) = A(i, j);
-                B(3 * i + 2, 3 * j + 2) = A(i, j);
-            }
-        }
-    }
-
     double TPEFlowSolverSC::BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
         int nVerts = curveNetwork->NumVertices();
         Eigen::VectorXd b;
@@ -270,12 +251,6 @@ namespace LWS {
         std::cout << "  Constraint value = " << maxViolation << std::endl;
 
         return maxViolation;
-    }
-
-    double TPEFlowSolverSC::ComputeAndProjectGradient(Eigen::MatrixXd &gradients) {
-        Eigen::MatrixXd A;
-        Eigen::PartialPivLU<Eigen::MatrixXd> lu;
-        return ComputeAndProjectGradient(gradients, A, lu);
     }
 
     double TPEFlowSolverSC::ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
@@ -396,13 +371,16 @@ namespace LWS {
 
         // Add gradient contributions from obstacles
         AddObstacleGradients(vertGradients);
+        std::cout << "Added obstacle gradients" << std::endl;
 
         // Set up multigrid stuff
         long mg_setup_start = Utils::currentTimeMilliseconds();
         using MultigridDomain = ConstraintProjectorDomain<ConstraintType>;
         using MultigridSolver = MultigridHierarchy<MultigridDomain>;
         MultigridDomain* domain = new MultigridDomain(curveNetwork, alpha, beta, 0.5, epsilon);
+        std::cout << "Made domain" << std::endl;
         MultigridSolver* multigrid = new MultigridSolver(domain);
+        std::cout << "Made solver" << std::endl;
         long mg_setup_end = Utils::currentTimeMilliseconds();
         std::cout << "  Multigrid setup: " << (mg_setup_end - mg_setup_start) << " ms" << std::endl;
 

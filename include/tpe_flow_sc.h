@@ -31,7 +31,6 @@ namespace LWS {
         ConstraintType constraint;
 
         void UpdateTargetLengths();
-
         double CurrentEnergy(SpatialTree *root = 0);
         double CurrentEnergyDirect();
         double CurrentEnergyBH(SpatialTree *root);
@@ -50,7 +49,6 @@ namespace LWS {
         bool StepSobolevLS(bool useBH);
         bool StepSobolevLSIterative(double epsilon);
 
-        double ComputeAndProjectGradient(Eigen::MatrixXd &gradients);
         double ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
         double ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients);
 
@@ -58,8 +56,6 @@ namespace LWS {
         double ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output);
         template<typename Domain, typename Smoother>
         bool BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess, MultigridHierarchy<Domain>* solver, BVHNode3D* root);
-        
-        void ExpandMatrix3x(Eigen::MatrixXd &A, Eigen::MatrixXd &B);
 
         void SaveCurrentPositions();
         void RestoreOriginalPositions();

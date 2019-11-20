@@ -121,6 +121,10 @@ namespace LWS
             return pinnedSet.count(i) > 0;
         }
 
+        inline bool isTangentPinned(int i) {
+            return pinnedTangentSet.count(i) > 0;
+        }
+
         inline CurveEdge* GetEdge(int i) {
             return edges[i];
         }

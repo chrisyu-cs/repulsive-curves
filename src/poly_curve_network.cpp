@@ -230,7 +230,7 @@ namespace LWS {
                 explored[next->id] = true;
                 // Keep it either if we previous said we should, if the vertex is pinned, or if
                 // the vertex is an "interesting" one (i.e. degree neq 2)
-                bool keep = tentativeKeep || (next->numEdges() != 2) || isPinned(next->id);
+                bool keep = tentativeKeep || (next->numEdges() != 2) || isPinned(next->id) || isTangentPinned(next->id);
                 // Also check if any of the neighbors are already marked to be deleted
                 int nEdges_i = next->numEdges();
                 for (int i = 0; i < nEdges_i; i++) {
@@ -369,6 +369,14 @@ namespace LWS {
         for (int pin : pinnedVertices) {
             p->PinVertex(fineToCoarse[pin]);
         }
+        for (int pin : pinnedTangents) {
+            p->PinTangent(fineToCoarse[pin]);
+        }
+
+        for (ConstraintType type : appliedConstraints) {
+            p->appliedConstraints.push_back(type);
+        }
+
         return p;
     }
 }
