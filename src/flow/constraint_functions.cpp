@@ -1,6 +1,8 @@
 #include "flow/constraint_functions.h"
 #include "poly_curve_network.h"
 
+#include "tpe_energy_sc.h"
+
 namespace LWS {
     
     void ConstraintFunctions::NegativeBarycenterViolation(PolyCurveNetwork* curves,
@@ -29,14 +31,27 @@ namespace LWS {
 
     void ConstraintFunctions::NegativePinViolation(PolyCurveNetwork* curves,
     Eigen::VectorXd &b, Eigen::VectorXd &targets, int rowStart) {
-
         int nPins = curves->NumPins();
+
         for (int i = 0; i < nPins; i++) {
             CurveVertex* v_i = curves->GetPinnedVertex(i);
             Vector3 p_i = v_i->Position();
             b(rowStart + 3 * i    ) = targets(rowStart + 3 * i    ) - p_i.x;
             b(rowStart + 3 * i + 1) = targets(rowStart + 3 * i + 1) - p_i.y;
             b(rowStart + 3 * i + 2) = targets(rowStart + 3 * i + 2) - p_i.z;
+        }
+    }
+
+    void ConstraintFunctions::NegativeTangentViolation(PolyCurveNetwork* curves,
+    Eigen::VectorXd &b, Eigen::VectorXd &targets, int rowStart) {
+        int nTanPins = curves->NumTangentPins();
+        
+        for (int i = 0; i < nTanPins; i++) {
+            CurveVertex* v_i = curves->GetPinnedTangent(i);
+            Vector3 t_i = v_i->Tangent();
+            b(rowStart + 3 * i    ) = targets(rowStart + 3 * i    ) - t_i.x;
+            b(rowStart + 3 * i + 1) = targets(rowStart + 3 * i + 1) - t_i.y;
+            b(rowStart + 3 * i + 2) = targets(rowStart + 3 * i + 2) - t_i.z;
         }
     }
 
@@ -95,6 +110,39 @@ namespace LWS {
         }
     }
 
+    void AddJacobianTriplets(std::vector<Eigen::Triplet<double>> &triplets, VertJacobian &J, int row, int col) {
+        triplets.push_back(Eigen::Triplet<double>(row,     col,     J.directional_x.x));
+        triplets.push_back(Eigen::Triplet<double>(row,     col + 1, J.directional_x.y));
+        triplets.push_back(Eigen::Triplet<double>(row,     col + 2, J.directional_x.z));
+        
+        triplets.push_back(Eigen::Triplet<double>(row + 1, col,     J.directional_y.x));
+        triplets.push_back(Eigen::Triplet<double>(row + 1, col + 1, J.directional_y.y));
+        triplets.push_back(Eigen::Triplet<double>(row + 1, col + 2, J.directional_y.z));
+
+        triplets.push_back(Eigen::Triplet<double>(row + 2, col,     J.directional_z.x));
+        triplets.push_back(Eigen::Triplet<double>(row + 2, col + 1, J.directional_z.y));
+        triplets.push_back(Eigen::Triplet<double>(row + 2, col + 2, J.directional_z.z));
+    }
+
+    void ConstraintFunctions::AddTangentTriplets(PolyCurveNetwork* curves,
+    std::vector<Eigen::Triplet<double>> &triplets, int rowStart) {
+        int nTanPins = curves->NumTangentPins();
+
+        for (int i = 0; i < nTanPins; i++) {
+            CurveVertex* v = curves->GetPinnedTangent(i);
+            int nNeighbors = v->numEdges();
+            for (int j = 0; j < nNeighbors; j++) {
+                CurveVertex* v_neighbor = v->edge(j)->Opposite(v);
+                int id = v_neighbor->id;
+                VertJacobian derivTangent = TPESC::vertex_tangent_wrt_vert(v, v_neighbor);
+                AddJacobianTriplets(triplets, derivTangent, rowStart + 3 * i, 3 * id);
+            }
+            VertJacobian derivTangentCenter = TPESC::vertex_tangent_wrt_vert(v, v);
+            AddJacobianTriplets(triplets, derivTangentCenter, rowStart + 3 * i, 3 * v->id);
+
+        }
+    }
+
     void ConstraintFunctions::SetBarycenterTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {
         // Set the three barycenter target entries to 0
         targets(rowStart + 0) = 0;
@@ -113,6 +161,16 @@ namespace LWS {
         int nPins = curves->NumPins();
         for (int i = 0; i < nPins; i++) {
             Vector3 p_i = curves->GetPinnedVertex(i)->Position();
+            targets(rowStart + 3 * i    ) = p_i.x;
+            targets(rowStart + 3 * i + 1) = p_i.y;
+            targets(rowStart + 3 * i + 2) = p_i.z;
+        }
+    }
+
+    void ConstraintFunctions::SetTangentTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {
+        int nTanPins = curves->NumTangentPins();
+        for (int i = 0; i < nTanPins; i++) {
+            Vector3 p_i = curves->GetPinnedTangent(i)->Tangent();
             targets(rowStart + 3 * i    ) = p_i.x;
             targets(rowStart + 3 * i + 1) = p_i.y;
             targets(rowStart + 3 * i + 2) = p_i.z;

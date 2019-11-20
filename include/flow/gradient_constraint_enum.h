@@ -4,7 +4,7 @@
 
 namespace LWS {
     enum class ConstraintType {
-        Barycenter, EdgeLengths, Pins
+        Barycenter, EdgeLengths, Pins, TangentPins
     };
 
     class PolyCurveNetwork;

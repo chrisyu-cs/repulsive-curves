@@ -5,6 +5,22 @@
 
 namespace LWS {
 
+    std::string NameOfConstraint(ConstraintType type) {
+        switch (type) {
+            case ConstraintType::Barycenter:
+            return "Barycenter";
+            case ConstraintType::EdgeLengths:
+            return "EdgeLengths";
+            case ConstraintType::Pins:
+            return "Pins";
+            case ConstraintType::TangentPins:
+            return "TangentPins";
+            default:
+            std::cerr << "Called NameOfConstraint on an unimplemented constraint type" << std::endl;
+            return 0;
+        }
+    }
+
     int NumRowsForConstraint(ConstraintType type, PolyCurveNetwork* curve) {
         switch (type) {
             case ConstraintType::Barycenter:
@@ -12,7 +28,9 @@ namespace LWS {
             case ConstraintType::EdgeLengths:
             return curve->NumEdges();
             case ConstraintType::Pins:
-            return curve->NumPins();
+            return curve->NumPins() * 3;
+            case ConstraintType::TangentPins:
+            return curve->NumTangentPins() * 3;
             default:
             std::cerr << "Called NumRowsForConstraint on an unimplemented constraint type" << std::endl;
             return 0;
@@ -31,6 +49,9 @@ namespace LWS {
             case ConstraintType::Pins:
             ConstraintFunctions::AddPinTriplets(curve, triplets, start);
             break;
+            case ConstraintType::TangentPins:
+            ConstraintFunctions::AddTangentTriplets(curve, triplets, start);
+            break;
             default:
             std::cerr << "Called AddTripletsOfConstraint on an unimplemented constraint type" << std::endl;
             break;
@@ -47,6 +68,9 @@ namespace LWS {
             break;
             case ConstraintType::Pins:
             ConstraintFunctions::SetPinTargets(curve, targets, start);
+            break;
+            case ConstraintType::TangentPins:
+            ConstraintFunctions::SetTangentTargets(curve, targets, start);
             break;
             default:
             std::cerr << "Called SetTargetsOfConstraint on an unimplemented constraint type" << std::endl;
@@ -65,6 +89,9 @@ namespace LWS {
             break;
             case ConstraintType::Pins:
             ConstraintFunctions::NegativePinViolation(curve, b, targets, start);
+            break;
+            case ConstraintType::TangentPins:
+            ConstraintFunctions::NegativeTangentViolation(curve, b, targets, start);
             break;
             default:
             std::cerr << "Called NegativeViolationsOfConstraint on an unimplemented constraint type" << std::endl;

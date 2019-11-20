@@ -368,6 +368,7 @@ namespace LWS {
       else {
         good_step = tpeSolver->StepSobolevLS(true);
       }
+      
       UpdateCurvePositions();
       if (!good_step) {
         std::cout << "Stopped because line search could not take a step." << std::endl;
@@ -489,7 +490,9 @@ namespace LWS {
 
   void LWSApp::initSolver() {
     if (!tpeSolver) {
-      curves->appliedConstraints.push_back(ConstraintType::Barycenter);
+      // curves->appliedConstraints.push_back(ConstraintType::Barycenter);
+      curves->appliedConstraints.push_back(ConstraintType::Pins);
+      curves->appliedConstraints.push_back(ConstraintType::TangentPins);
       curves->appliedConstraints.push_back(ConstraintType::EdgeLengths);
       // Set up solver
       tpeSolver = new TPEFlowSolverSC(curves, 3, 6);
@@ -753,7 +756,8 @@ int main(int argc, char** argv) {
 
   app->DisplayCurves(app->curves, app->surfaceName);
   // app->curves->PinAllSpecialVertices();
-  // app->curves->PinVertex(10);
+  app->curves->PinVertex(10);
+  app->curves->PinTangent(10);
 
   std::cout << "Set up curve" << std::endl;
   app->initSolver();

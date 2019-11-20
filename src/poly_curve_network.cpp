@@ -141,10 +141,21 @@ namespace LWS {
         }
     }
 
+    void PolyCurveNetwork::PinTangent(int i) {
+        if (!pinnedTangentSet.count(i)) {
+            pinnedTangents.push_back(i);
+            pinnedTangentSet.insert(i);
+        }
+    }
+
     void PolyCurveNetwork::PrintPins() {
         for (size_t i = 0; i < pinnedVertices.size(); i++) {
             CurveVertex* v = GetPinnedVertex(i);
             std::cout << "Pin " << i << " = " << v->id << " (position " << v->Position() << ")" << std::endl;
+        }
+        for (size_t i = 0; i < pinnedTangents.size(); i++) {
+            CurveVertex* v = GetPinnedTangent(i);
+            std::cout << "Pin " << i << " = " << v->id << " (tangent " << v->Tangent() << ")" << std::endl;
         }
     }
 

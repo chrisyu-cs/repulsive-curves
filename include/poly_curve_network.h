@@ -61,6 +61,7 @@ namespace LWS
         void InitStructs(std::vector<std::array<size_t, 2>> &es);
         void FindComponents();
         void PinVertex(int i);
+        void PinTangent(int i);
         void PinAllSpecialVertices();
         void PrintPins();
 
@@ -82,6 +83,10 @@ namespace LWS
 
         inline int NumPins() {
             return pinnedVertices.size();
+        }
+
+        inline int NumTangentPins() {
+            return pinnedTangents.size();
         }
 
         inline int NumComponents() {
@@ -106,6 +111,10 @@ namespace LWS
 
         inline CurveVertex* GetPinnedVertex(int i) {
             return vertices[pinnedVertices[i]];
+        }
+
+        inline CurveVertex* GetPinnedTangent(int i) {
+            return vertices[pinnedTangents[i]];
         }
 
         inline bool isPinned(int i) {
@@ -141,6 +150,8 @@ namespace LWS
         int nVerts;
         std::vector<int> pinnedVertices;
         std::unordered_set<int> pinnedSet;
+        std::vector<int> pinnedTangents;
+        std::unordered_set<int> pinnedTangentSet;
         std::vector<CurveVertex*> vertices;
         std::vector<CurveEdge*> edges;
         std::vector<std::vector<CurveEdge*>> adjacency;
