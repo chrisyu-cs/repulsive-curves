@@ -14,5 +14,6 @@ namespace LWS {
         static bool runTPE;
         static bool useSobolev;
         static bool useMultigrid;
+        static bool normalizeView;
     };
 }

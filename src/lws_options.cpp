@@ -11,4 +11,5 @@ namespace LWS {
     bool LWSOptions::runTPE;
     bool LWSOptions::useSobolev;
     bool LWSOptions::useMultigrid = true;
+    bool LWSOptions::normalizeView = true;
 }

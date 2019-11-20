@@ -351,6 +351,7 @@ namespace LWS {
 
     ImGui::Checkbox("Run TPE", &LWSOptions::runTPE);
     ImGui::Checkbox("Output frames", &LWSOptions::outputFrames);
+    ImGui::Checkbox("Normalize view", &LWSOptions::normalizeView);
 
     bool buttonStepTPE = ImGui::Button("Single TPE step");
     bool buttonPlotTPE = ImGui::Button("Plot TPE gradient");
@@ -505,10 +506,33 @@ namespace LWS {
     size_t nVerts = curves->NumVertices();
     std::vector<glm::vec3> curve_vecs(nVerts);
 
+    // if the "normalize view" button is checked, center
+    // and normalize the vertex positions that are sent
+    // to Polyscope (but do not change the actual positions)
+    Vector3 center{ 0., 0., 0. };
+    double radius = 1.;
+    if( LWSOptions::normalizeView ) {
+       for (size_t i = 0; i < nVerts; i++)
+       {
+          CurveVertex* v_i = curves->GetVertex(i);
+          center += v_i->Position();
+       }
+       center /= nVerts;
+
+       radius = 0.;
+       for (size_t i = 0; i < nVerts; i++)
+       {
+          CurveVertex* v_i = curves->GetVertex(i);
+          radius = fmax( radius, (v_i->Position()-center).norm2() );
+       }
+       radius = sqrt( radius );
+    }
+
     for (size_t i = 0; i < nVerts; i++)
     {
       CurveVertex* v_i = curves->GetVertex(i);
       Vector3 v = v_i->Position();
+      v = (v-center)/radius;
       curve_vecs[v_i->GlobalIndex()] = glm::vec3{v.x, v.y, v.z};
     }
 
