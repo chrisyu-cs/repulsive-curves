@@ -783,9 +783,9 @@ int main(int argc, char** argv) {
   processFile(LWS::LWSApp::instance, file.Get());
 
   app->DisplayCurves(app->curves, app->surfaceName);
-  // app->curves->PinAllSpecialVertices();
-  app->curves->PinVertex(10);
-  app->curves->PinTangent(10);
+  app->curves->PinAllSpecialVertices(true);
+  // app->curves->PinVertex(10);
+  // app->curves->PinTangent(10);
 
   std::cout << "Set up curve" << std::endl;
   app->initSolver();

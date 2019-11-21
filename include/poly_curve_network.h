@@ -62,7 +62,7 @@ namespace LWS
         void FindComponents();
         void PinVertex(int i);
         void PinTangent(int i);
-        void PinAllSpecialVertices();
+        void PinAllSpecialVertices(bool includeTangents);
         void PrintPins();
 
         inline Vector3 Position(CurveVertex* v) {

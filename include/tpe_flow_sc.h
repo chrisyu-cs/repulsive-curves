@@ -56,7 +56,7 @@ namespace LWS {
         template<typename Domain, typename Smoother>
         double ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output);
         template<typename Domain, typename Smoother>
-        bool BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess, MultigridHierarchy<Domain>* solver, BVHNode3D* root);
+        double BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess, MultigridHierarchy<Domain>* solver, BVHNode3D* root);
 
         void SaveCurrentPositions();
         void RestoreOriginalPositions();
@@ -69,6 +69,7 @@ namespace LWS {
         int iterNum;
         double ls_step_threshold;
         double backproj_threshold;
+        double lastStepSize;
         CoordinateLUs coord_lus;
         PolyCurveNetwork* curveNetwork;
         std::vector<Vector3> originalPositions;
@@ -100,7 +101,7 @@ namespace LWS {
     }
 
     template<typename Domain, typename Smoother>
-    bool TPEFlowSolverSC::BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess,
+    double TPEFlowSolverSC::BackprojectMultigridLS(Eigen::MatrixXd &gradient, double initGuess,
     MultigridHierarchy<Domain>* solver, BVHNode3D* root) {
         double delta = initGuess;
         int nVerts = curveNetwork->NumVertices();
@@ -130,7 +131,7 @@ namespace LWS {
             std::cout << "  Constraint: " << maxBefore << " -> " << maxViolation << std::endl;
 
             if (maxViolation < backproj_threshold) {
-                return true;
+                return delta;
             }
             else {
                 delta /= 2;
@@ -138,6 +139,6 @@ namespace LWS {
         }
 
         std::cout << "Couldn't make backprojection succeed (initial step " << initGuess << ")" << std::endl;
-        return false;
+        return 0;
     }
 }

@@ -14,6 +14,7 @@ namespace LWS {
         ls_step_threshold = 1e-15;
         backproj_threshold = 1e-4;
         iterNum = 0;
+        lastStepSize = 0;
 
         UpdateTargetLengths();
     }
@@ -95,8 +96,15 @@ namespace LWS {
     double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double gradDot, BVHNode3D* root) {
         double gradNorm = gradient.norm();
         //std::cout << "Norm of gradient = " << gradNorm << std::endl;
-        double initGuess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
-        return LineSearchStep(gradient, initGuess, 1, gradDot, root);
+        double initGuess;
+        // Use the step size from the previous iteration, if it exists
+        if (lastStepSize > ls_step_threshold) {
+            initGuess = lastStepSize * 1.1;
+        }
+        else {
+            initGuess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
+        }
+        return LineSearchStep(gradient, initGuess, 0, gradDot, root);
     }
 
     double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double initGuess, int doublingLimit,
@@ -142,9 +150,6 @@ namespace LWS {
             }
             // Otherwise, accept the current step.
             else {
-                // Empirically we observe that we often need to cut the step size by at least this much
-                // before backprojection succeeds, so we just do it now.
-                delta *= 0.25;
                 SetGradientStep(gradient, delta);
                 if (root) {
                     // Update the centers of mass to reflect the new positions
@@ -383,6 +388,7 @@ namespace LWS {
         step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
         double bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
+        std::cout << "  Final step size = " << step_size << std::endl;
 
         if (tree_root) {
             delete tree_root;
@@ -393,6 +399,7 @@ namespace LWS {
         long end = Utils::currentTimeMilliseconds();
         std::cout << "Time = " << (end - start) << " ms" << std::endl;
 
+        lastStepSize = step_size;
         return step_size > 0;
     }
 
@@ -448,6 +455,7 @@ namespace LWS {
         step_size = BackprojectMultigridLS<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root);
         long bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
+        std::cout << "  Final step size = " << step_size << std::endl;
 
         delete multigrid;
         if (tree_root) delete tree_root;
@@ -455,6 +463,7 @@ namespace LWS {
         long all_end = Utils::currentTimeMilliseconds();
         std::cout << "  Total time: " << (all_end - all_start) << " ms" << std::endl;
 
+        lastStepSize = step_size;
         return step_size > 0;
     }
 }

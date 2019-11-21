@@ -125,10 +125,13 @@ namespace LWS {
         }
     }
 
-    void PolyCurveNetwork::PinAllSpecialVertices() {
+    void PolyCurveNetwork::PinAllSpecialVertices(bool includeTangents) {
         for (CurveVertex* v : vertices) {
             if (v->numEdges() != 2) {
                 PinVertex(v->id);
+                if (includeTangents) {
+                    PinTangent(v->id);
+                }
             }
         }
     }
