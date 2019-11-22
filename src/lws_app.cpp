@@ -357,6 +357,7 @@ namespace LWS {
     bool buttonPlotTPE = ImGui::Button("Plot TPE gradient");
 
     ImGui::Checkbox("Use Sobolev", &LWSOptions::useSobolev);
+    ImGui::Checkbox("Use Barnes-Hut", &LWSOptions::useBarnesHut);
     ImGui::Checkbox("Use multigrid", &LWSOptions::useMultigrid);
 
     if (LWSOptions::runTPE || buttonStepTPE) {
@@ -369,7 +370,7 @@ namespace LWS {
           good_step = tpeSolver->StepSobolevLSIterative(0);
         }
         else {
-          good_step = tpeSolver->StepSobolevLS(true);
+          good_step = tpeSolver->StepSobolevLS(LWSOptions::useBarnesHut);
         }
       }
       else {
