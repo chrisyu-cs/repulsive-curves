@@ -70,7 +70,6 @@ namespace LWS {
         double ls_step_threshold;
         double backproj_threshold;
         double lastStepSize;
-        CoordinateLUs coord_lus;
         PolyCurveNetwork* curveNetwork;
         std::vector<Vector3> originalPositions;
         Eigen::VectorXd constraintTargets;

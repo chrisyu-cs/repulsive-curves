@@ -16,5 +16,8 @@ namespace LWS {
         static bool useMultigrid;
         static bool useBarnesHut;
         static bool normalizeView;
+
+        static double tpeAlpha;
+        static double tpeBeta;
     };
 }

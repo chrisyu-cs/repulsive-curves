@@ -24,6 +24,7 @@ namespace LWS {
         void initSolver();
         void processFileOBJ(std::string filename);
         void processLoopFile(std::string filename);
+        void processSceneFile(std::string filename);
 
         void AddMeshObstacle(std::string objName, Vector3 center);
         void AddPlaneObstacle(Vector3 center, Vector3 normal);

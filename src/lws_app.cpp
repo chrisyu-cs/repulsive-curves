@@ -20,6 +20,8 @@
 #include "obstacles/plane_obstacle.h"
 #include "obstacles/sphere_obstacle.h"
 
+#include "scene_file.h"
+
 #include <limits>
 #include <random>
 #include <iostream>
@@ -109,62 +111,6 @@ namespace LWS {
       cout << "space bar" << endl;
     }
 
-    if (ImGui::Button("Print tree")) {
-      int nVerts = curves->NumVertices();
-      LWS::BVHNode3D* tree = CreateEdgeBVHFromCurve(curves);
-      BlockClusterTree* mult = new BlockClusterTree(curves, tree, 0.5, 2, 4);
-
-      mult->PrintData();
-
-      tree->assignIDs();
-
-      std::ofstream treefile;
-      treefile.open("tree-indices.csv");
-      tree->printIDs(treefile);
-      treefile.close();
-
-      std::ofstream admfile;
-      admfile.open("admissible-clusters.csv");
-      mult->PrintAdmissibleClusters(admfile);
-      admfile.close();
-
-      std::ofstream inadmfile;
-      inadmfile.open("inadmissible-clusters.csv");
-      mult->PrintInadmissibleClusters(inadmfile);
-      inadmfile.close();
-    }
-
-    if (ImGui::Button("Scale 2x")) {
-      curves->positions *= 2;
-      UpdateCurvePositions();
-      tpeSolver->UpdateTargetLengths();
-    }
-
-    if (ImGui::Button("Test scaling")) {
-      Eigen::MatrixXd initGradients;
-      initGradients.setZero(curves->NumVertices(), 3);
-      double initEnergy = tpeSolver->CurrentEnergyDirect();
-      tpeSolver->FillGradientVectorDirect(initGradients);
-
-      curves->positions = curves->positions * 2;
-
-      double scaledEnergy = tpeSolver->CurrentEnergyDirect();
-      Eigen::MatrixXd scaledGradients;
-      scaledGradients.setZero(curves->NumVertices(), 3);
-      tpeSolver->FillGradientVectorDirect(scaledGradients);
-      
-      Eigen::MatrixXd gradientRatio = scaledGradients;
-
-      for (int i = 0; i < curves->NumVertices(); i++) {
-        for (int j = 0; j < 3; j++) {
-          gradientRatio(i, j) = scaledGradients(i, j) / initGradients(i, j);
-        }
-      }
-
-      std::cout << "Gradient ratio = \n" << gradientRatio << std::endl;
-      std::cout << "Energy ratio = " << scaledEnergy << " / " << initEnergy << " = " << (scaledEnergy / initEnergy) << std::endl;
-    }
-
     if (ImGui::Button("Check BH gradient")) {
       std::cout << "Directly computing gradient..." << std::endl;
       tpeSolver->SetExponents(3, 6);
@@ -251,22 +197,6 @@ namespace LWS {
         std::cout << "Coarsening curve network of length " << ps[i]->NumVertices() << std::endl;
         ps[i+1] = ps[i]->Coarsen(ops[i]);
         DisplayCurves(ps[i + 1], "coarsened" + std::to_string(i));
-      }
-
-      for (int i = logNumVerts - 1; i > 0; i--) {
-        Eigen::VectorXd coarsePos(ps[i]->NumVertices() * 3);
-        coarsePos.setZero();
-        MatrixIntoVectorX3(ps[i]->positions, coarsePos);
-
-        Eigen::VectorXd finePos = ops[i - 1].prolong(coarsePos, ProlongationMode::Matrix3Only);
-
-        Eigen::MatrixXd finePosMat(ps[i - 1]->NumVertices(), 3);
-        finePosMat.setZero();
-        VectorXdIntoMatrix(finePos, finePosMat);
-
-        ps[i - 1]->positions = finePosMat;
-
-        DisplayCurves(ps[i - 1], "prolonged" + std::to_string(i));
       }
     }
 
@@ -361,6 +291,8 @@ namespace LWS {
     ImGui::Checkbox("Use multigrid", &LWSOptions::useMultigrid);
 
     if (LWSOptions::runTPE || buttonStepTPE) {
+      tpeSolver->SetExponents(LWSOptions::tpeAlpha, LWSOptions::tpeBeta);
+      
       if (LWSOptions::outputFrames && LWSOptions::frameNum == 0) {
         outputFrame();
       }
@@ -713,6 +645,11 @@ namespace LWS {
     curves = new PolyCurveNetwork(all_positions, all_edges);
     surfaceName = polyscope::guessNiceNameFromPath(filename);
   }
+
+  void LWSApp::processSceneFile(std::string filename) {
+    SceneData data = ParseSceneFile(filename);
+    exit(0);
+  }
 }
 
 LWS::LWSApp* LWS::LWSApp::instance;
@@ -721,6 +658,7 @@ bool endsWith(const std::string& str, const std::string& suffix) {
   return str.size() >= suffix.size() && str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
+
 void processFile(LWS::LWSApp* app, string filename) {
   // Dispatch to correct variant
   if (endsWith(filename, ".obj")) {
@@ -728,6 +666,9 @@ void processFile(LWS::LWSApp* app, string filename) {
   }
   else if (endsWith(filename, ".loop")) {
     app->processLoopFile(filename);
+  }
+  else if (endsWith(filename, ".txt")) {
+    app->processSceneFile(filename);
   }
   else {
     cerr << "Unrecognized file type for " << filename << endl;
