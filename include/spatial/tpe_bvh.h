@@ -104,6 +104,24 @@ namespace LWS {
         Vector3 BoxCenter();
         std::vector<BVHNode3D*> children;
 
+        // for visualization, assign each node a range of indices
+        // determined by the (post)ordering of its leaves
+        int indexStart;
+        int indexEnd;
+        int indexNodes( int index ) {
+           indexStart = indexEnd = index;
+           if( isLeaf ) {
+              indexEnd = index+1;
+              return index + 1;
+           } else {
+              for (BVHNode3D* child : children) {
+                 index = child->indexNodes( index );
+              } 
+              indexEnd = index;
+              return index;
+           }
+        }
+
         void accumulateChildren(std::vector<VertexBody6D> &result);
         Vector2 viewspaceBounds(Vector3 point);
 
@@ -156,7 +174,9 @@ namespace LWS {
 
         bool shouldUseCell(Vector3 vertPos);
 
-        private:
+        VertexBody6D body;
+
+        //private:
         int numElements;
         double AxisSplittingPlane(std::vector<VertexBody6D> &points, int axis);
         
@@ -171,7 +191,6 @@ namespace LWS {
 
         int splitAxis;
         double splitPoint;
-        VertexBody6D body;
         bool isEmpty;
         bool isLeaf;
         PosTan minCoords;

@@ -13,10 +13,15 @@
 
 namespace LWS {
 
-    struct ClusterPair {
-        BVHNode3D* cluster1;
-        BVHNode3D* cluster2;
-    };
+   class ClusterPair {
+      public:
+         ClusterPair( BVHNode3D* c1 = NULL, BVHNode3D* c2 = NULL, int d = 0 )
+            : cluster1(c1), cluster2(c2), depth(d) {}
+
+         BVHNode3D* cluster1;
+         BVHNode3D* cluster2;
+         int depth;
+   };
 
     enum class BlockTreeMode {
         MatrixOnly,
@@ -37,7 +42,7 @@ namespace LWS {
         ~BlockClusterTree();
         // Loop over all currently inadmissible cluster pairs
         // and subdivide them to their children.
-        void splitInadmissibleNodes();
+        void splitInadmissibleNodes(int depth);
         static bool isPairAdmissible(ClusterPair pair, double coeff);
         static bool isPairSmallEnough(ClusterPair pair);
 
@@ -153,6 +158,10 @@ namespace LWS {
         std::vector<ClusterPair> inadmissiblePairs;
         bool constraintsSet;
         Eigen::SparseMatrix<double> B;
+
+#ifdef DUMP_BCT_VISUALIZATION
+        void writeVisualization();
+#endif
     };
 
     template<typename V>

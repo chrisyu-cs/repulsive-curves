@@ -5,6 +5,8 @@
 
 #include "Eigen/Dense"
 
+#undef DUMP_BCT_VISUALIZATION
+
 namespace LWS {
 
     using namespace geometrycentral;

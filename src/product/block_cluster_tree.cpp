@@ -2,6 +2,10 @@
 #include "utils.h"
 
 #include <thread>
+#include <fstream>
+#include <sstream>
+#include <queue>
+#include <map>
 
 namespace LWS {
 
@@ -24,16 +28,22 @@ namespace LWS {
         std::cout << "Using " << nThreads << " threads." << std::endl;
 
         tree_root = tree;
-        ClusterPair pair{tree, tree};
+        ClusterPair pair(tree, tree);
         unresolvedPairs.push_back(pair);
 
         nVerts = curves->NumVertices();
         constraintsSet = false;
 
         admissibleByCluster.resize(tree->numNodes);
+        int depth = 0;
         while (unresolvedPairs.size() > 0) {
-            splitInadmissibleNodes();
+            splitInadmissibleNodes(depth);
+            depth++;
         }
+
+#ifdef DUMP_BCT_VISUALIZATION
+        writeVisualization();
+#endif
 
         // Premultiply A_f * 1, for reuse in later multiplications with G_f
         Af_1.setOnes(nVerts);
@@ -48,10 +58,11 @@ namespace LWS {
         //delete threadpool;
     }
 
-    void BlockClusterTree::splitInadmissibleNodes() {
+    void BlockClusterTree::splitInadmissibleNodes(int depth) {
         std::vector<ClusterPair> nextPairs;
 
         for (ClusterPair pair : unresolvedPairs) {
+           pair.depth = depth;
             if (pair.cluster1->NumElements() == 0 || pair.cluster2->NumElements() == 0) {
                 // Drop pairs where one of the sides has 0 vertices
                 continue;
@@ -73,7 +84,7 @@ namespace LWS {
                 // Otherwise, subdivide it into child pairs
                 for (size_t i = 0; i < pair.cluster1->children.size(); i++) {
                     for (size_t j = 0; j < pair.cluster2->children.size(); j++) {
-                        ClusterPair pair_ij{pair.cluster1->children[i], pair.cluster2->children[j]};
+                        ClusterPair pair_ij(pair.cluster1->children[i], pair.cluster2->children[j]);
                         nextPairs.push_back(pair_ij);
                     }
                 }
@@ -641,5 +652,161 @@ namespace LWS {
         }
 
         return block;
+    }
+
+    void BlockClusterTree::writeVisualization()
+    {
+       int nE = curves->NumEdges();
+
+       // create filenames that depend on the number of vertices
+       // (so that we get different files for each level of the
+       // multigrid hierarchy)
+       std::string nLeavesString = std::to_string( nE );
+       std::stringstream fnK, fnPK, fnPK0, fnBCT;
+       fnK   << "K_"   << nLeavesString << ".csv";
+       fnPK  << "PK_"  << nLeavesString << ".csv";
+       fnPK0 << "PK0_" << nLeavesString << ".csv";
+       fnBCT << "BCT_" << nLeavesString << ".svg";
+
+       // write a CSV file that stores a dense kernel matrix, with
+       // row/column order determined by the blocking used in the BCT
+       std::ofstream outK( fnK.str().c_str() );
+       std::ofstream outPK( fnPK.str().c_str() );
+       std::ofstream outPK0( fnPK0.str().c_str() );
+       std::ofstream outBCT( fnBCT.str().c_str() );
+
+       // compute start and end indices for each internal node
+       // of the BVH that span the indices of their children
+       tree_root->indexNodes( 0 );
+
+       // allocate storage for the full, reordered, and hierarchical matrices
+       std::vector< std::vector<double> > K( nE ), PK( nE ), PK0( nE );
+       for( int i = 0; i < nE; i++ )
+       {
+            K[i].resize( nE );
+           PK[i].resize( nE );
+          PK0[i].resize( nE );
+       }
+       
+       // construct a map from curve vertex
+       // indices to BVH leaf indices
+       std::map<int,int> element2leafIndex;
+       std::queue<BVHNode3D*> Q;
+       Q.push( tree_root );
+       while( !Q.empty() )
+       {
+          BVHNode3D* node = Q.front(); Q.pop();
+          for( BVHNode3D* child : node->children )
+          {
+             Q.push( child );
+
+             if( child->isLeaf )
+             {
+                int elementIndex = child->body.elementIndex;
+                int leafIndex = child->indexStart;
+                element2leafIndex[elementIndex] = leafIndex;
+             }
+          }
+       }
+
+       // iterate over all pairs and build the dense matrices
+       for( int i = 0; i < nE; i++ )
+       {
+          CurveEdge* ei = curves->GetEdge( i );
+          int Pi = element2leafIndex[i];
+          Vector3 xi = ei->Midpoint();
+          Vector3 Ti = ei->Tangent();
+
+          for( int j = 0; j < nE; j++ )
+          {
+             CurveEdge* ej = curves->GetEdge( j );
+             int Pj = element2leafIndex[j];
+             Vector3 xj = ej->Midpoint();
+             Vector3 Tj = ej->Tangent();
+
+             //double kij = SobolevCurves::MetricDistanceTerm( alpha, beta, xi, xj, Ti, Tj );
+             double kij = TPESC::tpe_pair_pts( xi, xj, Ti, 1., 1., alpha, beta );
+             if( isnan(kij) || isinf(kij)) kij = 0.;
+
+             K[i][j] = kij;
+             PK[Pi][Pj] = kij;
+             PK0[Pi][Pj] = kij;
+          }
+       }
+
+       // evaluate the energy approximation in each admissible block,
+       // and write it to all the entries in that block
+       outBCT << "<svg>" << std::endl;
+       outBCT << "<style type=\"text/css\">" << std::endl;
+       outBCT << ".st0{fill:none;stroke:#000000;stroke-width:32.0;}" << std::endl;
+       outBCT << ".st1{fill:none;stroke:#000000;stroke-width:16.0;}" << std::endl;
+       outBCT << ".st2{fill:none;stroke:#000000;stroke-width:8.0;}" << std::endl;
+       outBCT << ".st3{fill:none;stroke:#000000;stroke-width:4.0;}" << std::endl;
+       outBCT << ".st4{fill:none;stroke:#000000;stroke-width:2.0;}" << std::endl;
+       outBCT << ".st5{fill:none;stroke:#000000;stroke-width:1.0;}" << std::endl;
+       outBCT << ".st6{fill:none;stroke:#000000;stroke-width:0.5;}" << std::endl;
+       outBCT << ".st7{fill:none;stroke:#000000;stroke-width:0.25;}" << std::endl;
+       outBCT << ".st8{fill:none;stroke:#000000;stroke-width:0.125;}" << std::endl;
+       outBCT << ".st9{fill:none;stroke:#000000;stroke-width:0.0625;}" << std::endl;
+       outBCT << "</style>" << std::endl;
+
+       for( const ClusterPair& AB : admissiblePairs )
+       {
+          BVHNode3D* A = AB.cluster1;
+          BVHNode3D* B = AB.cluster2;
+
+          int A0 = A->indexStart;
+          int A1 = A->indexEnd;
+          int B0 = B->indexStart;
+          int B1 = B->indexEnd;
+
+          Vector3 xA = A->centerOfMass;
+          Vector3 xB = B->centerOfMass;
+          Vector3 TA = A->averageTangent;
+          Vector3 TB = B->averageTangent;
+
+          //double kAB = SobolevCurves::MetricDistanceTerm( alpha, beta, xA, xB, TA, TB );
+          double kAB = TPESC::tpe_pair_pts( xA, xB, TA, 1., 1., alpha, beta );
+          if( isnan(kAB) || isinf(kAB)) kAB = 0.;
+
+          for( int Pi = A0; Pi < A1; Pi++ )
+          for( int Pj = B0; Pj < B1; Pj++ )
+          {
+             PK0[Pi][Pj] = kAB;
+          }
+
+          // use depth in tree to determine line width
+          int d = std::min( AB.depth, 9 );
+
+          outBCT << "<rect ";
+          outBCT << "class=\"st" << d << "\" ";
+          outBCT << "x=\"" << A0 << "\" ";
+          outBCT << "y=\"" << B0 << "\" ";
+          outBCT << "width=\"" << A1 - A0 << "\" ";
+          outBCT << "height=\"" << B1 - B0 << "\"";
+          outBCT << "/>" << std::endl;
+       }
+       outBCT << "</svg>" << std::endl;
+
+       // write matrices to disk
+       for( int i = 0; i < nE; i++ )
+       {
+          for( int j = 0; j < nE; j++ )
+          {
+             outK   <<   K[i][j];
+             outPK  <<  PK[i][j];
+             outPK0 << PK0[i][j];
+
+             if( j != nE-1 )
+             {
+                outK   << ",";
+                outPK  << ",";
+                outPK0 << ",";
+             }
+          }
+          outK   << std::endl;
+          outPK  << std::endl;
+          outPK0 << std::endl;
+       }
     }
 }

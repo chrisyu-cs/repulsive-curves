@@ -429,7 +429,8 @@ namespace LWS {
         long mg_setup_start = Utils::currentTimeMilliseconds();
         using MultigridDomain = ConstraintProjectorDomain<ConstraintType>;
         using MultigridSolver = MultigridHierarchy<MultigridDomain>;
-        MultigridDomain* domain = new MultigridDomain(curveNetwork, alpha, beta, 0.5, epsilon);
+        double sep = 1.0;
+        MultigridDomain* domain = new MultigridDomain(curveNetwork, alpha, beta, sep, epsilon);
         std::cout << "Made domain" << std::endl;
         MultigridSolver* multigrid = new MultigridSolver(domain);
         std::cout << "Made solver" << std::endl;
