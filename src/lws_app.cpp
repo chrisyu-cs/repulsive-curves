@@ -100,6 +100,36 @@ namespace LWS {
     }
     file << std::endl;
   }
+
+  void LWSApp::writeCurves( PolyCurveNetwork* network, const std::string& positionFilename, const std::string& tangentFilename ) {
+     std::vector<Vector3> all_positions;
+     std::vector<Vector3> all_tangents;
+     std::vector<std::vector<size_t> > components;
+
+     // build vectors of positions and tangents
+     int nV = network->NumVertices();
+     all_positions.resize(nV);
+     all_tangents.resize(nV);
+     for (int i = 0; i < nV; i++) {
+        CurveVertex* vi = network->GetVertex(i);
+        all_positions[i] = vi->Position();
+        all_tangents[i] = vi->Tangent();
+     }
+
+     // build vector<vector<size_t>> components
+     int nE = network->NumEdges();
+     components.resize(nE);
+     for (int i = 0; i < nE; i++) {
+        std::vector<size_t> edge(2);
+        CurveEdge* ei = network->GetEdge(i);
+        edge[0] = ei->prevVert->GlobalIndex();
+        edge[1] = ei->nextVert->GlobalIndex();
+        components[i] = edge;
+     }
+
+     CurveIO::writeOBJLineElements(positionFilename.c_str(), all_positions, components);
+     CurveIO::writeOBJLineElements(tangentFilename.c_str(), all_tangents, components);
+  }
   
   void LWSApp::customWindow() {
 
@@ -185,6 +215,8 @@ namespace LWS {
     }
 
     if (ImGui::Button("Test coarsen")) {
+       const bool writeCoarsened = false;
+
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 2;
 
@@ -197,6 +229,12 @@ namespace LWS {
         std::cout << "Coarsening curve network of length " << ps[i]->NumVertices() << std::endl;
         ps[i+1] = ps[i]->Coarsen(ops[i]);
         DisplayCurves(ps[i + 1], "coarsened" + std::to_string(i));
+
+        if( writeCoarsened ) {
+           writeCurves( ps[i+1],
+                 "positions" + std::to_string(i) + ".obj",
+                 "tangents" + std::to_string(i) + ".obj" );
+        }
       }
     }
 
@@ -321,33 +359,7 @@ namespace LWS {
     }
 
     if (ImGui::Button("Curve to OBJ")) {
-       std::vector<Vector3> all_positions;
-       std::vector<Vector3> all_tangents;
-       std::vector<std::vector<size_t> > components;
-
-       // build vectors of positions and tangents
-       int nV = curves->NumVertices();
-       all_positions.resize(nV);
-       all_tangents.resize(nV);
-       for (int i = 0; i < nV; i++) {
-          CurveVertex* vi = curves->GetVertex(i);
-          all_positions[i] = vi->Position();
-          all_tangents[i] = vi->Tangent();
-       }
-
-       // build vector<vector<size_t>> components
-       int nE = curves->NumEdges();
-       components.resize(nE);
-       for (int i = 0; i < nE; i++) {
-          std::vector<size_t> edge(2);
-          CurveEdge* ei = curves->GetEdge(i);
-          edge[0] = ei->prevVert->GlobalIndex();
-          edge[1] = ei->nextVert->GlobalIndex();
-          components[i] = edge;
-       }
-
-       CurveIO::writeOBJLineElements("curve_positions.obj", all_positions, components);
-       CurveIO::writeOBJLineElements("curve_tangents.obj", all_tangents, components);
+       writeCurves( curves, "curve_positions.obj", "curve_tangents.obj" );
     }
 
     if (ImGui::Button("BVH to OBJ")) { // write bounding volume hierarchy to mesh file
