@@ -654,6 +654,7 @@ namespace LWS {
         return block;
     }
 
+#ifdef DUMP_BCT_VISUALIZATION
     void BlockClusterTree::writeVisualization()
     {
        int nE = curves->NumEdges();
@@ -809,4 +810,5 @@ namespace LWS {
           outPK0 << std::endl;
        }
     }
+#endif
 }
