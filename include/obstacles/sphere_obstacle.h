@@ -7,9 +7,10 @@ namespace LWS {
         public:
         Vector3 center;
         double radius;
-        SphereObstacle(Vector3 c, double r);
+        double p;
+        SphereObstacle(Vector3 c, double r, double p_exp);
         virtual ~SphereObstacle();
-        virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient, double alpha, double beta);
+        virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient);
 
         inline Vector3 ClosestPoint(Vector3 input) {
             Vector3 dir = (input - center).normalize();

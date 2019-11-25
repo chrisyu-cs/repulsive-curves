@@ -428,12 +428,20 @@ namespace LWS {
 
   void LWSApp::initSolver() {
     if (!tpeSolver) {
-      curves->appliedConstraints.push_back(ConstraintType::Barycenter);
-      // curves->appliedConstraints.push_back(ConstraintType::Pins);
-      // curves->appliedConstraints.push_back(ConstraintType::TangentPins);
-      curves->appliedConstraints.push_back(ConstraintType::EdgeLengths);
+      if (curves->appliedConstraints.size() == 0) {
+        std::cout << "No constraints specified; defaulting to barycenter and edge lengths" << std::endl;
+        curves->appliedConstraints.push_back(ConstraintType::Barycenter);
+        curves->appliedConstraints.push_back(ConstraintType::EdgeLengths);
+      }
       // Set up solver
-      tpeSolver = new TPEFlowSolverSC(curves, 3, 6);
+      double alpha = LWSOptions::tpeAlpha;
+      double beta = LWSOptions::tpeBeta;
+      tpeSolver = new TPEFlowSolverSC(curves, alpha, beta);
+
+      for (ObstacleData &data : sceneObstacles) {
+        std::cout << "Adding scene obstacle from " << data.filename << std::endl;
+        AddMeshObstacle(data.filename, Vector3{0, 0, 0}, beta - alpha + 1, data.weight);
+      }
     }
   }
 
@@ -477,7 +485,7 @@ namespace LWS {
     polyscope::requestRedraw();
   }
 
-  void LWSApp::AddMeshObstacle(std::string objName, Vector3 center) {
+  void LWSApp::AddMeshObstacle(std::string objName, Vector3 center, double p, double weight) {
     std::unique_ptr<HalfedgeMesh> mesh;
     std::unique_ptr<VertexPositionGeometry> geometry;
     std::tie(mesh, geometry) = loadMesh(objName);
@@ -493,20 +501,18 @@ namespace LWS {
     geom_shared->requireVertexNormals();
     geom_shared->requireVertexDualAreas();
 
-    std::cout << "Making mesh obstacle" << std::endl;
-    tpeSolver->obstacles.push_back(new MeshObstacle(mesh_shared, geom_shared));
-    std::cout << "Made mesh obstacle" << std::endl;
+    tpeSolver->obstacles.push_back(new MeshObstacle(mesh_shared, geom_shared, p, weight));
   }
 
   void LWSApp::AddPlaneObstacle(Vector3 center, Vector3 normal) {
     int numObs = tpeSolver->obstacles.size();
-    tpeSolver->obstacles.push_back(new PlaneObstacle(center, normal));
+    tpeSolver->obstacles.push_back(new PlaneObstacle(center, normal, 2));
     DisplayPlane(center, normal, "obstacle" + std::to_string(numObs));
   }
 
   void LWSApp::AddSphereObstacle(Vector3 center, double radius) {
     int numObs = tpeSolver->obstacles.size();
-    tpeSolver->obstacles.push_back(new SphereObstacle(center, 2));
+    tpeSolver->obstacles.push_back(new SphereObstacle(center, radius, 2));
     DisplayWireSphere(center, radius, "obstacle" + std::to_string(numObs));
   }
 
@@ -648,7 +654,34 @@ namespace LWS {
 
   void LWSApp::processSceneFile(std::string filename) {
     SceneData data = ParseSceneFile(filename);
-    exit(0);
+    std::cout << data.curve_filename << std::endl;
+    std::cout << "Loading curve from " << data.curve_filename << std::endl;
+    processLoopFile(data.curve_filename);
+
+    LWSOptions::tpeAlpha = data.tpe_alpha;
+    LWSOptions::tpeBeta = data.tpe_beta;
+
+    // Add constraints
+    for (ConstraintType type : data.constraints) {
+      std::cout << "Adding constraint " << NameOfConstraint(type) << std::endl;
+      curves->appliedConstraints.push_back(type);
+    }
+    for (int i : data.pinnedVertices) {
+      std::cout << "Pinning vertex position " << i << std::endl;
+      curves->PinVertex(i);
+    }
+    for (int i : data.pinnedTangents) {
+      std::cout << "Pinning vertex tangent " << i << std::endl;
+      curves->PinTangent(i);
+    }
+
+    // Add obstacles
+    for (ObstacleData obsData : data.obstacles) {
+      sceneObstacles.push_back(obsData);
+    }
+
+    // Add other objectives
+    // TODO
   }
 }
 
@@ -735,7 +768,7 @@ int main(int argc, char** argv) {
 
   if (obstacleFiles) {
     for (string obsFile : obstacleFiles) {
-      app->AddMeshObstacle(obsFile, Vector3{0, 0, 0});
+      app->AddMeshObstacle(obsFile, Vector3{0, 0, 0}, 2, 1);
     }
   }
 

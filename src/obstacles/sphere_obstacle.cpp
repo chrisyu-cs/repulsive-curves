@@ -3,14 +3,15 @@
 
 namespace LWS {
     
-    SphereObstacle::SphereObstacle(Vector3 c, double r) {
+    SphereObstacle::SphereObstacle(Vector3 c, double r, double p_exp) {
         center = c;
         radius = r;
+        p = p_exp;
     }
 
     SphereObstacle::~SphereObstacle() {}
 
-    void SphereObstacle::AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient, double alpha, double beta) {
+    void SphereObstacle::AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient) {
         int nVerts = curves->NumVertices();
 
         for (int i = 0; i < nVerts; i++) {
@@ -24,11 +25,11 @@ namespace LWS {
             Vector3 toPoint = nearest - p_i;
             double distance = (nearest - p_i).norm();
             toPoint /= distance;
-            Vector3 grad_i = toPoint * 1.0 / pow(distance, beta - alpha + 1);
+            Vector3 grad_i = toPoint * 1.0 / pow(distance, p);
 
             // Add an antipodal component
             // double oppDistance = 2 * radius - distance;
-            // grad_i += -toPoint * 1.0 / pow(oppDistance, beta - alpha + 1); 
+            // grad_i += -toPoint * 1.0 / pow(oppDistance, p); 
 
             AddToRow(gradient, v_i->GlobalIndex(), grad_i);
         }

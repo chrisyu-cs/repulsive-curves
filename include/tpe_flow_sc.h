@@ -11,6 +11,7 @@
 #include "flow/gradient_constraint_enum.h"
 
 #include "obstacles/obstacle.h"
+#include "extra_potentials.h"
 
 namespace LWS {
 
@@ -25,6 +26,7 @@ namespace LWS {
         public:
         using ConstraintType = VariableConstraintSet;
         std::vector<Obstacle*> obstacles;
+        std::vector<CurvePotential*> potentials;
 
         TPEFlowSolverSC(PolyCurveNetwork* p, double a, double b);
         ~TPEFlowSolverSC();

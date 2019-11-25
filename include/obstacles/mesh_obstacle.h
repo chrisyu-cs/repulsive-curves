@@ -14,12 +14,14 @@ namespace LWS {
         std::shared_ptr<HalfedgeMesh> mesh;
         std::shared_ptr<VertexPositionGeometry> geometry;
 
-        MeshObstacle(std::shared_ptr<HalfedgeMesh> m, std::shared_ptr<VertexPositionGeometry> geom);
+        MeshObstacle(std::shared_ptr<HalfedgeMesh> m, std::shared_ptr<VertexPositionGeometry> geom, double p_exp, double w);
         virtual ~MeshObstacle();
-        virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient, double alpha, double beta);
+        virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient);
 
         private:
+        double p;
+        double weight;
         BVHNode3D* bvh;
-        Vector3 AccumulateForce(BVHNode3D* node, Vector3 point, double alpha, double beta);
+        Vector3 AccumulateForce(BVHNode3D* node, Vector3 point);
     };
 }

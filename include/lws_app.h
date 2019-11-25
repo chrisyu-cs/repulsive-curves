@@ -14,6 +14,8 @@
 #include "Eigen/SparseLU"
 #include "poly_curve_network.h"
 
+#include "scene_file.h"
+
 namespace LWS {
     class LWSApp {
         public:
@@ -26,7 +28,7 @@ namespace LWS {
         void processLoopFile(std::string filename);
         void processSceneFile(std::string filename);
 
-        void AddMeshObstacle(std::string objName, Vector3 center);
+        void AddMeshObstacle(std::string objName, Vector3 center, double p, double weight);
         void AddPlaneObstacle(Vector3 center, Vector3 normal);
         void AddSphereObstacle(Vector3 center, double radius);
 
@@ -43,6 +45,7 @@ namespace LWS {
         void UpdateCurvePositions();
         void outputFrame();
         
+        std::vector<ObstacleData> sceneObstacles;
         std::unique_ptr<surface::HalfedgeMesh> mesh;
         std::unique_ptr<surface::VertexPositionGeometry> geom;
 

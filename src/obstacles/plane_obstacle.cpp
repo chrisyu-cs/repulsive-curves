@@ -3,14 +3,15 @@
 
 namespace LWS {
     
-    PlaneObstacle::PlaneObstacle(Vector3 c, Vector3 n) {
+    PlaneObstacle::PlaneObstacle(Vector3 c, Vector3 n, double p_exp) {
         center = c;
         normal = n.normalize();
+        p = p_exp;
     }
 
     PlaneObstacle::~PlaneObstacle() {}
 
-    void PlaneObstacle::AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient, double alpha, double beta) {
+    void PlaneObstacle::AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient) {
         int nVerts = curves->NumVertices();
 
         for (int i = 0; i < nVerts; i++) {
@@ -22,7 +23,7 @@ namespace LWS {
             Vector3 toPoint = nearest - p_i;
             double distance = (nearest - p_i).norm();
             toPoint /= distance;
-            Vector3 grad_i = toPoint * 1.0 / pow(distance, beta - alpha + 1);
+            Vector3 grad_i = toPoint * 1.0 / pow(distance, p);
 
             AddToRow(gradient, v_i->GlobalIndex(), grad_i);
         }

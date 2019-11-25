@@ -54,7 +54,7 @@ namespace LWS {
 
     void TPEFlowSolverSC::AddObstacleGradients(Eigen::MatrixXd &gradients) {
         for (Obstacle* obs : obstacles) {
-            obs->AddGradient(curveNetwork, gradients, alpha, beta);
+            obs->AddGradient(curveNetwork, gradients);
         }
     }
 

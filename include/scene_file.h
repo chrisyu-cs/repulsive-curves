@@ -11,10 +11,15 @@
 
 namespace LWS {
 
+    struct ObstacleData {
+        std::string filename;
+        double weight;
+    };
+
     class SceneData {
         public:
         std::string curve_filename;
-        std::vector<std::string> obstacle_filenames;
+        std::vector<ObstacleData> obstacles;
         std::vector<ConstraintType> constraints;
         std::vector<int> pinnedVertices;
         std::vector<int> pinnedTangents;

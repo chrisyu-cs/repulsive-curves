@@ -9,6 +9,7 @@ namespace LWS {
 
     class PolyCurveNetwork;
     int NumRowsForConstraint(ConstraintType type, PolyCurveNetwork* curve);
+    std::string NameOfConstraint(ConstraintType type);
 
     class VariableConstraintSet : public GradientConstraints<VariableConstraintSet> {
         private:
