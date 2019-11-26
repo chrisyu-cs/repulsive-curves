@@ -34,12 +34,12 @@ namespace LWS {
 
         void UpdateTargetLengths();
         double CurrentEnergy(SpatialTree *root = 0);
-        double CurrentEnergyDirect();
-        double CurrentEnergyBH(SpatialTree *root);
+        double TPEnergyDirect();
+        double TPEnergyBH(SpatialTree *root);
         void FillGradientSingle(Eigen::MatrixXd &gradients, int i, int j);
         void FillGradientVectorDirect(Eigen::MatrixXd &gradients);
         void FillGradientVectorBH(SpatialTree *root, Eigen::MatrixXd &gradients);
-        void AddObstacleGradients(Eigen::MatrixXd &gradients);
+        void AddAllGradients(SpatialTree* root, Eigen::MatrixXd &gradients);
 
         inline void SetExponents(double a, double b) {
             alpha = a;

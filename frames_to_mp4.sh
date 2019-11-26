@@ -1,1 +1,1 @@
-ffmpeg -f image2 -i build/frames/frame%04d.png -r 24 -vcodec libx264 output.mp4
+ffmpeg -f image2 -framerate 25 -i build/frames/frame%04d.png -vcodec libx264 output.mp4

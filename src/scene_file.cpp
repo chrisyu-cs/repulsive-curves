@@ -46,6 +46,8 @@ namespace LWS {
             data.curve_filename = dir_root + parts[1];
         }
 
+        // ========== Potentials ==========
+
         else if (key == "repel_curve") {
             if (parts.size() <= 1) {
                 data.tpe_alpha = 3;
@@ -68,7 +70,7 @@ namespace LWS {
 
         else if (key == "repel_surface") {
             if (parts.size() < 2 || parts.size() > 3) {
-                std::cerr << "Incorrect arguments to curve" << std::endl;
+                std::cerr << "Incorrect arguments to repel_surface" << std::endl;
                 exit(1);
             }
             else if (parts.size() == 2) {
@@ -78,6 +80,46 @@ namespace LWS {
                 data.obstacles.push_back(ObstacleData{dir_root + parts[1], stod(parts[2])});
             }
         }
+
+        else if (key == "optimize_length") {
+            if (parts.size() == 1) {
+                data.extraPotentials.push_back(PotentialData{PotentialType::Length, 1, ""});
+            }
+            else if (parts.size() == 2) {
+                data.extraPotentials.push_back(PotentialData{PotentialType::Length, stod(parts[1]), ""});
+            }
+            else {
+                std::cerr << "Incorrect arguments to optimize_length" << std::endl;
+                exit(1);
+            }
+        }
+
+        else if (key == "optimize_area") {
+            if (parts.size() == 1) {
+                data.extraPotentials.push_back(PotentialData{PotentialType::Area, 1, ""});
+            }
+            else if (parts.size() == 2) {
+                data.extraPotentials.push_back(PotentialData{PotentialType::Area, stod(parts[1]), ""});
+            }
+            else {
+                std::cerr << "Incorrect arguments to optimize_area" << std::endl;
+                exit(1);
+            }
+        }
+
+        else if (key == "optimize_field") {
+            if (parts.size() == 2) {
+                data.extraPotentials.push_back(PotentialData{PotentialType::VectorField, 1, parts[1]});
+            }
+            else if (parts.size() == 3) {
+                data.extraPotentials.push_back(PotentialData{PotentialType::VectorField, stod(parts[2]), parts[1]});
+            }
+            else {
+                std::cerr << "Incorrect arguments to optimize_field" << std::endl;
+                exit(1);
+            }
+        }
+
 
         // ========== Constraints ==========
         else if (key == "fix_barycenter") {
@@ -146,6 +188,9 @@ namespace LWS {
             exit(1);
         }
         
+        else if (key == "#") {
+            return;
+        }
 
         else {
             std::cerr << "Unrecognized keyword " << key << std::endl;

@@ -454,6 +454,22 @@ namespace LWS {
         std::cout << "Adding scene obstacle from " << data.filename << std::endl;
         AddMeshObstacle(data.filename, Vector3{0, 0, 0}, beta - alpha + 1, data.weight);
       }
+
+      for (PotentialData &data : scenePotentials) {
+        switch (data.type) {
+          case PotentialType::Length:
+          std::cout << "Adding length potential (weight = " << data.weight << ")" << std::endl;
+          tpeSolver->potentials.push_back(new TotalLengthPotential(data.weight));
+          break;
+          case PotentialType::Area:
+          std::cerr << "Area potential is not implemented yet" << std::endl;
+          break;
+          case PotentialType::VectorField:
+          std::cerr << "Vector fields are not implemented yet" << std::endl;
+          exit(1);
+          break;
+        }
+      }
     }
   }
 
@@ -690,6 +706,10 @@ namespace LWS {
     // Add obstacles
     for (ObstacleData obsData : data.obstacles) {
       sceneObstacles.push_back(obsData);
+    }
+
+    for (PotentialData potData : data.extraPotentials) {
+      scenePotentials.push_back(potData);
     }
 
     // Add other objectives

@@ -9,12 +9,14 @@ namespace LWS {
         public:
         CurvePotential();
         virtual ~CurvePotential();
+        virtual double CurrentValue(PolyCurveNetwork* curves);
         virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient);
     };
 
     class TotalLengthPotential : public CurvePotential {
         public:
         TotalLengthPotential(double wt);
+        virtual double CurrentValue(PolyCurveNetwork* curves);
         virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient);
 
         private:

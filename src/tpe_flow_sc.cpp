@@ -31,15 +31,22 @@ namespace LWS {
     }
 
     double TPEFlowSolverSC::CurrentEnergy(SpatialTree *root) {
-        if (root) return CurrentEnergyBH(root);
-        else return CurrentEnergyDirect();
+        double energy = 0;
+
+        if (root) energy = TPEnergyBH(root);
+        else energy = TPEnergyDirect();
+
+        for (CurvePotential* p : potentials) {
+            energy += p->CurrentValue(curveNetwork);
+        }
+        return energy;
     }
 
-    double TPEFlowSolverSC::CurrentEnergyDirect() {
+    double TPEFlowSolverSC::TPEnergyDirect() {
         return TPESC::tpe_total(curveNetwork, alpha, beta);
     }
 
-    double TPEFlowSolverSC::CurrentEnergyBH(SpatialTree *root) {
+    double TPEFlowSolverSC::TPEnergyBH(SpatialTree *root) {
         return SpatialTree::TPEnergyBH(curveNetwork, root, alpha, beta);
     }
 
@@ -52,18 +59,34 @@ namespace LWS {
         SpatialTree::TPEGradientBarnesHut(curveNetwork, root, gradients, alpha, beta);
     }
 
-    void TPEFlowSolverSC::AddObstacleGradients(Eigen::MatrixXd &gradients) {
+    void TPEFlowSolverSC::AddAllGradients(SpatialTree *tree_root, Eigen::MatrixXd &vertGradients) {
+        // Barnes-Hut for gradient accumulation
+        if (tree_root) {
+            FillGradientVectorBH(tree_root, vertGradients);
+        }
+        else {
+            FillGradientVectorDirect(vertGradients);
+        }
+
+        // Add gradient contributions from obstacles
         for (Obstacle* obs : obstacles) {
-            obs->AddGradient(curveNetwork, gradients);
+            obs->AddGradient(curveNetwork, vertGradients);
+        }
+
+        // Add gradient contributions from potentials
+        for (CurvePotential* p : potentials) {
+            p->AddGradient(curveNetwork, vertGradients);
         }
     }
+    
 
     bool TPEFlowSolverSC::StepNaive(double h) {
         // Takes a fixed time step h using the L2 gradient
         int nVerts = curveNetwork->NumVertices();
         Eigen::MatrixXd gradients(nVerts, 3);
         gradients.setZero();
-        FillGradientVectorDirect(gradients);
+        // FillGradientVectorDirect(gradients);
+        AddAllGradients(0, gradients);
 
         for (int i = 0; i < nVerts; i++) {
             CurveVertex* pt = curveNetwork->GetVertex(i);
@@ -210,7 +233,8 @@ namespace LWS {
         Eigen::MatrixXd gradients(nVerts, 3);
         gradients.setZero();
 
-        FillGradientVectorDirect(gradients);
+        // FillGradientVectorDirect(gradients);
+        AddAllGradients(0, gradients);
         bool good_step = LineSearchStep(gradients);
 
         return good_step;
@@ -222,7 +246,8 @@ namespace LWS {
         int nVerts = curveNetwork->NumVertices();
         Eigen::MatrixXd gradients(nVerts, 3);
         gradients.setZero();
-        FillGradientVectorDirect(gradients);
+        // FillGradientVectorDirect(gradients);
+        AddAllGradients(0, gradients);
 
         // Set up saddle matrix
         Eigen::MatrixXd A;
@@ -346,18 +371,8 @@ namespace LWS {
 
         long grad_start = Utils::currentTimeMilliseconds();
         BVHNode3D *tree_root = 0;
-
-        // Barnes-Hut for gradient accumulation
-        if (useBH) {
-            tree_root = CreateBVHFromCurve(curveNetwork);
-            FillGradientVectorBH(tree_root, vertGradients);
-        }
-        else {
-            FillGradientVectorDirect(vertGradients);
-        }
-
-        // Add gradient contributions from obstacles
-        AddObstacleGradients(vertGradients);
+        if (useBH) tree_root = CreateBVHFromCurve(curveNetwork);
+        AddAllGradients(tree_root, vertGradients);
         
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
         double grad_end = Utils::currentTimeMilliseconds();
@@ -416,14 +431,10 @@ namespace LWS {
         // Assemble the L2 gradient
         long bh_start = Utils::currentTimeMilliseconds();
         tree_root = CreateBVHFromCurve(curveNetwork);
-        FillGradientVectorBH(tree_root, vertGradients);
+        AddAllGradients(tree_root, vertGradients);
         Eigen::MatrixXd l2gradients = vertGradients;
         long bh_end = Utils::currentTimeMilliseconds();
         std::cout << "  Barnes-Hut: " << (bh_end - bh_start) << " ms" << std::endl;
-
-        // Add gradient contributions from obstacles
-        AddObstacleGradients(vertGradients);
-        std::cout << "Added obstacle gradients" << std::endl;
 
         // Set up multigrid stuff
         long mg_setup_start = Utils::currentTimeMilliseconds();

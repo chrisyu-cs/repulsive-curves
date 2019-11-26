@@ -16,6 +16,16 @@ namespace LWS {
         double weight;
     };
 
+    enum class PotentialType {
+        Length, Area, VectorField
+    };
+
+    struct PotentialData {
+        PotentialType type;
+        double weight;
+        std::string extraInfo;
+    };
+
     class SceneData {
         public:
         std::string curve_filename;
@@ -27,7 +37,7 @@ namespace LWS {
         double tpe_alpha;
         double tpe_beta;
         double tpe_weight;
-        std::vector<CurvePotential> extraPotentials;
+        std::vector<PotentialData> extraPotentials;
     };
 
     template <class Container>
