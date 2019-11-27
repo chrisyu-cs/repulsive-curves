@@ -37,5 +37,11 @@ namespace LWS {
         }
     }
 
+    // AreaPotential::AreaPotential(double wt) {
+    //     weight = wt;
+    // }
+
+    
+
 
 }

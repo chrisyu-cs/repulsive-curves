@@ -23,4 +23,14 @@ namespace LWS {
         double weight;
     };
 
+    // class AreaPotential : public CurvePotential {
+    //     public:
+    //     AreaPotential(double wt);
+    //     virtual double CurrentValue(PolyCurveNetwork* curves);
+    //     virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient);
+
+    //     private:
+    //     double weight;  
+    // };
+
 }

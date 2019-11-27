@@ -199,6 +199,19 @@ namespace LWS {
         return length;
     }
 
+    Vector3 PolyCurveNetwork::AreaVector() {
+        int nVerts = NumVertices();
+        Vector3 sum{0, 0, 0};
+
+        for (int i = 0; i < nVerts; i++) {
+            CurveVertex* v_i = GetVertex(i);
+            CurveVertex* v_next = v_i->edge(0)->Opposite(v_i);
+            sum += cross(v_i->Position(), v_next->Position());
+        }
+
+        return sum / 6.0;
+    }
+
     PolyCurveNetwork* PolyCurveNetwork::Coarsen(MultigridOperator &op, bool doEdgeMatrix) {
         Eigen::SparseMatrix<double> prolongMatrix, edgeMatrix;
         int nEdges = NumEdges();

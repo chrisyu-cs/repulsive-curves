@@ -52,8 +52,9 @@ namespace LWS {
         bool StepSobolevLS(bool useBH);
         bool StepSobolevLSIterative(double epsilon);
 
-        double ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
+        double ProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
         double ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients);
+        void GetSecondDerivative(SpatialTree* tree_root, Eigen::MatrixXd &projected1, double epsilon, Eigen::MatrixXd &secondDeriv);
 
         template<typename Domain, typename Smoother>
         double ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output);
@@ -75,6 +76,7 @@ namespace LWS {
         PolyCurveNetwork* curveNetwork;
         std::vector<Vector3> originalPositions;
         Eigen::VectorXd constraintTargets;
+        Eigen::VectorXd fullDerivVector;
         double alpha;
         double beta;
         void SetGradientStep(Eigen::MatrixXd gradient, double delta);

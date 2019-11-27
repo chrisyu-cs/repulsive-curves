@@ -2,6 +2,8 @@
 #include "utils.h"
 #include "product/dense_matrix.h"
 
+#include "circle_search.h"
+
 namespace LWS {
 
     TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveNetwork* g, double a, double b) :
@@ -295,6 +297,7 @@ namespace LWS {
         }
         // Solve for all coordinates
         Eigen::VectorXd ss_grad = lu.solve(b);
+        fullDerivVector = ss_grad;
 
         for (int i = 0; i < nVerts; i++) {
             SetRow(gradients, i, Vector3{ss_grad(3 * i), ss_grad(3 * i + 1), ss_grad(3 * i + 2)});
@@ -328,7 +331,7 @@ namespace LWS {
         return maxViolation;
     }
 
-    double TPEFlowSolverSC::ComputeAndProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
+    double TPEFlowSolverSC::ProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu) {
         size_t nVerts = curveNetwork->NumVertices();
         Eigen::MatrixXd l2gradients = gradients;
 
@@ -361,19 +364,44 @@ namespace LWS {
         return dir_dot;
     }
 
+    void TPEFlowSolverSC::GetSecondDerivative(SpatialTree* tree_root,
+    Eigen::MatrixXd &projected1, double epsilon, Eigen::MatrixXd &secondDeriv) {
+        Eigen::MatrixXd origPos = curveNetwork->positions;
+        int nVerts = curveNetwork->NumVertices();
+
+        // Evaluate second point for circular line search
+        double eps = 1e-5;
+        // Evaluate new L2 gradients
+        curveNetwork->positions -= eps * projected1;
+        Eigen::MatrixXd projectedEps;
+        projectedEps.setZero(nVerts, 3);
+        AddAllGradients(tree_root, projectedEps);
+        // Project a second time
+        Eigen::MatrixXd A_eps;
+        Eigen::PartialPivLU<Eigen::MatrixXd> lu_eps;
+        ProjectGradient(projectedEps, A_eps, lu_eps);
+
+        secondDeriv = (projectedEps - projected1) / eps;
+        printVectorWithPrecision(secondDeriv, 15);
+
+        curveNetwork->positions = origPos;
+    }
+
     bool TPEFlowSolverSC::StepSobolevLS(bool useBH) {
         long start = Utils::currentTimeMilliseconds();
 
         size_t nVerts = curveNetwork->NumVertices();
 
         Eigen::MatrixXd vertGradients;
-        vertGradients.setZero(nVerts + 1, 3);
+        vertGradients.setZero(nVerts, 3);
 
         long grad_start = Utils::currentTimeMilliseconds();
         BVHNode3D *tree_root = 0;
         if (useBH) tree_root = CreateBVHFromCurve(curveNetwork);
         AddAllGradients(tree_root, vertGradients);
         
+        Eigen::MatrixXd l2Gradients = vertGradients;
+
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
         double grad_end = Utils::currentTimeMilliseconds();
 
@@ -385,7 +413,14 @@ namespace LWS {
         Eigen::PartialPivLU<Eigen::MatrixXd> lu;
 
         // Compute the Sobolev gradient
-        double dot_acc = ComputeAndProjectGradient(vertGradients, A, lu);
+        double dot_acc = ProjectGradient(vertGradients, A, lu);
+
+        // Evaluate second point for circular line search
+        Eigen::MatrixXd secondDeriv;
+        secondDeriv.setZero(nVerts, 3);
+        GetSecondDerivative(tree_root, vertGradients, 1e-5, secondDeriv);
+        printVectorWithPrecision(secondDeriv, 15);
+
 
         // Take a line search step using this gradient
         double ls_start = Utils::currentTimeMilliseconds();

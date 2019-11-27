@@ -136,6 +136,7 @@ namespace LWS
         void BoundingCube(Vector3 &center, double &width);
         Vector3 Barycenter();
         double TotalLength();
+        Vector3 AreaVector();
         PolyCurveNetwork* Coarsen(MultigridOperator &op, bool doEdgeMatrix = false);
 
         NullSpaceProjector* constraintProjector;
