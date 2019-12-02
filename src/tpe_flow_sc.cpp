@@ -101,6 +101,7 @@ namespace LWS {
         for (int i = 0; i < curveNetwork->NumVertices(); i++) {
             originalPositions[i] = curveNetwork->GetVertex(i)->Position();
         }
+        originalPositionMatrix = curveNetwork->positions;
     }
 
     void TPEFlowSolverSC::RestoreOriginalPositions() {
@@ -109,7 +110,7 @@ namespace LWS {
         }
     }
 
-    void TPEFlowSolverSC::SetGradientStep(Eigen::MatrixXd gradient, double delta) {
+    void TPEFlowSolverSC::SetGradientStep(Eigen::MatrixXd &gradient, double delta) {
         // Write the new vertex positions to the mesh
         // Step every vertex by the gradient times delta
         for (int i = 0; i < curveNetwork->NumVertices(); i++) {
@@ -135,7 +136,6 @@ namespace LWS {
     double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double initGuess, int doublingLimit,
     double gradDot, BVHNode3D* root) {
         double delta = initGuess;
-
         // Save initial positions
         SaveCurrentPositions();
 
@@ -197,6 +197,46 @@ namespace LWS {
                 << " (step size " << delta << ", " << numBacktracks << " backtracks)" << std::endl;
             return delta;
         }
+    }
+
+    inline double alpha_of_delta(double delta, double alpha_0, double alpha_1, double R) {
+        return (1.0 / R) * (alpha_0 * delta + alpha_1 * delta * delta);
+    }
+
+    void TPEFlowSolverSC::SetCircleStep(Eigen::MatrixXd &P_dot, Eigen::MatrixXd &K, double sqrt_G, double R, double alpha_delta) {
+        curveNetwork->positions = originalPositionMatrix + R * (-P_dot * (sin(alpha_delta) / sqrt_G) + R * K * (1 - cos(alpha_delta)));
+    }
+
+    double TPEFlowSolverSC::CircleSearchStep(Eigen::MatrixXd &P_dot, Eigen::MatrixXd &P_ddot, Eigen::MatrixXd &G, BVHNode3D* root) {
+        // Save initial positions
+        SaveCurrentPositions();
+        int nVerts = curveNetwork->NumVertices();
+        int nRows = curveNetwork->NumVertices() * 3;
+
+        // TODO: use only Gram matrix or full constraint matrix?
+        Eigen::VectorXd P_dot_vec(nRows);
+        MatrixIntoVectorX3(P_dot, P_dot_vec);
+        Eigen::VectorXd P_ddot_vec(nRows);
+        MatrixIntoVectorX3(P_ddot, P_ddot_vec);
+
+        double G_Pd_Pd = P_dot_vec.dot(G.block(0, 0, nRows, nRows) * P_dot_vec);
+        double G_Pd_Pdd = P_dot_vec.dot(G.block(0, 0, nRows, nRows) * P_ddot_vec);
+
+        Eigen::VectorXd K_vec = 1.0 / G_Pd_Pd * (-P_ddot_vec + P_dot_vec * (G_Pd_Pdd / G_Pd_Pd));
+        double R = 1.0 / sqrt(K_vec.dot(G.block(0, 0, nRows, nRows) * K_vec));
+        double alpha_0 = sqrt(G_Pd_Pd);
+        double alpha_1 = 0.5 * G_Pd_Pdd / alpha_0;
+
+        Eigen::MatrixXd K(nVerts, 3);
+        K.setZero();
+        VectorXdIntoMatrix(K_vec, K);
+
+        double delta = -2 * alpha_0 / alpha_1;
+        std::cout << "Delta estimate = " << delta << std::endl;
+        delta = fmax(0, delta);
+
+        SetCircleStep(P_dot, K, alpha_0, R, alpha_of_delta(delta, alpha_0, alpha_1, R));
+        return delta;
     }
 
     double TPEFlowSolverSC::LSBackproject(Eigen::MatrixXd &gradient, double initGuess,
@@ -339,15 +379,12 @@ namespace LWS {
         double ss_start = Utils::currentTimeMilliseconds();
         SobolevCurves::Sobolev3XWithConstraints(curveNetwork, constraint, alpha, beta, A);
         double ss_end = Utils::currentTimeMilliseconds();
-        std::cout << "  Assemble saddle matrix: " << (ss_end - ss_start) << " ms" << std::endl;
 
         // Factorize and solve
         double factor_start = Utils::currentTimeMilliseconds();
         lu.compute(A);
         ProjectSoboSloboGradient(lu, gradients);
         double factor_end = Utils::currentTimeMilliseconds();
-
-        std::cout << "  Solve for descent direction: " << (factor_end - factor_start) << " ms" << std::endl;
 
         double dot_acc = 0;
         double norm_l2 = l2gradients.norm();
@@ -358,8 +395,6 @@ namespace LWS {
         }
 
         double dir_dot = dot_acc / (norm_l2 * norm_w2);
-        std::cout << "  Directional dot product = " << dir_dot << std::endl;
-        std::cout << "  Sobolev gradient norm = " << dot_acc << std::endl;
 
         return dir_dot;
     }
@@ -382,8 +417,6 @@ namespace LWS {
         ProjectGradient(projectedEps, A_eps, lu_eps);
 
         secondDeriv = (projectedEps - projected1) / eps;
-        printVectorWithPrecision(secondDeriv, 15);
-
         curveNetwork->positions = origPos;
     }
 
@@ -412,19 +445,27 @@ namespace LWS {
         Eigen::MatrixXd A;
         Eigen::PartialPivLU<Eigen::MatrixXd> lu;
 
+        long project_start = Utils::currentTimeMilliseconds();
         // Compute the Sobolev gradient
         double dot_acc = ProjectGradient(vertGradients, A, lu);
+        long project_end = Utils::currentTimeMilliseconds();
 
+        std::cout << "  Project gradient: " << (project_end - project_start) << " ms" << std::endl;
+
+        /*
+        project_start = Utils::currentTimeMilliseconds();
         // Evaluate second point for circular line search
         Eigen::MatrixXd secondDeriv;
         secondDeriv.setZero(nVerts, 3);
         GetSecondDerivative(tree_root, vertGradients, 1e-5, secondDeriv);
-        printVectorWithPrecision(secondDeriv, 15);
-
+        project_end = Utils::currentTimeMilliseconds();
+        std::cout << "  Second derivative: " << (project_end - project_start) << " ms" << std::endl;
+        */
 
         // Take a line search step using this gradient
         double ls_start = Utils::currentTimeMilliseconds();
         double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);
+        // double step_size = CircleSearchStep(vertGradients, secondDeriv, A, tree_root);
         double ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
@@ -435,7 +476,7 @@ namespace LWS {
 
         // Correct for drift with backprojection
         double bp_start = Utils::currentTimeMilliseconds();
-        step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
+        // step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
         double bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
         std::cout << "  Final step size = " << step_size << std::endl;

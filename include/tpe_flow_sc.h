@@ -65,6 +65,9 @@ namespace LWS {
         void RestoreOriginalPositions();
         double LineSearchStep(Eigen::MatrixXd &gradients, double gradDot = 1, BVHNode3D* root = 0);
         double LineSearchStep(Eigen::MatrixXd &gradients, double initGuess, int doublingLimit, double gradDot, BVHNode3D* root);
+        double CircleSearchStep(Eigen::MatrixXd &P_dot, Eigen::MatrixXd &P_ddot, Eigen::MatrixXd &G, BVHNode3D* root);
+
+
         double LSBackproject(Eigen::MatrixXd &gradients, double initGuess,
             Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, BVHNode3D* root);
 
@@ -75,11 +78,13 @@ namespace LWS {
         double lastStepSize;
         PolyCurveNetwork* curveNetwork;
         std::vector<Vector3> originalPositions;
+        Eigen::MatrixXd originalPositionMatrix;
         Eigen::VectorXd constraintTargets;
         Eigen::VectorXd fullDerivVector;
         double alpha;
         double beta;
-        void SetGradientStep(Eigen::MatrixXd gradient, double delta);
+        void SetGradientStep(Eigen::MatrixXd &gradient, double delta);
+        void SetCircleStep(Eigen::MatrixXd &P_dot, Eigen::MatrixXd &K, double sqrt_G, double R, double alpha_delta);
         double BackprojectConstraints(Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
     };
 

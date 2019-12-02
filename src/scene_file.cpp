@@ -34,10 +34,6 @@ namespace LWS {
         using namespace std;
         string key = parts[0];
 
-        for (size_t i = 0; i < parts.size(); i++) {
-            std::cout << "Arg " << i << ": " << parts[i] << std::endl;
-        }
-
         if (key == "curve") {
             if (parts.size() != 2) {
                 std::cerr << "Incorrect arguments to curve" << std::endl;
