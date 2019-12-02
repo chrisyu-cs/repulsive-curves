@@ -134,11 +134,12 @@ namespace LWS {
         else if (key == "fix_edgelengths") {
             if (parts.size() == 1) {
                 data.constraints.push_back(ConstraintType::EdgeLengths);
+                data.edgeLengthScale = 1;
             }
             else if (parts.size() == 2) {
+                data.useLengthScale = true;
                 data.constraints.push_back(ConstraintType::EdgeLengths);
-                std::cerr << "Edge length scale is not implemented" << std::endl;
-                exit(1);
+                data.edgeLengthScale = stod(parts[1]);
             }
             else {
                 std::cerr << "Incorrect arguments to fix_edgelengths" << std::endl;

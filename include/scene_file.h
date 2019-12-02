@@ -38,6 +38,8 @@ namespace LWS {
         double tpe_beta;
         double tpe_weight;
         std::vector<PotentialData> extraPotentials;
+        bool useLengthScale;
+        double edgeLengthScale;
     };
 
     template <class Container>

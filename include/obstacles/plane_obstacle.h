@@ -11,6 +11,7 @@ namespace LWS {
         PlaneObstacle(Vector3 c, Vector3 n, double p_exp);
         virtual ~PlaneObstacle();
         virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient);
+        virtual double ComputeEnergy(PolyCurveNetwork* curves);
 
         inline Vector3 ClosestPoint(Vector3 input) {
             Vector3 fromInput = center - input;

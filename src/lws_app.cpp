@@ -349,7 +349,7 @@ namespace LWS {
       
       UpdateCurvePositions();
       if (!good_step) {
-        std::cout << "Stopped because line search could not take a step." << std::endl;
+        std::cout << "Stopped because flow is (probably) near a local minimum." << std::endl;
         LWSOptions::runTPE = false;
       }
       
@@ -450,12 +450,12 @@ namespace LWS {
       double beta = LWSOptions::tpeBeta;
       tpeSolver = new TPEFlowSolverSC(curves, alpha, beta);
 
-      for (ObstacleData &data : sceneObstacles) {
+      for (ObstacleData &data : sceneData.obstacles) {
         std::cout << "Adding scene obstacle from " << data.filename << std::endl;
-        AddMeshObstacle(data.filename, Vector3{0, 0, 0}, beta - alpha + 1, data.weight);
+        AddMeshObstacle(data.filename, Vector3{0, 0, 0}, beta - alpha, data.weight);
       }
 
-      for (PotentialData &data : scenePotentials) {
+      for (PotentialData &data : sceneData.extraPotentials) {
         switch (data.type) {
           case PotentialType::Length:
           std::cout << "Adding length potential (weight = " << data.weight << ")" << std::endl;
@@ -469,6 +469,10 @@ namespace LWS {
           exit(1);
           break;
         }
+      }
+
+      if (sceneData.useLengthScale && sceneData.edgeLengthScale != 1) {
+        tpeSolver->SetEdgeLengthScaleTarget(sceneData.edgeLengthScale);
       }
     }
   }
@@ -676,6 +680,11 @@ namespace LWS {
     std::vector<std::array<size_t, 2>> all_edges;
     CurveIO::readVerticesAndEdges(filename, all_positions, all_edges);
 
+    if (all_edges.size() == 0) {
+      std::cout << "Did not find any OBJ line elements; reading edges from faces instead" << std::endl;
+      CurveIO::readFaces(filename, all_edges);
+    }
+
     curves = new PolyCurveNetwork(all_positions, all_edges);
     surfaceName = polyscope::guessNiceNameFromPath(filename);
   }
@@ -688,6 +697,8 @@ namespace LWS {
 
     LWSOptions::tpeAlpha = data.tpe_alpha;
     LWSOptions::tpeBeta = data.tpe_beta;
+
+    sceneData = data;
 
     // Add constraints
     for (ConstraintType type : data.constraints) {
@@ -702,18 +713,6 @@ namespace LWS {
       std::cout << "Pinning vertex tangent " << i << std::endl;
       curves->PinTangent(i);
     }
-
-    // Add obstacles
-    for (ObstacleData obsData : data.obstacles) {
-      sceneObstacles.push_back(obsData);
-    }
-
-    for (PotentialData potData : data.extraPotentials) {
-      scenePotentials.push_back(potData);
-    }
-
-    // Add other objectives
-    // TODO
   }
 }
 
@@ -800,7 +799,7 @@ int main(int argc, char** argv) {
 
   if (obstacleFiles) {
     for (string obsFile : obstacleFiles) {
-      app->AddMeshObstacle(obsFile, Vector3{0, 0, 0}, 2, 1);
+      app->AddMeshObstacle(obsFile, Vector3{0, 0, 0}, 3, 1);
     }
   }
 

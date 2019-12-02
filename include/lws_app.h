@@ -46,8 +46,7 @@ namespace LWS {
         void outputFrame();
         void writeCurves( PolyCurveNetwork* network, const std::string& positionFilename, const std::string& tangentFilename );
         
-        std::vector<ObstacleData> sceneObstacles;
-        std::vector<PotentialData> scenePotentials;
+        SceneData sceneData;
         std::unique_ptr<surface::HalfedgeMesh> mesh;
         std::unique_ptr<surface::VertexPositionGeometry> geom;
 

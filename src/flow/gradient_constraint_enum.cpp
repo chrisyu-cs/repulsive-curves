@@ -136,4 +136,19 @@ namespace LWS {
         }
     }
 
+    int VariableConstraintSet::startIndexOfConstraint(ConstraintType type) {
+        int startIndex = 0;
+        for (ConstraintType &usedType : curves->appliedConstraints) {
+            if (type == usedType) return startIndex;
+            else {
+                startIndex += NumRowsForConstraint(usedType, curves);
+            }
+        }
+        return -1;
+    }
+
+    int VariableConstraintSet::rowsOfConstraint(ConstraintType type) {
+        return NumRowsForConstraint(type, curves);
+    }
+
 }

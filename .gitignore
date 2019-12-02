@@ -3,6 +3,7 @@
 loops/
 models/
 __pycache__
+*.png
 
 # Build directories
 build/

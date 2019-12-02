@@ -25,5 +25,8 @@ namespace LWS {
         int NumExpectedCols() const;
         void SetTargetValues(Eigen::VectorXd &targets) const;
         void NegativeConstraintValues(Eigen::VectorXd &b, Eigen::VectorXd &targets) const;
+
+        int startIndexOfConstraint(ConstraintType type);
+        int rowsOfConstraint(ConstraintType type);
     };
 }

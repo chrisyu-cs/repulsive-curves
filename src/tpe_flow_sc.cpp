@@ -19,6 +19,7 @@ namespace LWS {
         lastStepSize = 0;
 
         UpdateTargetLengths();
+        useLengthScale = false;
     }
 
     TPEFlowSolverSC::~TPEFlowSolverSC() {
@@ -32,6 +33,28 @@ namespace LWS {
         constraint.UpdateTargetValues(constraintTargets);
     }
 
+    void TPEFlowSolverSC::SetEdgeLengthScaleTarget(double scale) {
+        useLengthScale = true;
+
+        int startIndex = constraint.startIndexOfConstraint(ConstraintType::EdgeLengths);
+        if (startIndex < 0) {
+            useLengthScale = false;
+            std::cout << "No edge length constraint; ignoring edge length scale" << std::endl;
+        }
+
+        constraintMoveTowards = constraintTargets;
+        int numRows = constraint.rowsOfConstraint(ConstraintType::EdgeLengths);
+
+        for (int i = startIndex; i < startIndex + numRows; i++) {
+            constraintMoveTowards(i) = scale * constraintTargets(i);
+        }
+
+        std::cout << "Set edge length scale factor to " << scale << std::endl;
+
+        double averageLength = curveNetwork->TotalLength() / curveNetwork->NumEdges();
+        lengthScaleStep = averageLength / 100;
+    }
+
     double TPEFlowSolverSC::CurrentEnergy(SpatialTree *root) {
         double energy = 0;
 
@@ -41,6 +64,11 @@ namespace LWS {
         for (CurvePotential* p : potentials) {
             energy += p->CurrentValue(curveNetwork);
         }
+
+        for (Obstacle* obs : obstacles) {
+            energy += obs->ComputeEnergy(curveNetwork);
+        }
+
         return energy;
     }
 
@@ -130,6 +158,7 @@ namespace LWS {
         else {
             initGuess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
         }
+        std::cout << "  Starting line search with initial guess " << initGuess << std::endl;
         return LineSearchStep(gradient, initGuess, 0, gradDot, root);
     }
 
@@ -242,28 +271,26 @@ namespace LWS {
     double TPEFlowSolverSC::LSBackproject(Eigen::MatrixXd &gradient, double initGuess,
     Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, BVHNode3D* root) {
         double delta = initGuess;
-        double lastValue = -1;
         int attempts = 1;
 
-        while (delta > ls_step_threshold) {
+        while (delta > ls_step_threshold || (useLengthScale && attempts < 10)) {
             SetGradientStep(gradient, delta);
             if (root) {
                 // Update the centers of mass to reflect the new positions
                 root->recomputeCentersOfMass(curveNetwork);
             }
 
-            double maxValue = BackprojectConstraints(lu);
+            for (int i = 0; i < 3; i++) {
+                double maxValue = BackprojectConstraints(lu);
+                if (maxValue < backproj_threshold) {
+                    std::cout << "Backprojection successful after " << attempts << " attempts" << std::endl;
+                    std::cout << "Used " << (i + 1) << " Newton steps on successful attempt" << std::endl;
+                    return delta;
+                }
+            }
             
-            if (maxValue < backproj_threshold) {
-                std::cout << "Backprojection successful after " << attempts << " attempts" << std::endl;
-                return delta;
-            }
-            else {
-                // std::cout << "Backproj unsuccessful; halving step size" << std::endl;
-                lastValue = maxValue;
-                delta /= 2;
-                attempts++;
-            }
+            delta /= 2;
+            attempts++;
         }
         std::cout << "Couldn't make backprojection succeed after " << attempts << " attempts (initial step " << initGuess << ")" << std::endl;
         BackprojectConstraints(lu);
@@ -365,7 +392,8 @@ namespace LWS {
             CurveVertex* pt = curveNetwork->GetVertex(i);
             pt->SetPosition(pt->Position() + correction);
         }
-
+        // Compute constraint violation after correction
+        maxViolation = constraint.FillConstraintValues(b, constraintTargets, 3 * nVerts);
         std::cout << "  Constraint value = " << maxViolation << std::endl;
 
         return maxViolation;
@@ -394,6 +422,7 @@ namespace LWS {
             dot_acc += dot(SelectRow(l2gradients, i), SelectRow(gradients, i));
         }
 
+        std::cout << "  Norm of gradient = " << dot_acc << std::endl;
         double dir_dot = dot_acc / (norm_l2 * norm_w2);
 
         return dir_dot;
@@ -428,11 +457,27 @@ namespace LWS {
         Eigen::MatrixXd vertGradients;
         vertGradients.setZero(nVerts, 3);
 
+        double maxCDiff = 0;
+        // If applicable, move constraint targets
+        if (useLengthScale) {
+            for (int i = 0; i < constraintTargets.rows(); i++) {
+                double diff = constraintMoveTowards(i) - constraintTargets(i);
+                double sign = diff / fabs(diff);
+                maxCDiff = fmax(fabs(diff), maxCDiff);
+                if (fabs(diff) < lengthScaleStep) {
+                    constraintTargets(i) = constraintMoveTowards(i);
+                }
+                else {
+                    constraintTargets(i) += lengthScaleStep * sign;
+                }
+            }
+        }
+
+        // Assemble gradient, either exactly or with Barnes-Hut
         long grad_start = Utils::currentTimeMilliseconds();
         BVHNode3D *tree_root = 0;
         if (useBH) tree_root = CreateBVHFromCurve(curveNetwork);
         AddAllGradients(tree_root, vertGradients);
-        
         Eigen::MatrixXd l2Gradients = vertGradients;
 
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
@@ -469,14 +514,13 @@ namespace LWS {
         double ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
-        if (step_size <= 0) {
-            std::cout << "  No line search step taken; stopping." << std::endl;
-            return 0;
+        if (useLengthScale && step_size < ls_step_threshold) {
+            vertGradients.setZero();
         }
 
         // Correct for drift with backprojection
         double bp_start = Utils::currentTimeMilliseconds();
-        // step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
+        step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
         double bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
         std::cout << "  Final step size = " << step_size << std::endl;
@@ -491,7 +535,7 @@ namespace LWS {
         std::cout << "Time = " << (end - start) << " ms" << std::endl;
 
         lastStepSize = step_size;
-        return step_size > 0;
+        return (step_size > 0 || maxCDiff > 0);
     }
 
     bool TPEFlowSolverSC::StepSobolevLSIterative(double epsilon) {
@@ -514,7 +558,7 @@ namespace LWS {
 
         // Set up multigrid stuff
         long mg_setup_start = Utils::currentTimeMilliseconds();
-        using MultigridDomain = ConstraintProjectorDomain<ConstraintType>;
+        using MultigridDomain = ConstraintProjectorDomain<ConstraintClassType>;
         using MultigridSolver = MultigridHierarchy<MultigridDomain>;
         double sep = 1.0;
         MultigridDomain* domain = new MultigridDomain(curveNetwork, alpha, beta, sep, epsilon);
@@ -540,7 +584,7 @@ namespace LWS {
 
         // Correct for drift with backprojection
         long bp_start = Utils::currentTimeMilliseconds();
-        step_size = BackprojectMultigridLS<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root);
+        step_size = LSBackprojectMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root);
         long bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
         std::cout << "  Final step size = " << step_size << std::endl;

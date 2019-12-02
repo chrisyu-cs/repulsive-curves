@@ -8,6 +8,7 @@ namespace LWS {
         public:
         virtual ~Obstacle() = 0;
         virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient) = 0;
+        virtual double ComputeEnergy(PolyCurveNetwork* curves) = 0; 
     };
 
 }

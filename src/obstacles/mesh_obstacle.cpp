@@ -25,6 +25,44 @@ namespace LWS {
         }
     }
 
+    double MeshObstacle::ComputeEnergy(PolyCurveNetwork* curves) {
+        int nVerts = curves->NumVertices();
+        double sumE = 0;
+        for (int i = 0; i < nVerts; i++) {
+            Vector3 pos = curves->GetVertex(i)->Position();
+            sumE += AccumulateEnergy(bvh, pos);
+        }
+        return sumE;
+    }
+
+    inline double bodyEnergy(BVHNode3D* bvh, Vector3 point, double p) {
+        Vector3 center = bvh->centerOfMass;
+        double mass = bvh->totalMass;
+        double distance = (center - point).norm();
+        return 1.0 / pow(distance, p);
+    }
+
+    double MeshObstacle::AccumulateEnergy(BVHNode3D* node, Vector3 point) {
+        if (node->IsEmpty()) {
+            return 0;
+        }
+        else if (node->IsLeaf()) {
+            return bodyEnergy(node, point, p);
+        }
+        else {
+            if (node->shouldUseCell(point)) {
+                return bodyEnergy(node, point, p);
+            }
+            else {
+                double total = 0;
+                for (BVHNode3D* child : node->children) {
+                    total += AccumulateEnergy(child, point);
+                }
+                return total;
+            }
+        }
+    }
+
     inline Vector3 bodyForce(BVHNode3D* bvh, Vector3 point, double p) {
         Vector3 center = bvh->centerOfMass;
         double mass = bvh->totalMass;
@@ -32,7 +70,8 @@ namespace LWS {
         Vector3 toPoint = center - point;
         double distance = toPoint.norm();
         toPoint /= distance;
-        Vector3 grad_i = toPoint * 1.0 / pow(distance, p);
+        // Derivative of 1 / x^p = -p / x^(p+1)
+        Vector3 grad_i = toPoint * p / pow(distance, p + 1);
         
         return mass * grad_i;
     }
