@@ -55,6 +55,17 @@ namespace LWS {
         }
     }
 
+    void ConstraintFunctions::NegativeSurfaceViolation(PolyCurveNetwork* curves, Eigen::VectorXd &b, Eigen::VectorXd &targets, int rowStart) {
+        int nPins = curves->NumPinnedToSurface();
+
+        for (int i = 0; i < nPins; i++) {
+            CurveVertex* v = curves->GetPinnedToSurface(i);
+            int row = rowStart + v->GlobalIndex();
+            double distance = curves->constraintSurface->SignedDistance(v->Position());
+            b(row) = -distance;
+        }
+    }
+
     void ConstraintFunctions::AddBarycenterTriplets3X(PolyCurveNetwork* curves,
     std::vector<Eigen::Triplet<double>> &triplets, int rowStart) {
         int nVerts = curves->NumVertices();
@@ -143,6 +154,21 @@ namespace LWS {
         }
     }
 
+    void ConstraintFunctions::AddSurfaceTriplets(PolyCurveNetwork* curves, std::vector<Eigen::Triplet<double>> &triplets, int rowStart) {
+        int nPins = curves->NumPinnedToSurface();
+
+        for (int i = 0; i < nPins; i++) {
+            CurveVertex* v = curves->GetPinnedToSurface(i);
+            Vector3 gradient = curves->constraintSurface->GradientOfDistance(v->Position());
+            int id = v->GlobalIndex();
+            int row = rowStart + i;
+
+            triplets.push_back(Eigen::Triplet<double>(row, 3 * id, gradient.x));
+            triplets.push_back(Eigen::Triplet<double>(row, 3 * id + 1, gradient.y));
+            triplets.push_back(Eigen::Triplet<double>(row, 3 * id + 2, gradient.z));
+        }
+    }
+
     void ConstraintFunctions::SetBarycenterTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {
         // Set the three barycenter target entries to 0
         targets(rowStart + 0) = 0;
@@ -174,6 +200,13 @@ namespace LWS {
             targets(rowStart + 3 * i    ) = p_i.x;
             targets(rowStart + 3 * i + 1) = p_i.y;
             targets(rowStart + 3 * i + 2) = p_i.z;
+        }
+    }
+
+    void ConstraintFunctions::SetSurfaceTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {
+        int nPins = curves->NumPinnedToSurface();
+        for (int i = 0; i < nPins; i++) {
+            targets(rowStart + i) = 0;
         }
     }
 

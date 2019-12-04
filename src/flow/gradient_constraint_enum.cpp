@@ -15,6 +15,8 @@ namespace LWS {
             return "Pins";
             case ConstraintType::TangentPins:
             return "TangentPins";
+            case ConstraintType::Surface:
+            return "Surface";
             default:
             std::cerr << "Called NameOfConstraint on an unimplemented constraint type" << std::endl;
             return 0;
@@ -31,6 +33,8 @@ namespace LWS {
             return curve->NumPins() * 3;
             case ConstraintType::TangentPins:
             return curve->NumTangentPins() * 3;
+            case ConstraintType::Surface:
+            return curve->NumPinnedToSurface();
             default:
             std::cerr << "Called NumRowsForConstraint on an unimplemented constraint type" << std::endl;
             return 0;
@@ -52,6 +56,9 @@ namespace LWS {
             case ConstraintType::TangentPins:
             ConstraintFunctions::AddTangentTriplets(curve, triplets, start);
             break;
+            case ConstraintType::Surface:
+            ConstraintFunctions::AddSurfaceTriplets(curve, triplets, start);
+            break;
             default:
             std::cerr << "Called AddTripletsOfConstraint on an unimplemented constraint type" << std::endl;
             break;
@@ -71,6 +78,9 @@ namespace LWS {
             break;
             case ConstraintType::TangentPins:
             ConstraintFunctions::SetTangentTargets(curve, targets, start);
+            break;
+            case ConstraintType::Surface:
+            ConstraintFunctions::SetSurfaceTargets(curve, targets, start);
             break;
             default:
             std::cerr << "Called SetTargetsOfConstraint on an unimplemented constraint type" << std::endl;
@@ -92,6 +102,9 @@ namespace LWS {
             break;
             case ConstraintType::TangentPins:
             ConstraintFunctions::NegativeTangentViolation(curve, b, targets, start);
+            break;
+            case ConstraintType::Surface:
+            ConstraintFunctions::NegativeSurfaceViolation(curve, b, targets, start);
             break;
             default:
             std::cerr << "Called NegativeViolationsOfConstraint on an unimplemented constraint type" << std::endl;

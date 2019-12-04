@@ -7,6 +7,7 @@
 #include "multigrid/multigrid_operator.h"
 #include <unordered_set>
 #include "flow/gradient_constraint_enum.h"
+#include "implicit_surface.h"
 
 namespace LWS
 {
@@ -89,6 +90,10 @@ namespace LWS
             return pinnedTangents.size();
         }
 
+        inline int NumPinnedToSurface() {
+            return pinnedToSurface.size();
+        }
+
         inline int NumComponents() {
             return verticesByComponent.size();
         }
@@ -115,6 +120,10 @@ namespace LWS
 
         inline CurveVertex* GetPinnedTangent(int i) {
             return vertices[pinnedTangents[i]];
+        }
+
+        inline CurveVertex* GetPinnedToSurface(int i) {
+            return vertices[pinnedToSurface[i]];
         }
 
         inline bool isPinned(int i) {
@@ -150,9 +159,11 @@ namespace LWS
 
         Eigen::MatrixXd positions;
         std::vector<ConstraintType> appliedConstraints;
+        ImplicitSurface* constraintSurface;
 
         private:
         int nVerts;
+        std::vector<int> pinnedToSurface;
         std::vector<int> pinnedVertices;
         std::unordered_set<int> pinnedSet;
         std::vector<int> pinnedTangents;
