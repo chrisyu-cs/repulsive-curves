@@ -63,6 +63,8 @@ namespace LWS {
 
     double TPESC::tpe_Kf(CurveVertex* i, CurveVertex* j, double alpha, double beta) {
         if (i == j) return 0;
+        else if (i->numEdges() > 2) return 0;
+
         Vector3 disp = i->Position() - j->Position();
         Vector3 T_i = i->Tangent();
 
@@ -106,6 +108,7 @@ namespace LWS {
     
     Vector3 TPESC::tpe_grad_Kf(CurveVertex* i, CurveVertex* j, double alpha, double beta, CurveVertex* wrt) {
         if (i == j) return Vector3{0, 0, 0};
+        else if (i->numEdges() > 2) return Vector3{0, 0, 0};
 
         // Get positions and displacement vectors
         Vector3 disp = i->Position() - j->Position();
@@ -204,6 +207,7 @@ namespace LWS {
     Vector3 TPESC::tpe_grad(CurveVertex* x, CurveVertex* y, double alpha, double beta, CurveVertex* wrt) {
         // Computes the gradient of the kernel (K_f(x, y) dx dy) with respect to
         // the position of the vertex "wrt".
+        if (x->numEdges() > 2) return Vector3{0, 0, 0};
         
         // First get the gradient of K_f(x, y)
         Vector3 grad_Kf = tpe_grad_Kf(x, y, alpha, beta, wrt);
@@ -220,8 +224,7 @@ namespace LWS {
         Vector3 prod_rule = grad_lx * l_y + l_x * grad_ly;
         // Evaluate the product rule for k dx dy
         Vector3 total = grad_Kf * l_x * l_y + Kf * prod_rule;
-
-        return grad_Kf * l_x * l_y + Kf * prod_rule;
+        return total;
     }
 
     Vector3 TPESC::tpe_grad(TangentMassPoint x, CurveVertex* y, double alpha, double beta, CurveVertex* wrt) {
@@ -557,7 +560,6 @@ namespace LWS {
             }
 
             else {
-                std::cerr << "TODO: handle junction case" << std::endl;
                 return VertJacobian{Vector3{0, 0, 0}, Vector3{0, 0, 0}, Vector3{0, 0, 0}};
             }
         }

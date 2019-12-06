@@ -46,9 +46,9 @@ namespace LWS {
 #endif
 
         // Premultiply A_f * 1, for reuse in later multiplications with G_f
-        Af_1.setOnes(nVerts);
+        Af_1.setOnes(tree->numElements);
         Af_1 = MultiplyAf(Af_1);
-        Af_1_low.setOnes(nVerts);
+        Af_1_low.setOnes(tree->numElements);
         Af_1_low = MultiplyAfLow(Af_1_low);
 
         mode = BlockTreeMode::MatrixOnly;

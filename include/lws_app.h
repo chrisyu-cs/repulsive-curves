@@ -28,6 +28,7 @@ namespace LWS {
         void processLoopFile(std::string filename);
         void processSceneFile(std::string filename);
 
+        void VisualizeMesh(std::string objName);
         void AddMeshObstacle(std::string objName, Vector3 center, double p, double weight);
         void AddPlaneObstacle(Vector3 center, Vector3 normal);
         void AddSphereObstacle(Vector3 center, double radius);

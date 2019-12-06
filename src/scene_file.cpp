@@ -173,16 +173,40 @@ namespace LWS {
             }
         }
         else if (key == "constraint_surface") {
-            std::cerr << "Constraint surfaces are not implemented" << std::endl;
-            exit(1);
+            if (parts.size() == 2) {
+                if (parts[1] == "sphere") {
+                    data.constraintSurface = new ImplicitSphere(1);
+                }
+                else {
+                    std::cerr << "Unrecognized surface type '" << parts[1] << "'" << std::endl;
+                    exit(1);
+                }
+            }
         }
         else if (key == "constrain_vertex") {
-            std::cerr << "Constraint surfaces are not implemented" << std::endl;
-            exit(1);
+            if (parts.size() == 2) {
+                if (!vectorContains(data.constraints, ConstraintType::Surface)) {
+                    data.constraints.push_back(ConstraintType::Surface);
+                }
+                data.surfaceConstrainedVertices.push_back(stoi(parts[1]));
+            }
+            else {
+                std::cerr << "Incorrect arguments to constrain_vertex" << std::endl;
+                exit(1);
+            }
+            
         }
         else if (key == "constrain_all") {
-            std::cerr << "Constraint surfaces are not implemented" << std::endl;
-            exit(1);
+            if (parts.size() == 1) {
+                if (!vectorContains(data.constraints, ConstraintType::Surface)) {
+                    data.constraints.push_back(ConstraintType::Surface);
+                }
+                data.constrainAllToSurface = true;
+            }
+            else {
+                std::cerr << "Incorrect arguments to constrain_all" << std::endl;
+                exit(1);
+            }
         }
         
         else if (key == "#") {

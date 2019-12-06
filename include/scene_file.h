@@ -8,6 +8,7 @@
 
 #include "flow/gradient_constraint_enum.h"
 #include "extra_potentials.h"
+#include "implicit_surface.h"
 
 namespace LWS {
 
@@ -34,12 +35,14 @@ namespace LWS {
         std::vector<int> pinnedVertices;
         std::vector<int> pinnedTangents;
         std::vector<int> surfaceConstrainedVertices;
+        bool constrainAllToSurface;
         double tpe_alpha;
         double tpe_beta;
         double tpe_weight;
         std::vector<PotentialData> extraPotentials;
         bool useLengthScale;
         double edgeLengthScale;
+        ImplicitSurface* constraintSurface;
     };
 
     template <class Container>

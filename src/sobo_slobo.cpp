@@ -234,6 +234,7 @@ namespace LWS {
     void SobolevCurves::SobolevGramMatrix(PolyCurveNetwork* curves, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
         double out[4][4];
         int nEdges = curves->NumEdges();
+        int nVerts = curves->NumVertices();
 
         int numTerms = 0;
 
@@ -248,6 +249,9 @@ namespace LWS {
                 AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
                 AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
             }
+        }
+
+        for (int i = 0; i < nVerts; i++) {
             A(i, i) += diagEps * curves->GetVertex(i)->DualLength();
         }
     }

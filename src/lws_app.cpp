@@ -238,6 +238,17 @@ namespace LWS {
       }
     }
 
+    if (ImGui::Button("Project to sphere")) {
+      int nVerts = curves->NumVertices();
+      for (int i = 0; i < nVerts; i++) {
+        CurveVertex* v_i = curves->GetVertex(i);
+        Vector3 p_i = v_i->Position();
+        v_i->SetPosition(p_i.normalize());
+      }
+
+      UpdateCurvePositions();
+    }
+
     if (ImGui::Button("Test 3x saddle")) {
       // Get the TPE gradient as a test problem
       int nVerts = curves->NumVertices();
@@ -517,6 +528,17 @@ namespace LWS {
     polyscope::requestRedraw();
   }
 
+  
+  void LWSApp::VisualizeMesh(std::string objName) {
+    std::unique_ptr<HalfedgeMesh> mesh;
+    std::unique_ptr<VertexPositionGeometry> geometry;
+    std::tie(mesh, geometry) = loadMesh(objName);
+
+    std::string name = polyscope::guessNiceNameFromPath(objName);
+    polyscope::registerSurfaceMesh(name, geometry->inputVertexPositions,
+      mesh->getFaceVertexList(), polyscopePermutations(*mesh));
+  }
+
   void LWSApp::AddMeshObstacle(std::string objName, Vector3 center, double p, double weight) {
     std::unique_ptr<HalfedgeMesh> mesh;
     std::unique_ptr<VertexPositionGeometry> geometry;
@@ -619,8 +641,6 @@ namespace LWS {
 
     polyscope::registerCurveNetwork(name, nodes, edges);
     polyscope::getCurveNetwork(name)->radius = 0.01f;
-
-    centerLoopBarycenter(curves);
   }
 
   void LWSApp::DisplayCyclicList(std::vector<Vector3> &positions, std::string name) {
@@ -713,6 +733,23 @@ namespace LWS {
       std::cout << "Pinning vertex tangent " << i << std::endl;
       curves->PinTangent(i);
     }
+
+    if (data.constraintSurface) {
+      curves->constraintSurface = data.constraintSurface;
+    }
+
+    if (sceneData.constrainAllToSurface) {
+      std::cout << "Constraining all vertices to the implicit surface" << std::endl;
+      for (int i = 0; i < curves->NumVertices(); i++) {
+        curves->PinToSurface(i);
+      }
+    }
+    else {
+      for (int i : data.surfaceConstrainedVertices) {
+        std::cout << "Pinning vertex " << i << " to the implicit surface" << std::endl;
+        curves->PinToSurface(i);
+      }
+    }
   }
 }
 
@@ -751,6 +788,7 @@ int main(int argc, char** argv) {
   args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
   args::Positional<string> file(parser, "curve", "Space curve to process");
   args::ValueFlagList<string> obstacleFiles(parser, "obstacles", "Obstacles to add", {'o'});
+  args::ValueFlagList<string> visualizeFiles(parser, "visualize", "Extra meshes to visualize", {'v'});
 
   // Parse args
   try {
@@ -800,6 +838,11 @@ int main(int argc, char** argv) {
   if (obstacleFiles) {
     for (string obsFile : obstacleFiles) {
       app->AddMeshObstacle(obsFile, Vector3{0, 0, 0}, 3, 1);
+    }
+  }
+  if (visualizeFiles) {
+    for (string visFile : visualizeFiles) {
+      app->VisualizeMesh(visFile);
     }
   }
 

@@ -485,6 +485,8 @@ namespace LWS {
 
         std::cout << "  Assemble gradient " << (useBH ? "(Barnes-Hut)" : "(direct)") << ": " << (grad_end - grad_start) << " ms" << std::endl;
 
+        std::cout << "  L2 gradient norm = " << l2Gradients.norm() << std::endl;
+
         double length1 = curveNetwork->TotalLength();
 
         Eigen::MatrixXd A;
@@ -562,9 +564,7 @@ namespace LWS {
         using MultigridSolver = MultigridHierarchy<MultigridDomain>;
         double sep = 1.0;
         MultigridDomain* domain = new MultigridDomain(curveNetwork, alpha, beta, sep, epsilon);
-        std::cout << "Made domain" << std::endl;
         MultigridSolver* multigrid = new MultigridSolver(domain);
-        std::cout << "Made solver" << std::endl;
         long mg_setup_end = Utils::currentTimeMilliseconds();
         std::cout << "  Multigrid setup: " << (mg_setup_end - mg_setup_start) << " ms" << std::endl;
 

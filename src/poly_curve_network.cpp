@@ -151,6 +151,10 @@ namespace LWS {
         }
     }
 
+    void PolyCurveNetwork::PinToSurface(int i) {
+        pinnedToSurface.push_back(i);
+    }
+
     void PolyCurveNetwork::PrintPins() {
         for (size_t i = 0; i < pinnedVertices.size(); i++) {
             CurveVertex* v = GetPinnedVertex(i);

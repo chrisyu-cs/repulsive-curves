@@ -170,10 +170,11 @@ namespace LWS {
     }
 
     void ConstraintFunctions::SetBarycenterTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {
+        Vector3 bcenter = curves->Barycenter();
         // Set the three barycenter target entries to 0
-        targets(rowStart + 0) = 0;
-        targets(rowStart + 1) = 0;
-        targets(rowStart + 2) = 0;
+        targets(rowStart + 0) = bcenter.x;
+        targets(rowStart + 1) = bcenter.y;
+        targets(rowStart + 2) = bcenter.z;
     }
 
     void ConstraintFunctions::SetEdgeLengthTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {

@@ -350,7 +350,6 @@ namespace LWS {
 
     template<typename V, typename Dest>
     void BlockClusterTree::MultiplyVector(V &v, Dest &b) const {
-        int nVerts = curves->NumVertices();
         int nEdges = curves->NumEdges();
         Eigen::MatrixXd v_hat(nEdges, 3);
         v_hat.setZero();
