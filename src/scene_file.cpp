@@ -224,6 +224,8 @@ namespace LWS {
         string directory = getDirectoryFromPath(filename);
         std::cout << "Base directory of scene file: " << directory << std::endl;
 
+        sceneData.constrainAllToSurface = false;
+
         ifstream inFile;
         inFile.open(filename);
 

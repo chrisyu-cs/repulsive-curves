@@ -32,12 +32,13 @@ namespace LWS {
         void AddMeshObstacle(std::string objName, Vector3 center, double p, double weight);
         void AddPlaneObstacle(Vector3 center, Vector3 normal);
         void AddSphereObstacle(Vector3 center, double radius);
+        void SubdivideCurve();
 
         void DisplayWireSphere(Vector3 center, double radius, std::string name);
         void DisplayPlane(Vector3 center, Vector3 normal, std::string name);
         void DisplayCurves(PolyCurveNetwork* curves, std::string name);
         void DisplayCyclicList(std::vector<Vector3> &positions, std::string name);
-        std::string surfaceName;
+        std::string curveName;
         PolyCurveNetwork* curves;
         TPEFlowSolverSC* tpeSolver;
 
@@ -50,6 +51,10 @@ namespace LWS {
         SceneData sceneData;
         std::unique_ptr<surface::HalfedgeMesh> mesh;
         std::unique_ptr<surface::VertexPositionGeometry> geom;
+        double initialAverageLength;
+        int numStuckIterations;
+        int subdivideLimit;
+        int subdivideCount;
 
     };
 }

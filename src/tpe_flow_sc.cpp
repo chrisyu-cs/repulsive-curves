@@ -6,9 +6,7 @@
 
 namespace LWS {
 
-    TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveNetwork* g, double a, double b) :
-    constraint(g),
-    originalPositions(g->NumVertices())
+    TPEFlowSolverSC::TPEFlowSolverSC(PolyCurveNetwork* g, double a, double b) : constraint(g)
     {
         curveNetwork = g;
         alpha = a;
@@ -19,7 +17,7 @@ namespace LWS {
         lastStepSize = 0;
 
         UpdateTargetLengths();
-        useLengthScale = false;
+        useEdgeLengthScale = false;
     }
 
     TPEFlowSolverSC::~TPEFlowSolverSC() {
@@ -33,24 +31,27 @@ namespace LWS {
         constraint.UpdateTargetValues(constraintTargets);
     }
 
+    void TPEFlowSolverSC::ReplaceCurve(PolyCurveNetwork* new_p) {
+        curveNetwork = new_p;
+        constraint = ConstraintClassType(curveNetwork);
+        UpdateTargetLengths();
+        if (useEdgeLengthScale) {
+            double averageLength = curveNetwork->TotalLength() / curveNetwork->NumEdges();
+            lengthScaleStep = averageLength / 100;
+        }
+    }
+
     void TPEFlowSolverSC::SetEdgeLengthScaleTarget(double scale) {
-        useLengthScale = true;
+        useEdgeLengthScale = true;
 
         int startIndex = constraint.startIndexOfConstraint(ConstraintType::EdgeLengths);
         if (startIndex < 0) {
-            useLengthScale = false;
+            useEdgeLengthScale = false;
             std::cout << "No edge length constraint; ignoring edge length scale" << std::endl;
+            return;
         }
-
-        constraintMoveTowards = constraintTargets;
-        int numRows = constraint.rowsOfConstraint(ConstraintType::EdgeLengths);
-
-        for (int i = startIndex; i < startIndex + numRows; i++) {
-            constraintMoveTowards(i) = scale * constraintTargets(i);
-        }
-
-        std::cout << "Set edge length scale factor to " << scale << std::endl;
-
+        targetLength = scale * curveNetwork->TotalLength();
+        std::cout << "Setting target length to " << targetLength << " (" << scale << " times original)" << std::endl;
         double averageLength = curveNetwork->TotalLength() / curveNetwork->NumEdges();
         lengthScaleStep = averageLength / 100;
     }
@@ -126,25 +127,15 @@ namespace LWS {
     }
 
     void TPEFlowSolverSC::SaveCurrentPositions() {
-        for (int i = 0; i < curveNetwork->NumVertices(); i++) {
-            originalPositions[i] = curveNetwork->GetVertex(i)->Position();
-        }
         originalPositionMatrix = curveNetwork->positions;
     }
 
     void TPEFlowSolverSC::RestoreOriginalPositions() {
-        for (int i = 0; i < curveNetwork->NumVertices(); i++) {
-            curveNetwork->GetVertex(i)->SetPosition(originalPositions[i]);
-        }
+        curveNetwork->positions = originalPositionMatrix;
     }
 
     void TPEFlowSolverSC::SetGradientStep(Eigen::MatrixXd &gradient, double delta) {
-        // Write the new vertex positions to the mesh
-        // Step every vertex by the gradient times delta
-        for (int i = 0; i < curveNetwork->NumVertices(); i++) {
-            Vector3 vertGrad = SelectRow(gradient, i);
-            curveNetwork->GetVertex(i)->SetPosition(originalPositions[i] - delta * vertGrad);
-        }
+        curveNetwork->positions = originalPositionMatrix - delta * gradient;
     }
 
     double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double gradDot, BVHNode3D* root) {
@@ -153,7 +144,7 @@ namespace LWS {
         double initGuess;
         // Use the step size from the previous iteration, if it exists
         if (lastStepSize > ls_step_threshold) {
-            initGuess = lastStepSize * 1.1;
+            initGuess = lastStepSize * 1.5;
         }
         else {
             initGuess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
@@ -273,7 +264,7 @@ namespace LWS {
         double delta = initGuess;
         int attempts = 1;
 
-        while (delta > ls_step_threshold || (useLengthScale && attempts < 10)) {
+        while (delta > ls_step_threshold || (useEdgeLengthScale && attempts < 10)) {
             SetGradientStep(gradient, delta);
             if (root) {
                 // Update the centers of mass to reflect the new positions
@@ -459,16 +450,16 @@ namespace LWS {
 
         double maxCDiff = 0;
         // If applicable, move constraint targets
-        if (useLengthScale) {
-            for (int i = 0; i < constraintTargets.rows(); i++) {
-                double diff = constraintMoveTowards(i) - constraintTargets(i);
-                double sign = diff / fabs(diff);
-                maxCDiff = fmax(fabs(diff), maxCDiff);
-                if (fabs(diff) < lengthScaleStep) {
-                    constraintTargets(i) = constraintMoveTowards(i);
-                }
-                else {
-                    constraintTargets(i) += lengthScaleStep * sign;
+        if (useEdgeLengthScale) {
+            int currentLength = curveNetwork->TotalLength();
+
+            // If we're below the target length, increase edge lengths
+            if (currentLength < targetLength) {
+                int cStart = constraint.startIndexOfConstraint(ConstraintType::EdgeLengths);
+                int nRows = constraint.rowsOfConstraint(ConstraintType::EdgeLengths);
+
+                for (int i = cStart; i < cStart + nRows; i++) {
+                    constraintTargets(i) += lengthScaleStep;
                 }
             }
         }
@@ -516,7 +507,7 @@ namespace LWS {
         double ls_end = Utils::currentTimeMilliseconds();
         std::cout << "  Line search: " << (ls_end - ls_start) << " ms" << std::endl;
 
-        if (useLengthScale && step_size < ls_step_threshold) {
+        if (useEdgeLengthScale && step_size < ls_step_threshold) {
             vertGradients.setZero();
         }
 

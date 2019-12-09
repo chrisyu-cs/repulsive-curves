@@ -249,6 +249,10 @@ namespace LWS {
       UpdateCurvePositions();
     }
 
+    if (ImGui::Button("Subdivide curve")) {
+      SubdivideCurve();
+    }
+
     if (ImGui::Button("Test 3x saddle")) {
       // Get the TPE gradient as a test problem
       int nVerts = curves->NumVertices();
@@ -360,8 +364,20 @@ namespace LWS {
       
       UpdateCurvePositions();
       if (!good_step) {
-        std::cout << "Stopped because flow is (probably) near a local minimum." << std::endl;
-        LWSOptions::runTPE = false;
+        numStuckIterations++;
+        if (numStuckIterations >= 10) {
+          std::cout << "Stopped because flow is (probably) near a local minimum." << std::endl;
+          LWSOptions::runTPE = false;
+        }
+      }
+      else {
+        numStuckIterations = 0;
+      }
+
+      double averageLength = curves->TotalLength() / curves->NumEdges();
+      if (averageLength > 2 * initialAverageLength && subdivideCount < subdivideLimit) {
+        subdivideCount++;
+        SubdivideCurve();
       }
       
       if (LWSOptions::outputFrames) {
@@ -450,6 +466,10 @@ namespace LWS {
   }
 
   void LWSApp::initSolver() {
+    numStuckIterations = 0;
+    subdivideCount = 0;
+    subdivideLimit = 3;
+
     if (!tpeSolver) {
       if (curves->appliedConstraints.size() == 0) {
         std::cout << "No constraints specified; defaulting to barycenter and edge lengths" << std::endl;
@@ -485,12 +505,14 @@ namespace LWS {
       if (sceneData.useLengthScale && sceneData.edgeLengthScale != 1) {
         tpeSolver->SetEdgeLengthScaleTarget(sceneData.edgeLengthScale);
       }
+
+      initialAverageLength = curves->TotalLength() / curves->NumEdges();
     }
   }
 
   void LWSApp::UpdateCurvePositions() {
     // Update the positions on the space curve
-    polyscope::CurveNetwork* curveNetwork = polyscope::getCurveNetwork(surfaceName);
+    polyscope::CurveNetwork* curveNetwork = polyscope::getCurveNetwork(curveName);
     size_t nVerts = curves->NumVertices();
     std::vector<glm::vec3> curve_vecs(nVerts);
 
@@ -570,6 +592,16 @@ namespace LWS {
     DisplayWireSphere(center, radius, "obstacle" + std::to_string(numObs));
   }
 
+  void LWSApp::SubdivideCurve() {
+    PolyCurveNetwork* subdivided = curves->Subdivide();
+    glm::vec3 col = polyscope::getCurveNetwork(curveName)->baseColor;
+    DisplayCurves(subdivided, curveName);
+    polyscope::getCurveNetwork(curveName)->baseColor = col;
+    tpeSolver->ReplaceCurve(subdivided);
+    delete curves;
+    curves = subdivided;
+  }
+
   void LWSApp::DisplayPlane(Vector3 center, Vector3 normal, std::string name) {
     Vector3 v1{1, 0, 0};
     // If this axis is too close to parallel, then switch to a different one
@@ -640,7 +672,7 @@ namespace LWS {
     }
 
     polyscope::registerCurveNetwork(name, nodes, edges);
-    polyscope::getCurveNetwork(name)->radius = 0.01f;
+    polyscope::getCurveNetwork(name)->radius = 0.015f;
   }
 
   void LWSApp::DisplayCyclicList(std::vector<Vector3> &positions, std::string name) {
@@ -689,7 +721,7 @@ namespace LWS {
     }
 
     curves = new PolyCurveNetwork(all_positions, all_edges);
-    surfaceName = polyscope::guessNiceNameFromPath(filename);
+    curveName = polyscope::guessNiceNameFromPath(filename);
   }
 
   void LWSApp::processLoopFile(std::string filename) {
@@ -706,7 +738,7 @@ namespace LWS {
     }
 
     curves = new PolyCurveNetwork(all_positions, all_edges);
-    surfaceName = polyscope::guessNiceNameFromPath(filename);
+    curveName = polyscope::guessNiceNameFromPath(filename);
   }
 
   void LWSApp::processSceneFile(std::string filename) {
@@ -738,7 +770,7 @@ namespace LWS {
       curves->constraintSurface = data.constraintSurface;
     }
 
-    if (sceneData.constrainAllToSurface) {
+    if (data.constrainAllToSurface) {
       std::cout << "Constraining all vertices to the implicit surface" << std::endl;
       for (int i = 0; i < curves->NumVertices(); i++) {
         curves->PinToSurface(i);
@@ -826,7 +858,7 @@ int main(int argc, char** argv) {
 
   processFile(LWS::LWSApp::instance, file.Get());
 
-  app->DisplayCurves(app->curves, app->surfaceName);
+  app->DisplayCurves(app->curves, app->curveName);
   app->curves->PinAllSpecialVertices(true);
   // app->curves->PinVertex(10);
   // app->curves->PinTangent(10);

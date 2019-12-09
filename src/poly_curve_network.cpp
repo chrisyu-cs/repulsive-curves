@@ -216,6 +216,68 @@ namespace LWS {
         return sum / 6.0;
     }
 
+    PolyCurveNetwork* PolyCurveNetwork::Subdivide() {
+        std::vector<int> oldToNew(nVerts);
+        int nEdges = NumEdges();
+
+        for (int i = 0; i < nVerts; i++) {
+            oldToNew[i] = -1;
+        }
+
+        std::vector<Vector3> newPositions;
+        std::vector<std::array<size_t, 2>> newEdges;
+
+        for (int i = 0; i < nEdges; i++) {
+            CurveEdge* e_i = GetEdge(i);
+
+            CurveVertex* prev = e_i->prevVert;
+            CurveVertex* next = e_i->nextVert;
+
+            size_t prevIndex;
+            if (oldToNew[prev->id] < 0) {
+                prevIndex = newPositions.size();
+                newPositions.push_back(prev->Position());
+                oldToNew[prev->id] = prevIndex;
+            }
+            else {
+                prevIndex = oldToNew[prev->id];
+            }
+
+            Vector3 midpoint = (prev->Position() + next->Position()) / 2;
+            size_t midIndex = newPositions.size();
+            newPositions.push_back(midpoint);
+            newEdges.push_back({prevIndex, midIndex});
+
+            size_t nextIndex;
+            if (oldToNew[next->id] < 0) {
+                nextIndex = newPositions.size();
+                newPositions.push_back(next->Position());
+                oldToNew[next->id] = nextIndex;
+            }
+            else {
+                nextIndex = oldToNew[next->id];
+            }
+
+            newEdges.push_back({midIndex, nextIndex});
+        }
+
+        PolyCurveNetwork* p = new PolyCurveNetwork(newPositions, newEdges);
+
+        // Pin corresponding vertices in the coarsened curve
+        for (int pin : pinnedVertices) {
+            p->PinVertex(oldToNew[pin]);
+        }
+        for (int pin : pinnedTangents) {
+            p->PinTangent(oldToNew[pin]);
+        }
+
+        for (ConstraintType type : appliedConstraints) {
+            p->appliedConstraints.push_back(type);
+        }
+
+        return p;
+    }
+
     PolyCurveNetwork* PolyCurveNetwork::Coarsen(MultigridOperator &op, bool doEdgeMatrix) {
         Eigen::SparseMatrix<double> prolongMatrix, edgeMatrix;
         int nEdges = NumEdges();

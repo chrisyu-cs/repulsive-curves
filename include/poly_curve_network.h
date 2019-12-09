@@ -147,6 +147,7 @@ namespace LWS
         Vector3 Barycenter();
         double TotalLength();
         Vector3 AreaVector();
+        PolyCurveNetwork* Subdivide();
         PolyCurveNetwork* Coarsen(MultigridOperator &op, bool doEdgeMatrix = false);
 
         NullSpaceProjector* constraintProjector;

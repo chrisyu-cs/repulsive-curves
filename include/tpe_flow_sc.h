@@ -32,6 +32,8 @@ namespace LWS {
         ~TPEFlowSolverSC();
         ConstraintClassType constraint;
 
+        void ReplaceCurve(PolyCurveNetwork* new_p);
+
         void UpdateTargetLengths();
         void SetEdgeLengthScaleTarget(double scale);
 
@@ -74,20 +76,19 @@ namespace LWS {
             Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, BVHNode3D* root);
 
         template<typename Domain, typename Smoother>
-        double BackprojectConstraintsMultigrid(Eigen::MatrixXd &gradient, MultigridHierarchy<Domain>* solver);
+        double BackprojectConstraintsMultigrid(Eigen::MatrixXd &gradient, MultigridHierarchy<Domain>* solver, double tol);
 
         private:
-        bool useLengthScale;
+        bool useEdgeLengthScale;
         double lengthScaleStep;
         int iterNum;
+        double targetLength;
         double ls_step_threshold;
         double backproj_threshold;
         double lastStepSize;
         PolyCurveNetwork* curveNetwork;
-        std::vector<Vector3> originalPositions;
         Eigen::MatrixXd originalPositionMatrix;
         Eigen::VectorXd constraintTargets;
-        Eigen::VectorXd constraintMoveTowards;
         Eigen::VectorXd fullDerivVector;
         double alpha;
         double beta;
@@ -117,14 +118,14 @@ namespace LWS {
     }
 
     template<typename Domain, typename Smoother>
-    double TPEFlowSolverSC::BackprojectConstraintsMultigrid(Eigen::MatrixXd &gradient, MultigridHierarchy<Domain>* solver) {
+    double TPEFlowSolverSC::BackprojectConstraintsMultigrid(Eigen::MatrixXd &gradient, MultigridHierarchy<Domain>* solver, double tol) {
         int nVerts = curveNetwork->NumVertices();
         Eigen::VectorXd phi(constraint.NumConstraintRows());
         Eigen::MatrixXd correction(nVerts, 3);
         correction.setZero();
         constraint.FillConstraintValues(phi, constraintTargets, 0);
         // Compute and apply the correction
-        solver->template BackprojectMultigrid<Smoother>(curveNetwork, phi, correction);
+        solver->template BackprojectMultigrid<Smoother>(curveNetwork, phi, correction, tol);
         for (int i = 0; i < nVerts; i++) {
             CurveVertex* p = curveNetwork->GetVertex(i);
             Vector3 cur = p->Position();
@@ -153,10 +154,10 @@ namespace LWS {
 
             Eigen::VectorXd phi(constraint.NumConstraintRows());
 
-            for (int c = 0; c < 3; c++) {
-                double maxViolation = BackprojectConstraintsMultigrid<Domain, Smoother>(gradient, solver);
+            for (int c = 0; c < 2; c++) {
+                double maxViolation = BackprojectConstraintsMultigrid<Domain, Smoother>(gradient, solver, 1e-2);
 
-                if (maxViolation < backproj_threshold) {
+                if (maxViolation <  backproj_threshold) {
                     std::cout << "Backprojection successful after " << attempts << " attempts" << std::endl;
                     std::cout << "Used " << (c + 1) << " Newton steps on successful attempt" << std::endl;
                     return delta;
