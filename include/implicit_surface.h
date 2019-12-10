@@ -11,6 +11,8 @@ namespace LWS {
         virtual ~ImplicitSurface();
         virtual double SignedDistance(Vector3 point) = 0;
         virtual Vector3 GradientOfDistance(Vector3 point) = 0;
+        virtual double BoundingDiameter() = 0;
+        virtual Vector3 BoundingCenter() = 0;
     };
 
     class ImplicitSphere : public ImplicitSurface {
@@ -18,8 +20,11 @@ namespace LWS {
         ImplicitSphere(double r);
         virtual double SignedDistance(Vector3 point);
         virtual Vector3 GradientOfDistance(Vector3 point);
+        virtual double BoundingDiameter();
+        virtual Vector3 BoundingCenter();
 
         private:
         double radius;
+        Vector3 center;
     };
 }

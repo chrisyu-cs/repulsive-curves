@@ -28,6 +28,8 @@
 #include <fstream>
 #include <queue>
 
+#include "marchingcubes/CIsoSurface.h"
+
 #include "curve_io.h"
 
 using namespace geometrycentral;
@@ -468,7 +470,7 @@ namespace LWS {
   void LWSApp::initSolver() {
     numStuckIterations = 0;
     subdivideCount = 0;
-    subdivideLimit = 3;
+    subdivideLimit = 2;
 
     if (!tpeSolver) {
       if (curves->appliedConstraints.size() == 0) {
@@ -484,6 +486,10 @@ namespace LWS {
       for (ObstacleData &data : sceneData.obstacles) {
         std::cout << "Adding scene obstacle from " << data.filename << std::endl;
         AddMeshObstacle(data.filename, Vector3{0, 0, 0}, beta - alpha, data.weight);
+      }
+
+      for (std::string &surfaceName : sceneData.surfacesToShow) {
+        VisualizeMesh(surfaceName);
       }
 
       for (PotentialData &data : sceneData.extraPotentials) {
@@ -600,6 +606,66 @@ namespace LWS {
     tpeSolver->ReplaceCurve(subdivided);
     delete curves;
     curves = subdivided;
+  }
+
+  void LWSApp::MeshImplicitSurface(ImplicitSurface* surface) {
+    CIsoSurface<double>* iso = new CIsoSurface<double>();
+
+    std::cout << "Meshing the supplied implicit surface using marching cubes..." << std::endl;
+
+    const int numCells = 20;
+    Vector3 center = surface->BoundingCenter();
+    double diameter = surface->BoundingDiameter();
+    double cellSize = diameter / numCells;
+    double radius = diameter / 2;
+
+    Vector3 lowerCorner = center - Vector3{radius, radius, radius};
+
+    int numCorners = numCells + 1;
+
+    double field[numCorners * numCorners * numCorners];
+
+    int nSlice = numCorners * numCorners;
+    int nRow = numCorners;
+
+    for (int x = 0; x < numCorners; x++) {
+      for (int y = 0; y < numCorners; y++) {
+        for (int z = 0; z < numCorners; z++) {
+          Vector3 samplePt = lowerCorner + Vector3{(double)x, (double)y, (double)z} * cellSize;
+          double value = surface->SignedDistance(samplePt);
+          field[nSlice * z + nRow * y + x] = value;
+        }
+      }
+    }
+
+    iso->GenerateSurface(field, 0, numCells, numCells, numCells, cellSize, cellSize, cellSize);
+
+    std::vector<glm::vec3> nodes;
+    std::vector<std::array<size_t, 3>> triangles;
+
+    int nVerts = iso->m_nVertices;
+
+    for (int i = 0; i < nVerts; i++) {
+      double x = iso->m_ppt3dVertices[i][0];
+      double y = iso->m_ppt3dVertices[i][1];
+      double z = iso->m_ppt3dVertices[i][2];
+      
+      Vector3 p = lowerCorner + Vector3{x, y, z};
+      nodes.push_back(glm::vec3{p.x, p.y, p.z});
+    }
+
+    int nTris = iso->m_nTriangles;
+
+    for (int i = 0; i < nTris; i++) {
+      int i1 = iso->m_piTriangleIndices[3 * i];
+      int i2 = iso->m_piTriangleIndices[3 * i + 1];
+      int i3 = iso->m_piTriangleIndices[3 * i + 2];
+
+      triangles.push_back({(size_t)i1, (size_t)i2, (size_t)i3});
+    }
+
+    polyscope::registerSurfaceMesh("implicitSurface", nodes, triangles);
+    delete iso;
   }
 
   void LWSApp::DisplayPlane(Vector3 center, Vector3 normal, std::string name) {
@@ -766,8 +832,16 @@ namespace LWS {
       curves->PinTangent(i);
     }
 
+    curves->pinnedAllToSurface = false;
+
+    // Pin all special vertices if specified
+    if (data.pinSpecialVertices) {
+      curves->PinAllSpecialVertices(data.pinSpecialTangents);
+    }
+
     if (data.constraintSurface) {
       curves->constraintSurface = data.constraintSurface;
+      MeshImplicitSurface(curves->constraintSurface);
     }
 
     if (data.constrainAllToSurface) {
@@ -775,6 +849,7 @@ namespace LWS {
       for (int i = 0; i < curves->NumVertices(); i++) {
         curves->PinToSurface(i);
       }
+      curves->pinnedAllToSurface = true;
     }
     else {
       for (int i : data.surfaceConstrainedVertices) {

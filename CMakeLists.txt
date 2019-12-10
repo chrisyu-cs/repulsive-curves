@@ -84,6 +84,8 @@ set(SRCS
   src/flow/constraint_functions.cpp
   src/flow/gradient_constraint_enum.cpp
   src/flow/gradient_constraint_types.cpp
+  src/marchingcubes/CIsoSurface.cpp
+  src/marchingcubes/Vectors.cpp
   src/obstacles/obstacle.cpp
   src/obstacles/mesh_obstacle.cpp
   src/obstacles/plane_obstacle.cpp

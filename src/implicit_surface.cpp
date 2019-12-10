@@ -6,14 +6,23 @@ namespace LWS {
 
     ImplicitSphere::ImplicitSphere(double r) {
         radius = r;
+        center = Vector3{0, 0, 0};
     }
 
     double ImplicitSphere::SignedDistance(Vector3 point) {
-        return point.norm() - radius;
+        return (point - center).norm() - radius;
     }
 
     Vector3 ImplicitSphere::GradientOfDistance(Vector3 point) {
-        return point.normalize();
+        return (point - center).normalize();
+    }
+
+    double ImplicitSphere::BoundingDiameter() {
+        return radius * 2;
+    }
+
+    Vector3 ImplicitSphere::BoundingCenter() {
+        return center;
     }
 
 }

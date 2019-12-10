@@ -271,6 +271,19 @@ namespace LWS {
             p->PinTangent(oldToNew[pin]);
         }
 
+        p->constraintSurface = constraintSurface;
+        if (pinnedAllToSurface) {
+            p->pinnedAllToSurface = true;
+            for (int i = 0; i < p->NumVertices(); i++) {
+                p->PinToSurface(i);
+            }
+        }
+        else {
+            for (int pin : pinnedToSurface) {
+                p->PinToSurface(pin);
+            }
+        }
+
         for (ConstraintType type : appliedConstraints) {
             p->appliedConstraints.push_back(type);
         }

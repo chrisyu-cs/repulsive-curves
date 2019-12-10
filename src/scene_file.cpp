@@ -77,6 +77,16 @@ namespace LWS {
             }
         }
 
+        else if (key == "show_surface") {
+            if (parts.size() == 2) {
+                data.surfacesToShow.push_back(parts[1]);
+            }
+            else {
+                std::cerr << "Incorrect arguments to show_surface" << std::endl;
+                exit(1);
+            }
+        }
+
         else if (key == "optimize_length") {
             if (parts.size() == 1) {
                 data.extraPotentials.push_back(PotentialData{PotentialType::Length, 1, ""});
@@ -156,6 +166,32 @@ namespace LWS {
             }
             else {
                 std::cerr << "Incorrect arguments to fix_vertex" << std::endl;
+                exit(1);
+            }
+        }
+
+        else if (key == "fix_special_vertices") {
+            if (parts.size() == 1) {
+                if (!vectorContains(data.constraints, ConstraintType::Pins)) {
+                    data.constraints.push_back(ConstraintType::Pins);
+                }
+                data.pinSpecialVertices = true;
+            }
+            else {
+                std::cerr << "Incorrect arguments to fix_special_vertices" << std::endl;
+                exit(1);
+            }
+        }
+
+        else if (key == "fix_special_tangents") {
+            if (parts.size() == 1) {
+                if (!vectorContains(data.constraints, ConstraintType::TangentPins)) {
+                    data.constraints.push_back(ConstraintType::TangentPins);
+                }
+                data.pinSpecialTangents = true;
+            }
+            else {
+                std::cerr << "Incorrect arguments to fix_special_vertices" << std::endl;
                 exit(1);
             }
         }

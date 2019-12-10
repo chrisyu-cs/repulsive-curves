@@ -67,6 +67,8 @@ namespace LWS
         void PinAllSpecialVertices(bool includeTangents);
         void PrintPins();
 
+        bool pinnedAllToSurface;
+
         inline Vector3 Position(CurveVertex* v) {
             return SelectRow(positions, v->id);
         }

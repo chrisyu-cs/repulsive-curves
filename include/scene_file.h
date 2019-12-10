@@ -31,10 +31,13 @@ namespace LWS {
         public:
         std::string curve_filename;
         std::vector<ObstacleData> obstacles;
+        std::vector<std::string> surfacesToShow;
         std::vector<ConstraintType> constraints;
         std::vector<int> pinnedVertices;
         std::vector<int> pinnedTangents;
         std::vector<int> surfaceConstrainedVertices;
+        bool pinSpecialVertices;
+        bool pinSpecialTangents;
         bool constrainAllToSurface;
         double tpe_alpha;
         double tpe_beta;

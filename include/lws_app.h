@@ -33,6 +33,7 @@ namespace LWS {
         void AddPlaneObstacle(Vector3 center, Vector3 normal);
         void AddSphereObstacle(Vector3 center, double radius);
         void SubdivideCurve();
+        void MeshImplicitSurface(ImplicitSurface* surface);
 
         void DisplayWireSphere(Vector3 center, double radius, std::string name);
         void DisplayPlane(Vector3 center, Vector3 normal, std::string name);
