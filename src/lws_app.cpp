@@ -511,6 +511,9 @@ namespace LWS {
       if (sceneData.useLengthScale && sceneData.edgeLengthScale != 1) {
         tpeSolver->SetEdgeLengthScaleTarget(sceneData.edgeLengthScale);
       }
+      else if (sceneData.useTotalLengthScale && sceneData.totalLengthScale != 1) {
+        tpeSolver->SetTotalLengthScaleTarget(sceneData.totalLengthScale);
+      }
 
       initialAverageLength = curves->TotalLength() / curves->NumEdges();
     }

@@ -45,6 +45,8 @@ namespace LWS {
         std::vector<PotentialData> extraPotentials;
         bool useLengthScale;
         double edgeLengthScale;
+        bool useTotalLengthScale;
+        double totalLengthScale;
         ImplicitSurface* constraintSurface;
     };
 

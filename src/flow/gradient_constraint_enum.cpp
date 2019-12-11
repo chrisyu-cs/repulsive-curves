@@ -11,6 +11,8 @@ namespace LWS {
             return "Barycenter";
             case ConstraintType::EdgeLengths:
             return "EdgeLengths";
+            case ConstraintType::TotalLength:
+            return "TotalLength";
             case ConstraintType::Pins:
             return "Pins";
             case ConstraintType::TangentPins:
@@ -29,6 +31,8 @@ namespace LWS {
             return 3;
             case ConstraintType::EdgeLengths:
             return curve->NumEdges();
+            case ConstraintType::TotalLength:
+            return 1;
             case ConstraintType::Pins:
             return curve->NumPins() * 3;
             case ConstraintType::TangentPins:
@@ -49,6 +53,9 @@ namespace LWS {
             break;
             case ConstraintType::EdgeLengths:
             ConstraintFunctions::AddEdgeLengthTriplets(curve, triplets, start);
+            break;
+            case ConstraintType::TotalLength:
+            ConstraintFunctions::AddTotalLengthTriplets(curve, triplets, start);
             break;
             case ConstraintType::Pins:
             ConstraintFunctions::AddPinTriplets(curve, triplets, start);
@@ -73,6 +80,9 @@ namespace LWS {
             case ConstraintType::EdgeLengths:
             ConstraintFunctions::SetEdgeLengthTargets(curve, targets, start);
             break;
+            case ConstraintType::TotalLength:
+            ConstraintFunctions::SetTotalLengthTargets(curve, targets, start);
+            break;
             case ConstraintType::Pins:
             ConstraintFunctions::SetPinTargets(curve, targets, start);
             break;
@@ -96,6 +106,9 @@ namespace LWS {
             break;
             case ConstraintType::EdgeLengths:
             ConstraintFunctions::NegativeEdgeLengthViolation(curve, b, targets, start);
+            break;
+            case ConstraintType::TotalLength:
+            ConstraintFunctions::NegativeTotalLengthViolation(curve, b, targets, start);
             break;
             case ConstraintType::Pins:
             ConstraintFunctions::NegativePinViolation(curve, b, targets, start);

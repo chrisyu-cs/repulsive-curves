@@ -35,7 +35,9 @@ namespace LWS {
         void ReplaceCurve(PolyCurveNetwork* new_p);
 
         void UpdateTargetLengths();
+        void SetTotalLengthScaleTarget(double scale);
         void SetEdgeLengthScaleTarget(double scale);
+        void MoveLengthTowardsTarget();
 
         double CurrentEnergy(SpatialTree *root = 0);
         double TPEnergyDirect();
@@ -45,7 +47,6 @@ namespace LWS {
         void FillGradientVectorBH(SpatialTree *root, Eigen::MatrixXd &gradients);
         void AddAllGradients(SpatialTree* root, Eigen::MatrixXd &gradients);
         
-
         inline void SetExponents(double a, double b) {
             alpha = a;
             beta = b;
@@ -80,6 +81,7 @@ namespace LWS {
 
         private:
         bool useEdgeLengthScale;
+        bool useTotalLengthScale;
         double lengthScaleStep;
         int iterNum;
         double targetLength;

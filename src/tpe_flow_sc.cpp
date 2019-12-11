@@ -41,6 +41,20 @@ namespace LWS {
         }
     }
 
+    void TPEFlowSolverSC::SetTotalLengthScaleTarget(double scale) {
+        useTotalLengthScale = true;
+        int startIndex = constraint.startIndexOfConstraint(ConstraintType::TotalLength);
+        if (startIndex < 0) {
+            useTotalLengthScale = false;
+            std::cout << "No total length constraint; ignoring total length scale" << std::endl;
+            return;
+        }
+
+        double len = curveNetwork->TotalLength();
+        targetLength = scale * len;
+        lengthScaleStep = len / 100;
+    }
+
     void TPEFlowSolverSC::SetEdgeLengthScaleTarget(double scale) {
         useEdgeLengthScale = true;
 
@@ -143,7 +157,7 @@ namespace LWS {
         //std::cout << "Norm of gradient = " << gradNorm << std::endl;
         double initGuess;
         // Use the step size from the previous iteration, if it exists
-        if (lastStepSize > ls_step_threshold) {
+        if (lastStepSize > fmax(ls_step_threshold, 1e-5)) {
             initGuess = lastStepSize * 1.5;
         }
         else {
@@ -440,16 +454,7 @@ namespace LWS {
         curveNetwork->positions = origPos;
     }
 
-    bool TPEFlowSolverSC::StepSobolevLS(bool useBH) {
-        long start = Utils::currentTimeMilliseconds();
-
-        size_t nVerts = curveNetwork->NumVertices();
-
-        Eigen::MatrixXd vertGradients;
-        vertGradients.setZero(nVerts, 3);
-
-        double maxCDiff = 0;
-        // If applicable, move constraint targets
+    void TPEFlowSolverSC::MoveLengthTowardsTarget() {
         if (useEdgeLengthScale) {
             int currentLength = curveNetwork->TotalLength();
 
@@ -463,6 +468,27 @@ namespace LWS {
                 }
             }
         }
+
+        else if (useTotalLengthScale) {
+            int currentLength = curveNetwork->TotalLength();
+
+            if (currentLength < targetLength) {
+                int cStart = constraint.startIndexOfConstraint(ConstraintType::TotalLength);
+                constraintTargets(cStart) += lengthScaleStep;
+            }
+        }
+    }
+
+    bool TPEFlowSolverSC::StepSobolevLS(bool useBH) {
+        long start = Utils::currentTimeMilliseconds();
+
+        size_t nVerts = curveNetwork->NumVertices();
+
+        Eigen::MatrixXd vertGradients;
+        vertGradients.setZero(nVerts, 3);
+
+        // If applicable, move constraint targets
+        MoveLengthTowardsTarget();
 
         // Assemble gradient, either exactly or with Barnes-Hut
         long grad_start = Utils::currentTimeMilliseconds();
@@ -528,7 +554,7 @@ namespace LWS {
         std::cout << "Time = " << (end - start) << " ms" << std::endl;
 
         lastStepSize = step_size;
-        return (step_size > 0 || maxCDiff > 0);
+        return step_size > 0;
     }
 
     bool TPEFlowSolverSC::StepSobolevLSIterative(double epsilon) {
@@ -540,6 +566,9 @@ namespace LWS {
 
         Eigen::MatrixXd vertGradients;
         vertGradients.setZero(nVerts, 3);
+
+        // If applicable, move constraint targets
+        MoveLengthTowardsTarget();
 
         // Assemble the L2 gradient
         long bh_start = Utils::currentTimeMilliseconds();

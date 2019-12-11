@@ -142,18 +142,36 @@ namespace LWS {
         }
 
         else if (key == "fix_edgelengths") {
-            if (parts.size() == 1) {
-                data.constraints.push_back(ConstraintType::EdgeLengths);
-                data.edgeLengthScale = 1;
+            if (!vectorContains(data.constraints, ConstraintType::EdgeLengths)
+            && !vectorContains(data.constraints, ConstraintType::TotalLength)) {
+                if (parts.size() == 1) {
+                    data.constraints.push_back(ConstraintType::EdgeLengths);
+                    data.edgeLengthScale = 1;
+                }
+                else if (parts.size() == 2) {
+                    data.useLengthScale = true;
+                    data.constraints.push_back(ConstraintType::EdgeLengths);
+                    data.edgeLengthScale = stod(parts[1]);
+                }
+                else {
+                    std::cerr << "Incorrect arguments to fix_edgelengths" << std::endl;
+                    exit(1);
+                }
             }
-            else if (parts.size() == 2) {
-                data.useLengthScale = true;
-                data.constraints.push_back(ConstraintType::EdgeLengths);
-                data.edgeLengthScale = stod(parts[1]);
-            }
-            else {
-                std::cerr << "Incorrect arguments to fix_edgelengths" << std::endl;
-                exit(1);
+        }
+
+        else if (key == "fix_totallength") {
+            if (!vectorContains(data.constraints, ConstraintType::EdgeLengths)
+            && !vectorContains(data.constraints, ConstraintType::TotalLength)) {
+                if (parts.size() == 1) {
+                    data.constraints.push_back(ConstraintType::TotalLength);
+                    data.totalLengthScale = 1;
+                }
+                else if (parts.size() == 2) {
+                    data.useTotalLengthScale = true;
+                    data.constraints.push_back(ConstraintType::TotalLength);
+                    data.totalLengthScale = stod(parts[1]);
+                }
             }
         }
 
@@ -261,6 +279,8 @@ namespace LWS {
         std::cout << "Base directory of scene file: " << directory << std::endl;
 
         sceneData.constrainAllToSurface = false;
+        sceneData.useLengthScale = false;
+        sceneData.useTotalLengthScale = false;
 
         ifstream inFile;
         inFile.open(filename);

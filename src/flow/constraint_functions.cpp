@@ -15,6 +15,12 @@ namespace LWS {
         b(rowStart + 2) = targets(rowStart + 2) - barycenter.z;
     }
 
+    void ConstraintFunctions::NegativeTotalLengthViolation(PolyCurveNetwork* curves,
+    Eigen::VectorXd &b, Eigen::VectorXd &targets, int rowStart) {
+        double totalLength = curves->TotalLength();
+        b(rowStart) = targets(rowStart) - totalLength;
+    }
+
     void ConstraintFunctions::NegativeEdgeLengthViolation(PolyCurveNetwork* curves,
     Eigen::VectorXd &b, Eigen::VectorXd &targets, int rowStart) {
         int nEdges = curves->NumEdges();
@@ -24,7 +30,7 @@ namespace LWS {
             CurveEdge* e_i = curves->GetEdge(i);
             double curLen = e_i->Length();
             int id = e_i->id;
-            double negError = targets[rowStart + id] - curLen;
+            double negError = targets(rowStart + id) - curLen;
             b(rowStart + id) = negError;
         }
     }
@@ -76,6 +82,29 @@ namespace LWS {
             triplets.push_back(Eigen::Triplet<double>(rowStart + 0, 3 * i, wt));
             triplets.push_back(Eigen::Triplet<double>(rowStart + 1, 3 * i + 1, wt));
             triplets.push_back(Eigen::Triplet<double>(rowStart + 2, 3 * i + 2, wt));
+        }
+    }
+
+    void ConstraintFunctions::AddTotalLengthTriplets(PolyCurveNetwork* curves,
+    std::vector<Eigen::Triplet<double>> &triplets, int rowStart) {
+        int nVerts = curves->NumVertices();
+        for (int i = 0; i < nVerts; i++) {
+            CurveVertex* v_i = curves->GetVertex(i);
+            int nNeighbors = v_i->numEdges();
+            Vector3 gradient{0, 0, 0};
+
+            for (int j = 0; j < nNeighbors; j++) {
+                CurveVertex* v_j = v_i->edge(j)->Opposite(v_i);
+                Vector3 grad_j = v_i->Position() - v_j->Position();
+                grad_j = grad_j.normalize();
+
+                gradient += grad_j;
+            }
+
+            int index = v_i->GlobalIndex();
+            triplets.push_back(Eigen::Triplet<double>(rowStart, 3 * index,     gradient.x));
+            triplets.push_back(Eigen::Triplet<double>(rowStart, 3 * index + 1, gradient.y));
+            triplets.push_back(Eigen::Triplet<double>(rowStart, 3 * index + 2, gradient.z));
         }
     }
 
@@ -175,6 +204,10 @@ namespace LWS {
         targets(rowStart + 0) = bcenter.x;
         targets(rowStart + 1) = bcenter.y;
         targets(rowStart + 2) = bcenter.z;
+    }
+
+    void ConstraintFunctions::SetTotalLengthTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {
+        targets(rowStart) = curves->TotalLength();
     }
 
     void ConstraintFunctions::SetEdgeLengthTargets(PolyCurveNetwork* curves, Eigen::VectorXd &targets, int rowStart) {
