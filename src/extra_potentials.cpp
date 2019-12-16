@@ -16,11 +16,16 @@ namespace LWS {
     }
 
     double TotalLengthPotential::CurrentValue(PolyCurveNetwork* curves) {
-        return curves->TotalLength();
+        double len = curves->TotalLength();
+        return weight * 0.5 * len * len;
     }
 
     void TotalLengthPotential::AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient) {
         int nVerts = curves->NumVertices();
+        double len = curves->TotalLength();
+
+        Eigen::MatrixXd lenGradient;
+        lenGradient.setZero(gradient.rows(), gradient.cols());
 
         for (int i = 0; i < nVerts; i++) {
             // Every vertex length needs to be differentiated by its neighbors
@@ -29,12 +34,14 @@ namespace LWS {
             for (int j = 0; j < nNeighbors; j++) {
                 CurveVertex* v_neighbor = curves->GetVertex(j);
                 Vector3 lenGrad = TPESC::length_wrt_vert(v_i, v_neighbor);
-                AddToRow(gradient, v_neighbor->GlobalIndex(), weight * lenGrad);
+                AddToRow(lenGradient, v_neighbor->GlobalIndex(), weight * lenGrad);
             }
             // Length also needs to be differentiated by itself
             Vector3 selfGrad = TPESC::length_wrt_vert(v_i, v_i);
-            AddToRow(gradient, v_i->GlobalIndex(), weight * selfGrad);
+            AddToRow(lenGradient, v_i->GlobalIndex(), weight * selfGrad);
         }
+
+        gradient += (weight * len) * lenGradient;
     }
 
     // AreaPotential::AreaPotential(double wt) {

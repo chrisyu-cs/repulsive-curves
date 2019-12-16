@@ -145,6 +145,21 @@ namespace LWS
             return edges[i];
         }
 
+        inline double BendingAngle(int i) {
+            CurveVertex* v_i = GetVertex(i);
+            if (v_i->numEdges() != 2) return 0;
+
+            CurveVertex* v_prev = v_i->edge(0)->Opposite(v_i);
+            CurveVertex* v_next = v_i->edge(1)->Opposite(v_i);
+
+            Vector3 e_prev = (v_i->Position() - v_prev->Position()).normalize();
+            Vector3 e_next = (v_next->Position() - v_i->Position()).normalize();
+
+            double sin_angle = norm(cross(e_prev, e_next));
+            double cos_angle = dot(e_prev, e_next);
+            return atan2(sin_angle, cos_angle);
+        }
+
         void BoundingCube(Vector3 &center, double &width);
         Vector3 Barycenter();
         double TotalLength();

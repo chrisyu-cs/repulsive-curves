@@ -81,6 +81,7 @@ set(SRCS
   src/tpe_flow_sc.cpp
   src/utils.cpp
   src/vert_jacobian.cpp
+  src/applications/pathplanning.cpp
   src/flow/constraint_functions.cpp
   src/flow/gradient_constraint_enum.cpp
   src/flow/gradient_constraint_types.cpp

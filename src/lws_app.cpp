@@ -21,6 +21,7 @@
 #include "obstacles/sphere_obstacle.h"
 
 #include "scene_file.h"
+#include "applications/pathplanning.h"
 
 #include <limits>
 #include <random>
@@ -240,19 +241,8 @@ namespace LWS {
       }
     }
 
-    if (ImGui::Button("Project to sphere")) {
-      int nVerts = curves->NumVertices();
-      for (int i = 0; i < nVerts; i++) {
-        CurveVertex* v_i = curves->GetVertex(i);
-        Vector3 p_i = v_i->Position();
-        v_i->SetPosition(p_i.normalize());
-      }
-
-      UpdateCurvePositions();
-    }
-
-    if (ImGui::Button("Subdivide curve")) {
-      SubdivideCurve();
+    if (ImGui::Button("Slice path planning")) {
+      Applications::SampleAndWritePaths(curves, 1000, "path-planning.obj");
     }
 
     if (ImGui::Button("Test 3x saddle")) {
@@ -471,6 +461,13 @@ namespace LWS {
     numStuckIterations = 0;
     subdivideCount = 0;
     subdivideLimit = 2;
+
+    for (int i = 0; i < curves->NumVertices(); i++) {
+      double angle = curves->BendingAngle(i);
+      if (angle > 0.01) {
+        std::cout << "angle " << i << " = " << angle << std::endl;
+      }
+    }
 
     if (!tpeSolver) {
       if (curves->appliedConstraints.size() == 0) {

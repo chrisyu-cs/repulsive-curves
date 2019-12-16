@@ -152,15 +152,15 @@ namespace LWS {
 
     void AddJacobianTriplets(std::vector<Eigen::Triplet<double>> &triplets, VertJacobian &J, int row, int col) {
         triplets.push_back(Eigen::Triplet<double>(row,     col,     J.directional_x.x));
-        triplets.push_back(Eigen::Triplet<double>(row,     col + 1, J.directional_x.y));
-        triplets.push_back(Eigen::Triplet<double>(row,     col + 2, J.directional_x.z));
+        triplets.push_back(Eigen::Triplet<double>(row,     col + 1, J.directional_y.x));
+        triplets.push_back(Eigen::Triplet<double>(row,     col + 2, J.directional_z.x));
         
-        triplets.push_back(Eigen::Triplet<double>(row + 1, col,     J.directional_y.x));
+        triplets.push_back(Eigen::Triplet<double>(row + 1, col,     J.directional_x.y));
         triplets.push_back(Eigen::Triplet<double>(row + 1, col + 1, J.directional_y.y));
-        triplets.push_back(Eigen::Triplet<double>(row + 1, col + 2, J.directional_y.z));
+        triplets.push_back(Eigen::Triplet<double>(row + 1, col + 2, J.directional_y.y));
 
-        triplets.push_back(Eigen::Triplet<double>(row + 2, col,     J.directional_z.x));
-        triplets.push_back(Eigen::Triplet<double>(row + 2, col + 1, J.directional_z.y));
+        triplets.push_back(Eigen::Triplet<double>(row + 2, col,     J.directional_x.z));
+        triplets.push_back(Eigen::Triplet<double>(row + 2, col + 1, J.directional_y.z));
         triplets.push_back(Eigen::Triplet<double>(row + 2, col + 2, J.directional_z.z));
     }
 

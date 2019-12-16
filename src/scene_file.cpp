@@ -281,6 +281,9 @@ namespace LWS {
         sceneData.constrainAllToSurface = false;
         sceneData.useLengthScale = false;
         sceneData.useTotalLengthScale = false;
+        sceneData.pinSpecialTangents = false;
+        sceneData.pinSpecialVertices = false;
+        sceneData.constraintSurface = 0;
 
         ifstream inFile;
         inFile.open(filename);
