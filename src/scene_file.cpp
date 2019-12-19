@@ -226,15 +226,45 @@ namespace LWS {
                 exit(1);
             }
         }
-        else if (key == "constraint_surface") {
+
+        else if (key == "iteration_limit") {
             if (parts.size() == 2) {
+                data.iterationLimit = stoi(parts[1]);
+                std::cout << "data.iterationLimit " << data.iterationLimit << std::endl;
+            }
+            else {
+                std::cerr << "Incorrect arguments to iteration_limit" << std::endl;
+                exit(1);
+            }
+        }
+
+        else if (key == "subdivide_limit") {
+            if (parts.size() == 2) {
+                data.subdivideLimit = stoi(parts[1]);
+                std::cout << "data.subdivideLimit " << data.subdivideLimit << std::endl;
+            }
+            else {
+                std::cerr << "Incorrect arguments to subdivide_limit" << std::endl;
+                exit(1);
+            }
+        }
+
+        else if (key == "constraint_surface") {
+            if (parts.size() <= 2) {
                 if (parts[1] == "sphere") {
                     data.constraintSurface = new ImplicitSphere(1);
+                }
+                else if (parts[1] == "torus") {
+                    data.constraintSurface = new ImplicitTorus(1, 0.25);
                 }
                 else {
                     std::cerr << "Unrecognized surface type '" << parts[1] << "'" << std::endl;
                     exit(1);
                 }
+            }
+            else {
+                std::cerr << "Incorrect arguments to constraint_surface" << std::endl;
+                exit(1);
             }
         }
         else if (key == "constrain_vertex") {
@@ -284,6 +314,8 @@ namespace LWS {
         sceneData.pinSpecialTangents = false;
         sceneData.pinSpecialVertices = false;
         sceneData.constraintSurface = 0;
+        sceneData.subdivideLimit = 0;
+        sceneData.iterationLimit = 0;
 
         ifstream inFile;
         inFile.open(filename);

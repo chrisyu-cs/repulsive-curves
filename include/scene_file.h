@@ -39,6 +39,8 @@ namespace LWS {
         bool pinSpecialVertices;
         bool pinSpecialTangents;
         bool constrainAllToSurface;
+        int subdivideLimit;
+        int iterationLimit;
         double tpe_alpha;
         double tpe_beta;
         double tpe_weight;

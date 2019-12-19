@@ -50,9 +50,9 @@ namespace LWS {
 
   void LWSApp::outputFrame() {
     char buffer[5];
-    std::snprintf(buffer, sizeof(buffer), "%04d", LWSOptions::frameNum);
+    std::snprintf(buffer, sizeof(buffer), "%04d", screenshotNum);
     string fname = "frames/frame" + std::string(buffer) + ".png";
-    LWSOptions::frameNum++;
+    screenshotNum++;
     polyscope::screenshot(fname, false);
     std::cout << "Wrote screenshot to " << fname << std::endl;
   }
@@ -104,10 +104,17 @@ namespace LWS {
     file << std::endl;
   }
 
+  void LWSApp::outputOBJFrame() {
+    char buffer[5];
+    std::snprintf(buffer, sizeof(buffer), "%04d", objNum);
+    objNum++;
+    writeCurves(curves, "objs/curve" + std::string(buffer) + ".obj", "objTangents/curve" + std::string(buffer) + ".obj");
+  }
+
   void LWSApp::writeCurves( PolyCurveNetwork* network, const std::string& positionFilename, const std::string& tangentFilename ) {
      std::vector<Vector3> all_positions;
      std::vector<Vector3> all_tangents;
-     std::vector<std::vector<size_t> > components;
+     std::vector<std::vector<size_t> > edges;
 
      // build vectors of positions and tangents
      int nV = network->NumVertices();
@@ -121,17 +128,17 @@ namespace LWS {
 
      // build vector<vector<size_t>> components
      int nE = network->NumEdges();
-     components.resize(nE);
+     edges.resize(nE);
      for (int i = 0; i < nE; i++) {
         std::vector<size_t> edge(2);
         CurveEdge* ei = network->GetEdge(i);
         edge[0] = ei->prevVert->GlobalIndex();
         edge[1] = ei->nextVert->GlobalIndex();
-        components[i] = edge;
+        edges[i] = edge;
      }
 
-     CurveIO::writeOBJLineElements(positionFilename.c_str(), all_positions, components);
-     CurveIO::writeOBJLineElements(tangentFilename.c_str(), all_tangents, components);
+     CurveIO::writeOBJLineElements(positionFilename.c_str(), all_positions, edges);
+     CurveIO::writeOBJLineElements(tangentFilename.c_str(), all_tangents, edges);
   }
   
   void LWSApp::customWindow() {
@@ -143,6 +150,9 @@ namespace LWS {
     if (io.KeysDown[(int)' '] && io.KeysDownDurationPrev[(int)' '] == 0) {
       cout << "space bar" << endl;
     }
+
+    ImGui::LabelText("Current step", "%d", currentStep);
+    ImGui::InputInt("Step limit", &stepLimit);
 
     if (ImGui::Button("Check BH gradient")) {
       std::cout << "Directly computing gradient..." << std::endl;
@@ -245,6 +255,10 @@ namespace LWS {
       Applications::SampleAndWritePaths(curves, 1000, "path-planning.obj");
     }
 
+    if (ImGui::Button("Export implicit surface")) {
+      WriteImplicitSurface();
+    }
+
     if (ImGui::Button("Test 3x saddle")) {
       // Get the TPE gradient as a test problem
       int nVerts = curves->NumVertices();
@@ -325,11 +339,14 @@ namespace LWS {
     }
 
     ImGui::Checkbox("Run TPE", &LWSOptions::runTPE);
-    ImGui::Checkbox("Output frames", &LWSOptions::outputFrames);
+    ImGui::SameLine(160);
     ImGui::Checkbox("Normalize view", &LWSOptions::normalizeView);
 
+    ImGui::Checkbox("Output frames", &LWSOptions::outputFrames);
+    ImGui::SameLine(160);
+    ImGui::Checkbox("Output OBJs", &writeOBJs);
+
     bool buttonStepTPE = ImGui::Button("Single TPE step");
-    bool buttonPlotTPE = ImGui::Button("Plot TPE gradient");
 
     ImGui::Checkbox("Use Sobolev", &LWSOptions::useSobolev);
     ImGui::Checkbox("Use Barnes-Hut", &LWSOptions::useBarnesHut);
@@ -337,10 +354,15 @@ namespace LWS {
 
     if (LWSOptions::runTPE || buttonStepTPE) {
       tpeSolver->SetExponents(LWSOptions::tpeAlpha, LWSOptions::tpeBeta);
-      
-      if (LWSOptions::outputFrames && LWSOptions::frameNum == 0) {
+      currentStep++;
+
+      if (LWSOptions::outputFrames && screenshotNum == 0) {
         outputFrame();
       }
+      if (writeOBJs && objNum == 0) {
+        outputOBJFrame();
+      }
+
       bool good_step;
       if (LWSOptions::useSobolev) {
         if (LWSOptions::useMultigrid) {
@@ -362,6 +384,10 @@ namespace LWS {
           LWSOptions::runTPE = false;
         }
       }
+      else if (stepLimit > 0 && currentStep >= stepLimit) {
+        std::cout << "Stopped because maximum number of steps was reached." << std::endl;
+        LWSOptions::runTPE = false;
+      }
       else {
         numStuckIterations = 0;
       }
@@ -374,6 +400,9 @@ namespace LWS {
       
       if (LWSOptions::outputFrames) {
         outputFrame();
+      }
+      if (writeOBJs) {
+        outputOBJFrame();
       }
     }
 
@@ -460,13 +489,13 @@ namespace LWS {
   void LWSApp::initSolver() {
     numStuckIterations = 0;
     subdivideCount = 0;
-    subdivideLimit = 2;
-
-    for (int i = 0; i < curves->NumVertices(); i++) {
-      double angle = curves->BendingAngle(i);
-      if (angle > 0.01) {
-        std::cout << "angle " << i << " = " << angle << std::endl;
-      }
+    if (sceneData.subdivideLimit > 0) {
+      subdivideLimit = sceneData.subdivideLimit;
+      std::cout << "Setting curve subdivision limit to " << subdivideLimit << std::endl;
+    }
+    if (sceneData.iterationLimit > 0) {
+      stepLimit = sceneData.iterationLimit;
+      std::cout << "Setting iteration limit to " << stepLimit << std::endl;
     }
 
     if (!tpeSolver) {
@@ -613,7 +642,7 @@ namespace LWS {
 
     std::cout << "Meshing the supplied implicit surface using marching cubes..." << std::endl;
 
-    const int numCells = 20;
+    const int numCells = 30;
     Vector3 center = surface->BoundingCenter();
     double diameter = surface->BoundingDiameter();
     double cellSize = diameter / numCells;
@@ -666,6 +695,38 @@ namespace LWS {
 
     polyscope::registerSurfaceMesh("implicitSurface", nodes, triangles);
     delete iso;
+  }
+
+  void LWSApp::WriteImplicitSurface() {
+    polyscope::SurfaceMesh* mesh = polyscope::getSurfaceMesh("implicitSurface");
+    std::cout << "Writing implicit surface to implicitSurface.obj..." << std::endl;
+
+    std::ofstream objFile("implicitSurface.obj");
+    
+    size_t nVerts = mesh->vertices.size();
+
+    for (size_t i = 0; i < nVerts; i++) {
+      glm::vec3 pos = mesh->vertices[i];
+      objFile << "v " << pos.x << " " << pos.y << " " << pos.z << std::endl;
+    }
+
+    size_t nFaces = mesh->faces.size();
+
+    for (size_t i = 0; i < nFaces; i++) {
+      size_t nInFace = mesh->faces[i].size();
+      objFile << "f ";
+      for (size_t j = 0; j < nInFace; j++) {
+        objFile << mesh->faces[i][j] + 1;
+        if (j < nInFace - 1) {
+          objFile << " ";
+        }
+      }
+
+      objFile << std::endl;
+    }
+
+    objFile.close();
+    std::cout << "Done" << std::endl;
   }
 
   void LWSApp::DisplayPlane(Vector3 center, Vector3 normal, std::string name) {

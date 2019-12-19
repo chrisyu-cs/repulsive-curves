@@ -5,8 +5,6 @@
 namespace LWS {
     class LWSOptions {
         public:
-        static int iterationNum;
-        static int frameNum;
         static bool outputFrames;
         static bool showWindow;
         static bool runLWSFlow;

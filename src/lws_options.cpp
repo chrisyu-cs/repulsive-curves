@@ -1,8 +1,6 @@
 #include "lws_options.h"
 
 namespace LWS {
-    int LWSOptions::iterationNum;
-    int LWSOptions::frameNum = 0;
     bool LWSOptions::outputFrames = false;
     
     bool LWSOptions::showWindow;

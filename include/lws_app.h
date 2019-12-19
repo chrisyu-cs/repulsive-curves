@@ -34,6 +34,7 @@ namespace LWS {
         void AddSphereObstacle(Vector3 center, double radius);
         void SubdivideCurve();
         void MeshImplicitSurface(ImplicitSurface* surface);
+        void WriteImplicitSurface();
 
         void DisplayWireSphere(Vector3 center, double radius, std::string name);
         void DisplayPlane(Vector3 center, Vector3 normal, std::string name);
@@ -47,6 +48,7 @@ namespace LWS {
         void centerLoopBarycenter(PolyCurveNetwork* curves);
         void UpdateCurvePositions();
         void outputFrame();
+        void outputOBJFrame();
         void writeCurves( PolyCurveNetwork* network, const std::string& positionFilename, const std::string& tangentFilename );
         
         SceneData sceneData;
@@ -56,6 +58,11 @@ namespace LWS {
         int numStuckIterations;
         int subdivideLimit;
         int subdivideCount;
+        int currentStep;
+        int stepLimit;
+        int screenshotNum;
+        bool writeOBJs;
+        int objNum;
 
     };
 }

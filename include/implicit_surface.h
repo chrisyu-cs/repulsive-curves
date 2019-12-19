@@ -27,4 +27,18 @@ namespace LWS {
         double radius;
         Vector3 center;
     };
+
+    class ImplicitTorus : public ImplicitSurface {
+        public:
+        ImplicitTorus(double major, double minor);
+        virtual double SignedDistance(Vector3 point);
+        virtual Vector3 GradientOfDistance(Vector3 point);
+        virtual double BoundingDiameter();
+        virtual Vector3 BoundingCenter();
+
+        private:
+        double majorRadius;
+        double minorRadius;
+        Vector3 center;
+    };
 }
