@@ -590,7 +590,7 @@ namespace LWS {
 
         // Use multigrid to compute the Sobolev gradient
         long mg_start = Utils::currentTimeMilliseconds();
-        double dot_acc = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients);
+        double dot_acc = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients, 1e-3);
         long mg_end = Utils::currentTimeMilliseconds();
         std::cout << "  Multigrid solve: " << (mg_end - mg_start) << " ms" << std::endl;
 
@@ -604,7 +604,7 @@ namespace LWS {
 
         // Correct for drift with backprojection
         long bp_start = Utils::currentTimeMilliseconds();
-        step_size = LSBackprojectMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root);
+        step_size = LSBackprojectMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root, 1e-3);
         long bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
         std::cout << "  Final step size = " << step_size << std::endl;

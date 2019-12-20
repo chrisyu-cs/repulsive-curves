@@ -63,9 +63,9 @@ namespace LWS {
         void GetSecondDerivative(SpatialTree* tree_root, Eigen::MatrixXd &projected1, double epsilon, Eigen::MatrixXd &secondDeriv);
 
         template<typename Domain, typename Smoother>
-        double ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output);
+        double ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output, double tol);
         template<typename Domain, typename Smoother>
-        double LSBackprojectMultigrid(Eigen::MatrixXd &gradient, double initGuess, MultigridHierarchy<Domain>* solver, BVHNode3D* root);
+        double LSBackprojectMultigrid(Eigen::MatrixXd &gradient, double initGuess, MultigridHierarchy<Domain>* solver, BVHNode3D* root, double tol);
 
         void SaveCurrentPositions();
         void RestoreOriginalPositions();
@@ -100,7 +100,7 @@ namespace LWS {
     };
 
     template<typename Domain, typename Smoother>
-    double TPEFlowSolverSC::ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output) {
+    double TPEFlowSolverSC::ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output, double tol) {
         // Flatten the gradient matrix into a long vector
         Eigen::VectorXd gradients3x;
         // Copy only the rows that actually contain gradient vectors
@@ -111,7 +111,7 @@ namespace LWS {
         // we really want to solve PGPx = Pb
         gradients3x = curveNetwork->constraintProjector->ProjectToNullspace(gradients3x);
         // Solve PGPx = Pb using multigrid
-        Eigen::VectorXd sobolevGradients = solver->template VCycleSolve<Smoother>(gradients3x, 1e-2);
+        Eigen::VectorXd sobolevGradients = solver->template VCycleSolve<Smoother>(gradients3x, tol);
         // Compute dot product with unprojected gradient, and copy into results vector
         double dirDot = gradients3x.dot(sobolevGradients) / (gradients3x.norm() * sobolevGradients.norm());
         output.setZero();
@@ -140,7 +140,7 @@ namespace LWS {
 
     template<typename Domain, typename Smoother>
     double TPEFlowSolverSC::LSBackprojectMultigrid(Eigen::MatrixXd &gradient, double initGuess,
-    MultigridHierarchy<Domain>* solver, BVHNode3D* root) {
+    MultigridHierarchy<Domain>* solver, BVHNode3D* root, double tol) {
         double delta = initGuess;
         int nVerts = curveNetwork->NumVertices();
         int nEdges = curveNetwork->NumEdges();
@@ -157,9 +157,9 @@ namespace LWS {
             Eigen::VectorXd phi(constraint.NumConstraintRows());
 
             for (int c = 0; c < 2; c++) {
-                double maxViolation = BackprojectConstraintsMultigrid<Domain, Smoother>(gradient, solver, 1e-2);
+                double maxViolation = BackprojectConstraintsMultigrid<Domain, Smoother>(gradient, solver, tol);
 
-                if (maxViolation <  backproj_threshold) {
+                if (maxViolation < backproj_threshold) {
                     std::cout << "Backprojection successful after " << attempts << " attempts" << std::endl;
                     std::cout << "Used " << (c + 1) << " Newton steps on successful attempt" << std::endl;
                     return delta;
