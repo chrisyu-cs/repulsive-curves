@@ -65,6 +65,24 @@ namespace LWS {
     Vector3 ImplicitTorus::BoundingCenter() {
         return center;
     }
+    
+    YZeroPlane::YZeroPlane() {}
+
+    double YZeroPlane::SignedDistance(Vector3 point) {
+        return point.y;
+    }
+
+    Vector3 YZeroPlane::GradientOfDistance(Vector3 point) {
+        return Vector3{0, 1, 0};
+    }
+
+    double YZeroPlane::BoundingDiameter() {
+        return 2;
+    }
+
+    Vector3 YZeroPlane::BoundingCenter() {
+        return Vector3{0, 0.01, 0};
+    }
 
 }
 

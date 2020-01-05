@@ -454,6 +454,14 @@ namespace LWS {
         curveNetwork->positions = origPos;
     }
 
+    bool TPEFlowSolverSC::TargetLengthReached() {
+        if (useEdgeLengthScale || useTotalLengthScale) {
+            int currentLength = curveNetwork->TotalLength();
+            return currentLength >= targetLength;
+        }
+        return true;
+    }
+
     void TPEFlowSolverSC::MoveLengthTowardsTarget() {
         if (useEdgeLengthScale) {
             int currentLength = curveNetwork->TotalLength();

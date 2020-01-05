@@ -3,10 +3,11 @@
 
 namespace LWS {
     
-    PlaneObstacle::PlaneObstacle(Vector3 c, Vector3 n, double p_exp) {
+    PlaneObstacle::PlaneObstacle(Vector3 c, Vector3 n, double p_exp, double wt) {
         center = c;
         normal = n.normalize();
         p = p_exp;
+        weight = wt;
     }
 
     PlaneObstacle::~PlaneObstacle() {}
@@ -27,7 +28,7 @@ namespace LWS {
             sumE += energy;
         }
 
-        return sumE;
+        return weight * sumE;
     }
 
     void PlaneObstacle::AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient) {
@@ -44,7 +45,7 @@ namespace LWS {
             toPoint /= distance;
             Vector3 grad_i = toPoint * p / pow(distance, p + 1);
 
-            AddToRow(gradient, v_i->GlobalIndex(), grad_i);
+            AddToRow(gradient, v_i->GlobalIndex(), weight * grad_i);
         }
     }
 }

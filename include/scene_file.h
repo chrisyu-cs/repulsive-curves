@@ -17,6 +17,12 @@ namespace LWS {
         double weight;
     };
 
+    struct PlaneObstacleData {
+        Vector3 center;
+        Vector3 normal;
+        double weight;
+    };
+
     enum class PotentialType {
         Length, Area, VectorField
     };
@@ -31,6 +37,7 @@ namespace LWS {
         public:
         std::string curve_filename;
         std::vector<ObstacleData> obstacles;
+        std::vector<PlaneObstacleData> planes;
         std::vector<std::string> surfacesToShow;
         std::vector<ConstraintType> constraints;
         std::vector<int> pinnedVertices;

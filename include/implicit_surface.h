@@ -41,4 +41,13 @@ namespace LWS {
         double minorRadius;
         Vector3 center;
     };
+
+    class YZeroPlane : public ImplicitSurface {
+        public:
+        YZeroPlane();
+        virtual double SignedDistance(Vector3 point);
+        virtual Vector3 GradientOfDistance(Vector3 point);
+        virtual double BoundingDiameter();
+        virtual Vector3 BoundingCenter();
+    };
 }

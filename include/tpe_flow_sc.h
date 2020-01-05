@@ -38,6 +38,7 @@ namespace LWS {
         void SetTotalLengthScaleTarget(double scale);
         void SetEdgeLengthScaleTarget(double scale);
         void MoveLengthTowardsTarget();
+        bool TargetLengthReached();
 
         double CurrentEnergy(SpatialTree *root = 0);
         double TPEnergyDirect();

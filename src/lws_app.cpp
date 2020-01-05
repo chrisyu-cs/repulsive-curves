@@ -379,7 +379,7 @@ namespace LWS {
       UpdateCurvePositions();
       if (!good_step) {
         numStuckIterations++;
-        if (numStuckIterations >= 10) {
+        if (numStuckIterations >= 10 && tpeSolver->TargetLengthReached()) {
           std::cout << "Stopped because flow is (probably) near a local minimum." << std::endl;
           LWSOptions::runTPE = false;
         }
@@ -510,8 +510,14 @@ namespace LWS {
       tpeSolver = new TPEFlowSolverSC(curves, alpha, beta);
 
       for (ObstacleData &data : sceneData.obstacles) {
-        std::cout << "Adding scene obstacle from " << data.filename << std::endl;
+        std::cout << "Adding scene obstacle from " << data.filename << " (weight " << data.weight << ")" << std::endl;
         AddMeshObstacle(data.filename, Vector3{0, 0, 0}, beta - alpha, data.weight);
+      }
+
+      for (PlaneObstacleData &data : sceneData.planes) {
+        std::cout << "Adding plane obstacle (center " << data.center << ", normal "
+          << data.normal << ", weight " << data.weight << std::endl;
+        AddPlaneObstacle(data.center, data.normal, beta - alpha, data.weight);
       }
 
       for (std::string &surfaceName : sceneData.surfacesToShow) {
@@ -615,9 +621,9 @@ namespace LWS {
     tpeSolver->obstacles.push_back(new MeshObstacle(mesh_shared, geom_shared, p, weight));
   }
 
-  void LWSApp::AddPlaneObstacle(Vector3 center, Vector3 normal) {
+  void LWSApp::AddPlaneObstacle(Vector3 center, Vector3 normal, double p, double weight) {
     int numObs = tpeSolver->obstacles.size();
-    tpeSolver->obstacles.push_back(new PlaneObstacle(center, normal, 2));
+    tpeSolver->obstacles.push_back(new PlaneObstacle(center, normal, p, weight));
     DisplayPlane(center, normal, "obstacle" + std::to_string(numObs));
   }
 
@@ -931,7 +937,7 @@ bool endsWith(const std::string& str, const std::string& suffix) {
 void processFile(LWS::LWSApp* app, string filename) {
   // Dispatch to correct variant
   if (endsWith(filename, ".obj")) {
-    app->processFileOBJ(filename);
+    app->processLoopFile(filename);
   }
   else if (endsWith(filename, ".loop")) {
     app->processLoopFile(filename);

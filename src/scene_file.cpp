@@ -64,6 +64,21 @@ namespace LWS {
             }
         }
 
+        else if (key == "repel_plane") {
+            if (parts.size() == 7 || parts.size() == 8) {
+                Vector3 center{stod(parts[1]), stod(parts[2]), stod(parts[3])};
+                Vector3 normal{stod(parts[4]), stod(parts[5]), stod(parts[6])};
+
+                double weight = (parts.size() == 8) ? stod(parts[7]) : 1;
+
+                data.planes.push_back(PlaneObstacleData{center, normal, weight});
+            }
+            else {
+                std::cerr << "Incorrect arguments to repel_plane" << std::endl;
+                exit(1);
+            }
+        }
+
         else if (key == "repel_surface") {
             if (parts.size() < 2 || parts.size() > 3) {
                 std::cerr << "Incorrect arguments to repel_surface" << std::endl;
@@ -137,8 +152,21 @@ namespace LWS {
         }
 
         else if (key == "fix_length") {
-            std::cerr << "Total length constraint is not implemented" << std::endl;
-            exit(1);
+            if (!vectorContains(data.constraints, ConstraintType::EdgeLengths)
+            && !vectorContains(data.constraints, ConstraintType::TotalLength)) {
+                if (parts.size() == 1) {
+                    data.constraints.push_back(ConstraintType::TotalLength);
+                    data.totalLengthScale = 1;
+                }
+                else if (parts.size() == 2) {
+                    std::cerr << "Scaling total length not implemented yet" << std::endl;
+                    exit(1);
+                }
+                else {
+                    std::cerr << "Incorrect arguments to fix_length" << std::endl;
+                    exit(1);
+                }
+            }
         }
 
         else if (key == "fix_edgelengths") {
@@ -256,6 +284,9 @@ namespace LWS {
                 }
                 else if (parts[1] == "torus") {
                     data.constraintSurface = new ImplicitTorus(1, 0.25);
+                }
+                else if (parts[1] == "yplane") {
+                    data.constraintSurface = new YZeroPlane();
                 }
                 else {
                     std::cerr << "Unrecognized surface type '" << parts[1] << "'" << std::endl;

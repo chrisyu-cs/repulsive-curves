@@ -32,7 +32,7 @@ namespace LWS {
             Vector3 pos = curves->GetVertex(i)->Position();
             sumE += AccumulateEnergy(bvh, pos);
         }
-        return sumE;
+        return weight * sumE;
     }
 
     inline double bodyEnergy(BVHNode3D* bvh, Vector3 point, double p) {

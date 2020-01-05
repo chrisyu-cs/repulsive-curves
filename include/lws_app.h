@@ -30,7 +30,7 @@ namespace LWS {
 
         void VisualizeMesh(std::string objName);
         void AddMeshObstacle(std::string objName, Vector3 center, double p, double weight);
-        void AddPlaneObstacle(Vector3 center, Vector3 normal);
+        void AddPlaneObstacle(Vector3 center, Vector3 normal, double p, double weight);
         void AddSphereObstacle(Vector3 center, double radius);
         void SubdivideCurve();
         void MeshImplicitSurface(ImplicitSurface* surface);
