@@ -152,12 +152,12 @@ namespace LWS {
         curveNetwork->positions = originalPositionMatrix - delta * gradient;
     }
 
-    double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double gradDot, BVHNode3D* root) {
+    double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double gradDot, BVHNode3D* root, bool resetStep) {
         double gradNorm = gradient.norm();
         //std::cout << "Norm of gradient = " << gradNorm << std::endl;
         double initGuess;
         // Use the step size from the previous iteration, if it exists
-        if (lastStepSize > fmax(ls_step_threshold, 1e-5)) {
+        if (!resetStep && lastStepSize > fmax(ls_step_threshold, 1e-5)) {
             initGuess = lastStepSize * 1.5;
         }
         else {
@@ -276,7 +276,7 @@ namespace LWS {
     double TPEFlowSolverSC::LSBackproject(Eigen::MatrixXd &gradient, double initGuess,
     Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, BVHNode3D* root) {
         double delta = initGuess;
-        int attempts = 1;
+        int attempts = 0;
 
         while (delta > ls_step_threshold || (useEdgeLengthScale && attempts < 10)) {
             SetGradientStep(gradient, delta);
@@ -284,6 +284,7 @@ namespace LWS {
                 // Update the centers of mass to reflect the new positions
                 root->recomputeCentersOfMass(curveNetwork);
             }
+            attempts++;
 
             for (int i = 0; i < 3; i++) {
                 double maxValue = BackprojectConstraints(lu);
@@ -295,7 +296,6 @@ namespace LWS {
             }
             
             delta /= 2;
-            attempts++;
         }
         std::cout << "Couldn't make backprojection succeed after " << attempts << " attempts (initial step " << initGuess << ")" << std::endl;
         BackprojectConstraints(lu);
@@ -635,7 +635,7 @@ namespace LWS {
 
         // Use multigrid to compute the Sobolev gradient
         long mg_start = Utils::currentTimeMilliseconds();
-        double dot_acc = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients, 1e-3);
+        double dot_acc = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients, 1e-2);
         long mg_end = Utils::currentTimeMilliseconds();
         std::cout << "  Multigrid solve: " << (mg_end - mg_start) << " ms" << std::endl;
 
@@ -649,7 +649,7 @@ namespace LWS {
 
         // Correct for drift with backprojection
         long bp_start = Utils::currentTimeMilliseconds();
-        step_size = LSBackprojectMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root, 1e-3);
+        step_size = LSBackprojectMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root, 1e-2);
         long bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
         std::cout << "  Final step size = " << step_size << std::endl;

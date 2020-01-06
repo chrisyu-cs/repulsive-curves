@@ -70,7 +70,7 @@ namespace LWS {
 
         void SaveCurrentPositions();
         void RestoreOriginalPositions();
-        double LineSearchStep(Eigen::MatrixXd &gradients, double gradDot = 1, BVHNode3D* root = 0);
+        double LineSearchStep(Eigen::MatrixXd &gradients, double gradDot = 1, BVHNode3D* root = 0, bool resetStep = false);
         double LineSearchStep(Eigen::MatrixXd &gradients, double initGuess, int doublingLimit, double gradDot, BVHNode3D* root);
         double CircleSearchStep(Eigen::MatrixXd &P_dot, Eigen::MatrixXd &P_ddot, Eigen::MatrixXd &G, BVHNode3D* root);
 
@@ -149,6 +149,7 @@ namespace LWS {
         int attempts = 0;
 
         while (delta > ls_step_threshold) {
+            attempts++;
             SetGradientStep(gradient, delta);
             if (root) {
                 // Update the centers of mass to reflect the new positions
@@ -157,7 +158,7 @@ namespace LWS {
 
             Eigen::VectorXd phi(constraint.NumConstraintRows());
 
-            for (int c = 0; c < 2; c++) {
+            for (int c = 0; c < 1; c++) {
                 double maxViolation = BackprojectConstraintsMultigrid<Domain, Smoother>(gradient, solver, tol);
 
                 if (maxViolation < backproj_threshold) {
@@ -168,7 +169,11 @@ namespace LWS {
             }
 
             delta /= 2;
-            attempts++;
+
+            if (attempts >= 3) {
+                std::cout << "Max number of backprojection attempts reached" << std::endl;
+                return delta;
+            }
         }
 
         std::cout << "Couldn't make backprojection succeed (initial step " << initGuess << ")" << std::endl;
