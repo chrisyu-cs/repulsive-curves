@@ -456,33 +456,70 @@ namespace LWS {
 
     bool TPEFlowSolverSC::TargetLengthReached() {
         if (useEdgeLengthScale || useTotalLengthScale) {
-            int currentLength = curveNetwork->TotalLength();
-            return currentLength >= targetLength;
+            double currentLength = curveNetwork->TotalLength();
+            return fabs(currentLength - targetLength) <= lengthScaleStep;
         }
         return true;
     }
 
     void TPEFlowSolverSC::MoveLengthTowardsTarget() {
+        if (!useTotalLengthScale && !useEdgeLengthScale) {
+            return;
+        }
+
+        if (TargetLengthReached()) {
+            std::cout << "Target length reached; turning off length scaling" << std::endl;
+            useEdgeLengthScale = false;
+            useTotalLengthScale = false;
+            return;
+        }
+
         if (useEdgeLengthScale) {
-            int currentLength = curveNetwork->TotalLength();
+            double currentLength = curveNetwork->TotalLength();
 
             // If we're below the target length, increase edge lengths
             if (currentLength < targetLength) {
                 int cStart = constraint.startIndexOfConstraint(ConstraintType::EdgeLengths);
                 int nRows = constraint.rowsOfConstraint(ConstraintType::EdgeLengths);
 
+                double diff = targetLength - currentLength;
+                double toAdd = lengthScaleStep;
+                if (diff < lengthScaleStep * nRows) {
+                    toAdd = diff / nRows;
+                }
+
                 for (int i = cStart; i < cStart + nRows; i++) {
-                    constraintTargets(i) += lengthScaleStep;
+                    constraintTargets(i) += toAdd;
+                }
+            }
+            else if (currentLength > targetLength) {
+                int cStart = constraint.startIndexOfConstraint(ConstraintType::EdgeLengths);
+                int nRows = constraint.rowsOfConstraint(ConstraintType::EdgeLengths);
+
+                double diff = currentLength - targetLength;
+                double toSubt = lengthScaleStep;
+                if (diff < lengthScaleStep * nRows) {
+                    toSubt = diff / nRows;
+                }
+
+                for (int i = cStart; i < cStart + nRows; i++) {
+                    constraintTargets(i) -= toSubt;
                 }
             }
         }
 
         else if (useTotalLengthScale) {
-            int currentLength = curveNetwork->TotalLength();
+            double currentLength = curveNetwork->TotalLength();
 
             if (currentLength < targetLength) {
                 int cStart = constraint.startIndexOfConstraint(ConstraintType::TotalLength);
                 constraintTargets(cStart) += lengthScaleStep;
+            }
+
+            else if (currentLength > targetLength) {
+                int cStart = constraint.startIndexOfConstraint(ConstraintType::TotalLength);
+                constraintTargets(cStart) -= lengthScaleStep;
+
             }
         }
     }

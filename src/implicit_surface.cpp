@@ -6,9 +6,9 @@ namespace LWS {
 
     ImplicitSurface::~ImplicitSurface() {}
 
-    ImplicitSphere::ImplicitSphere(double r) {
+    ImplicitSphere::ImplicitSphere(double r, Vector3 c) {
         radius = r;
-        center = Vector3{0, 0, 0};
+        center = c;
     }
 
     double ImplicitSphere::SignedDistance(Vector3 point) {
@@ -27,10 +27,10 @@ namespace LWS {
         return center;
     }
 
-    ImplicitTorus::ImplicitTorus(double major, double minor) {
+    ImplicitTorus::ImplicitTorus(double major, double minor, Vector3 c) {
         majorRadius = major;
         minorRadius = minor;
-        center = Vector3{0, 0, 0};
+        center = c;
     }
 
     double ImplicitTorus::SignedDistance(Vector3 point) {
@@ -82,6 +82,44 @@ namespace LWS {
 
     Vector3 YZeroPlane::BoundingCenter() {
         return Vector3{0, 0.01, 0};
+    }
+
+    ImplicitDoubleTorus::ImplicitDoubleTorus(double r2) {
+        radius2 = r2;
+    }
+
+    double ImplicitDoubleTorus::SignedDistance(Vector3 p) {
+        double x = p.x + 2;
+        double y = p.y;
+        double z = p.z;
+        double inner = (x * (x - 1) * (x - 1) * (x - 2) + y * y);
+        return inner * inner + z * z - radius2;
+    }
+
+    Vector3 ImplicitDoubleTorus::GradientOfDistance(Vector3 point) {
+        double x = point.x + 2;
+        double y = point.y;
+        double z = point.z;
+
+        double x2 = x * x;
+        double x3 = x2 * x;
+        double x4 = x3 * x;
+        double y2 = y * y;
+        double polyn = x4 - 4 * x3 + 5 * x2 - 2 * x + y2;
+
+        double partialX = 2 * polyn * (4 * x3 - 12 * x2 + 10 * x - 2);
+        double partialY = 4 * y * polyn;
+        double partialZ = 2 * z;
+
+        return Vector3{partialX, partialY, partialZ};
+    }
+
+    double ImplicitDoubleTorus::BoundingDiameter() {
+        return 4.5;
+    }
+
+    Vector3 ImplicitDoubleTorus::BoundingCenter() {
+        return Vector3{0, 0, 0};
     }
 
 }

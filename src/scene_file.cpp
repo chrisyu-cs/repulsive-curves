@@ -280,13 +280,16 @@ namespace LWS {
         else if (key == "constraint_surface") {
             if (parts.size() <= 2) {
                 if (parts[1] == "sphere") {
-                    data.constraintSurface = new ImplicitSphere(1);
+                    data.constraintSurface = new ImplicitSphere(1, Vector3{0, 0, 0});
                 }
                 else if (parts[1] == "torus") {
-                    data.constraintSurface = new ImplicitTorus(1, 0.25);
+                    data.constraintSurface = new ImplicitTorus(1, 0.25, Vector3{0, 0, 0});
                 }
                 else if (parts[1] == "yplane") {
                     data.constraintSurface = new YZeroPlane();
+                }
+                else if (parts[1] == "doubletorus") {
+                    data.constraintSurface = new ImplicitDoubleTorus(0.2 * 0.2);
                 }
                 else {
                     std::cerr << "Unrecognized surface type '" << parts[1] << "'" << std::endl;

@@ -648,7 +648,7 @@ namespace LWS {
 
     std::cout << "Meshing the supplied implicit surface using marching cubes..." << std::endl;
 
-    const int numCells = 30;
+    const int numCells = 50;
     Vector3 center = surface->BoundingCenter();
     double diameter = surface->BoundingDiameter();
     double cellSize = diameter / numCells;

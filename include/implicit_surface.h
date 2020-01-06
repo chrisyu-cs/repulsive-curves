@@ -17,7 +17,7 @@ namespace LWS {
 
     class ImplicitSphere : public ImplicitSurface {
         public:
-        ImplicitSphere(double r);
+        ImplicitSphere(double r, Vector3 c);
         virtual double SignedDistance(Vector3 point);
         virtual Vector3 GradientOfDistance(Vector3 point);
         virtual double BoundingDiameter();
@@ -30,7 +30,7 @@ namespace LWS {
 
     class ImplicitTorus : public ImplicitSurface {
         public:
-        ImplicitTorus(double major, double minor);
+        ImplicitTorus(double major, double minor, Vector3 c);
         virtual double SignedDistance(Vector3 point);
         virtual Vector3 GradientOfDistance(Vector3 point);
         virtual double BoundingDiameter();
@@ -49,5 +49,17 @@ namespace LWS {
         virtual Vector3 GradientOfDistance(Vector3 point);
         virtual double BoundingDiameter();
         virtual Vector3 BoundingCenter();
+    };
+
+    class ImplicitDoubleTorus : public ImplicitSurface {
+        public:
+        ImplicitDoubleTorus(double r2);
+        virtual double SignedDistance(Vector3 point);
+        virtual Vector3 GradientOfDistance(Vector3 point);
+        virtual double BoundingDiameter();
+        virtual Vector3 BoundingCenter();
+
+        private:
+        double radius2;
     };
 }
