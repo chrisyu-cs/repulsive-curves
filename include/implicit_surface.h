@@ -62,4 +62,30 @@ namespace LWS {
         private:
         double radius2;
     };
+
+    class ImplicitUnion : public ImplicitSurface {
+        public:
+        ImplicitUnion(ImplicitSurface* s1, ImplicitSurface* s2);
+        virtual double SignedDistance(Vector3 point);
+        virtual Vector3 GradientOfDistance(Vector3 point);
+        virtual double BoundingDiameter();
+        virtual Vector3 BoundingCenter();
+
+        private:
+        std::vector<ImplicitSurface*> surfaces;
+    };
+
+    class ImplicitSmoothUnion : public ImplicitSurface {
+        public:
+        ImplicitSmoothUnion(ImplicitSurface* s1, ImplicitSurface* s2, double blendFactor);
+        virtual double SignedDistance(Vector3 point);
+        virtual Vector3 GradientOfDistance(Vector3 point);
+        virtual double BoundingDiameter();
+        virtual Vector3 BoundingCenter();
+        
+        private:
+        ImplicitSurface* surface1;
+        ImplicitSurface* surface2;
+        double k;
+    };
 }

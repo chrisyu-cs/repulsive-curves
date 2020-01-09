@@ -45,6 +45,7 @@ namespace LWS {
         std::vector<int> surfaceConstrainedVertices;
         bool pinSpecialVertices;
         bool pinSpecialTangents;
+        bool constrainEndpointsToSurface;
         bool constrainAllToSurface;
         int subdivideLimit;
         int iterationLimit;
@@ -57,6 +58,8 @@ namespace LWS {
         bool useTotalLengthScale;
         double totalLengthScale;
         ImplicitSurface* constraintSurface;
+
+        static bool useSmoothUnion;
     };
 
     template <class Container>

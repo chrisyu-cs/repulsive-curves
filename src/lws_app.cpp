@@ -903,6 +903,7 @@ namespace LWS {
 
     // Pin all special vertices if specified
     if (data.pinSpecialVertices) {
+      std::cout << "Pinning all special vertices" << std::endl;
       curves->PinAllSpecialVertices(data.pinSpecialTangents);
     }
 
@@ -918,12 +919,22 @@ namespace LWS {
       }
       curves->pinnedAllToSurface = true;
     }
+    else if (data.constrainEndpointsToSurface) {
+      std::cout << "Constraining endpoint vertices to the implicit surface" << std::endl;
+      for (int i = 0; i < curves->NumVertices(); i++) {
+        CurveVertex* v_i = curves->GetVertex(i);
+        if (v_i->numEdges() == 1) {
+          curves->PinToSurface(i);
+        }
+      }
+    }
     else {
       for (int i : data.surfaceConstrainedVertices) {
         std::cout << "Pinning vertex " << i << " to the implicit surface" << std::endl;
         curves->PinToSurface(i);
       }
     }
+    curves->PrintPins();
   }
 }
 
@@ -1001,7 +1012,6 @@ int main(int argc, char** argv) {
   processFile(LWS::LWSApp::instance, file.Get());
 
   app->DisplayCurves(app->curves, app->curveName);
-  app->curves->PinAllSpecialVertices(true);
   // app->curves->PinVertex(10);
   // app->curves->PinTangent(10);
 

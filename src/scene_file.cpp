@@ -30,6 +30,8 @@ namespace LWS {
         return false;
     }
 
+    bool SceneData::useSmoothUnion = false;
+
     void processLine(SceneData &data, std::string dir_root, std::vector<std::string> &parts) {
         using namespace std;
         string key = parts[0];
@@ -277,23 +279,96 @@ namespace LWS {
             }
         }
 
+        else if (key == "union_type") {
+            if (parts.size() == 2) {
+                if (parts[1] == "disjoint") {
+                    SceneData::useSmoothUnion = false;
+                }
+                else if (parts[1] == "smooth") {
+                    SceneData::useSmoothUnion = true;
+                }
+                else {
+                    std::cerr << "union_type can only be 'disjoint' or 'smooth'" << std::endl;
+                    exit(1);
+                }
+            }
+            else {
+                std::cerr << "Incorrect arguments to union_type" << std::endl;
+                exit(1);
+            }
+        }
+
         else if (key == "constraint_surface") {
-            if (parts.size() <= 2) {
+            if (parts.size() >= 2) {
+                ImplicitSurface* cSurface = 0;
+                bool argsOK = true;
                 if (parts[1] == "sphere") {
-                    data.constraintSurface = new ImplicitSphere(1, Vector3{0, 0, 0});
+                    if (parts.size() == 2) {
+                        cSurface = new ImplicitSphere(1, Vector3{0, 0, 0});
+                    }
+                    else if (parts.size() == 5) {
+                        double x = stod(parts[2]);
+                        double y = stod(parts[3]);
+                        double z = stod(parts[4]);
+                        cSurface = new ImplicitSphere(1, Vector3{x, y, z});
+                    }
+                    else if (parts.size() == 6) {
+                        double x = stod(parts[2]);
+                        double y = stod(parts[3]);
+                        double z = stod(parts[4]);
+                        double r = stod(parts[5]);
+                        cSurface = new ImplicitSphere(r, Vector3{x, y, z});
+                    }
+                    else argsOK = false;
                 }
                 else if (parts[1] == "torus") {
-                    data.constraintSurface = new ImplicitTorus(1, 0.25, Vector3{0, 0, 0});
+                    if (parts.size() == 2) {
+                        cSurface = new ImplicitTorus(1, 0.25, Vector3{0, 0, 0});
+                    }
+                    else if (parts.size() == 5) {
+                        double x = stod(parts[2]);
+                        double y = stod(parts[3]);
+                        double z = stod(parts[4]);
+                        cSurface = new ImplicitTorus(1, 0.25, Vector3{x, y, z});
+                    }
+                    else if (parts.size() == 7) {
+                        double x = stod(parts[2]);
+                        double y = stod(parts[3]);
+                        double z = stod(parts[4]);
+                        double r_maj = stod(parts[5]);
+                        double r_min = stod(parts[6]);
+                        cSurface = new ImplicitTorus(r_maj, r_min, Vector3{x, y, z});
+                    }
+                    else argsOK = false;
                 }
                 else if (parts[1] == "yplane") {
-                    data.constraintSurface = new YZeroPlane();
+                    if (parts.size() == 2) cSurface = new YZeroPlane();
+                    else argsOK = false;
                 }
                 else if (parts[1] == "doubletorus") {
-                    data.constraintSurface = new ImplicitDoubleTorus(0.2 * 0.2);
+                    if (parts.size() == 2) {
+                        cSurface = new ImplicitDoubleTorus(0.2 * 0.2);
+                    }
+                    else argsOK = false;
                 }
                 else {
                     std::cerr << "Unrecognized surface type '" << parts[1] << "'" << std::endl;
                     exit(1);
+                }
+
+                if (!argsOK) {
+                    std::cerr << "Incorrect arguments to implicit surface type " << parts[1] << std::endl;
+                    exit(1);
+                }
+
+                if (!data.constraintSurface) {
+                    data.constraintSurface = cSurface;
+                }
+                else if (SceneData::useSmoothUnion) {
+                    data.constraintSurface = new ImplicitSmoothUnion(cSurface, data.constraintSurface, 1);
+                }
+                else {
+                    data.constraintSurface = new ImplicitUnion(cSurface, data.constraintSurface);
                 }
             }
             else {
@@ -326,6 +401,19 @@ namespace LWS {
                 exit(1);
             }
         }
+        else if (key == "constrain_endpoints") {
+            if (parts.size() == 1) {
+                if (!vectorContains(data.constraints, ConstraintType::Surface)) {
+                    data.constraints.push_back(ConstraintType::Surface);
+                }
+                data.constrainEndpointsToSurface = true;
+            }
+            else {
+                std::cerr << "Incorrect arguments to constrain_endpoints" << std::endl;
+                exit(1);
+            }
+
+        }
         
         else if (key == "#") {
             return;
@@ -342,6 +430,7 @@ namespace LWS {
         string directory = getDirectoryFromPath(filename);
         std::cout << "Base directory of scene file: " << directory << std::endl;
 
+        sceneData.constrainEndpointsToSurface = false;
         sceneData.constrainAllToSurface = false;
         sceneData.useLengthScale = false;
         sceneData.useTotalLengthScale = false;

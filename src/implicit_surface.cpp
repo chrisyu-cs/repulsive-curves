@@ -1,4 +1,5 @@
 #include "implicit_surface.h"
+#include "utils.h"
 
 #include "geometrycentral/utilities/vector2.h"
 
@@ -121,6 +122,122 @@ namespace LWS {
     Vector3 ImplicitDoubleTorus::BoundingCenter() {
         return Vector3{0, 0, 0};
     }
+
+    ImplicitUnion::ImplicitUnion(ImplicitSurface* s1, ImplicitSurface* s2) {
+        surfaces.push_back(s1);
+        surfaces.push_back(s2);
+    }
+
+    double ImplicitUnion::SignedDistance(Vector3 p) {
+        double minDist = surfaces[0]->SignedDistance(p);
+        for (size_t i = 1; i < surfaces.size(); i++) {
+            minDist = fmin(minDist, surfaces[i]->SignedDistance(p));
+        }
+        return minDist;
+    }
+
+    Vector3 ImplicitUnion::GradientOfDistance(Vector3 point) {
+        double minDist = surfaces[0]->SignedDistance(point);
+        double min_i = 0;
+
+        for (size_t i = 1; i < surfaces.size(); i++) {
+            double dist = surfaces[i]->SignedDistance(point);
+            if (dist < minDist) {
+                minDist = dist;
+                min_i = i;
+            }
+        }
+
+        return surfaces[min_i]->GradientOfDistance(point);
+    }
+
+    double ImplicitUnion::BoundingDiameter() {
+        Vector3 center = BoundingCenter();
+        double maxRadius = 0;
+        
+        for (size_t i = 0; i < surfaces.size(); i++) {
+            Vector3 c_i = surfaces[i]->BoundingCenter();
+            double d_i = surfaces[i]->BoundingDiameter();
+            Vector3 disp = (center - c_i);
+            double l1dist = fmax(fabs(disp.x), fmax(fabs(disp.y), fabs(disp.z)));
+
+            maxRadius = fmax(maxRadius, l1dist + d_i / 2);
+        }
+        return maxRadius * 2;
+    }
+
+    Vector3 ImplicitUnion::BoundingCenter() {
+        Vector3 mins = surfaces[0]->BoundingCenter();
+        Vector3 maxs = mins;
+
+        for (size_t i = 1; i < surfaces.size(); i++) {
+            mins = vector_min(mins, surfaces[i]->BoundingCenter());
+            maxs = vector_max(maxs, surfaces[i]->BoundingCenter());
+        }
+
+        return (mins + maxs) / 2;
+    }
+
+    ImplicitSmoothUnion::ImplicitSmoothUnion(ImplicitSurface* s1, ImplicitSurface* s2, double blendFactor) {
+        surface1 = s1;
+        surface2 = s2;
+        k = blendFactor;
+    }
+
+    double ImplicitSmoothUnion::SignedDistance(Vector3 p) {
+        double d1 = surface1->SignedDistance(p);
+        double d2 = surface2->SignedDistance(p);
+        float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
+        return ((1 - h) * d2 + h * d1) - k * h * (1 - h);
+    }
+
+
+    Vector3 ImplicitSmoothUnion::GradientOfDistance(Vector3 point) {
+        double d1 = surface1->SignedDistance(point);
+        double d2 = surface2->SignedDistance(point);
+        float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
+
+        Vector3 deriv_d1 = surface1->GradientOfDistance(point);
+        Vector3 deriv_d2 = surface2->GradientOfDistance(point);
+        // We need derivative of a clamp, which is just 0 outside of (0, 1)
+        Vector3 deriv_h{0, 0, 0};
+        if (h > 0 && h < 1) {
+            deriv_h = (1.0 / (2 * k)) * (deriv_d2 - deriv_d1);
+        }
+
+        Vector3 deriv_term1 = (-deriv_h * d2 + (1 - h) * deriv_d2);
+        Vector3 deriv_term2 = (deriv_h * d1 + h * deriv_d1);
+        Vector3 deriv_term3 = -k * (deriv_h - 2 * h * deriv_h);
+
+        return deriv_term1 + deriv_term2 + deriv_term3;
+    }
+
+    double ImplicitSmoothUnion::BoundingDiameter() {
+        Vector3 center = BoundingCenter();
+        double maxRadius = 0;
+
+        ImplicitSurface* surfaces[2] = {surface1, surface2};
+        
+        for (size_t i = 0; i < 2; i++) {
+            Vector3 c_i = surfaces[i]->BoundingCenter();
+            double d_i = surfaces[i]->BoundingDiameter();
+            Vector3 disp = (center - c_i);
+            double l1dist = fmax(fabs(disp.x), fmax(fabs(disp.y), fabs(disp.z)));
+
+            maxRadius = fmax(maxRadius, l1dist + d_i / 2);
+        }
+        return maxRadius * 2;
+    }
+
+    Vector3 ImplicitSmoothUnion::BoundingCenter() {
+        Vector3 mins = surface1->BoundingCenter();
+        Vector3 maxs = mins;
+        mins = vector_min(mins, surface2->BoundingCenter());
+        maxs = vector_max(maxs, surface2->BoundingCenter());
+
+        return (mins + maxs) / 2;
+    }
+
 
 }
 
