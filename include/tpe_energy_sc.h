@@ -55,6 +55,8 @@ namespace LWS {
         static VertJacobian grad_tangent_proj(CurveVertex* i, TangentMassPoint j, CurveVertex* wrt);
         static VertJacobian grad_tangent_proj_num(CurveVertex* i, CurveVertex* j, CurveVertex* wrt, double h);
 
+        // Gradient of edge length wrt a vertex
+        static Vector3 edge_length_wrt_vert(CurveEdge* edge, CurveVertex* wrt);
         // Gradient of vertex dual length wrt a vertex
         static Vector3 length_wrt_vert(CurveVertex* lengthVert, CurveVertex* wrt);
 

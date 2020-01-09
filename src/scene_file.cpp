@@ -117,6 +117,19 @@ namespace LWS {
             }
         }
 
+        else if (key == "optimize_length_diffs") {
+            if (parts.size() == 1) {
+                data.extraPotentials.push_back(PotentialData{PotentialType::LengthDiff, 1, ""});
+            }
+            else if (parts.size() == 2) {
+                data.extraPotentials.push_back(PotentialData{PotentialType::LengthDiff, stod(parts[1]), ""});
+            }
+            else {
+                std::cerr << "Incorrect arguments to optimize_length" << std::endl;
+                exit(1);
+            }
+        }
+
         else if (key == "optimize_area") {
             if (parts.size() == 1) {
                 data.extraPotentials.push_back(PotentialData{PotentialType::Area, 1, ""});

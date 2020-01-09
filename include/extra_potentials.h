@@ -23,6 +23,17 @@ namespace LWS {
         double weight;
     };
 
+    class LengthDifferencePotential : public CurvePotential {
+        public:
+        LengthDifferencePotential(double wt);
+        virtual double CurrentValue(PolyCurveNetwork* curves);
+        virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient);
+
+        private:
+        double LenDiff(PolyCurveNetwork* curves, int i);
+        double weight;
+    };
+
     // class AreaPotential : public CurvePotential {
     //     public:
     //     AreaPotential(double wt);

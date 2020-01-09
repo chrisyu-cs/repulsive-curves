@@ -498,6 +498,14 @@ namespace LWS {
       std::cout << "Setting iteration limit to " << stepLimit << std::endl;
     }
 
+    // for (int i = 0; i < curves->NumVertices(); i++) {
+    //   Vector3 v1 = curves->GetVertex(i)->edge(0)->Vector().normalize();
+    //   Vector3 v2 = curves->GetVertex(i)->edge(1)->Vector().normalize();
+    //   if (fabs(dot(v1, v2)) < 0.999) {
+    //     std::cout << "Vertex " << i << " has angle " << acos(dot(v1, v2)) << " (dot " << dot(v1, v2) << ")" << std::endl;
+    //   }
+    // }
+
     if (!tpeSolver) {
       if (curves->appliedConstraints.size() == 0) {
         std::cout << "No constraints specified; defaulting to barycenter and edge lengths" << std::endl;
@@ -529,6 +537,10 @@ namespace LWS {
           case PotentialType::Length:
           std::cout << "Adding length potential (weight = " << data.weight << ")" << std::endl;
           tpeSolver->potentials.push_back(new TotalLengthPotential(data.weight));
+          break;
+          case PotentialType::LengthDiff:
+          std::cout << "Adding length diff potential (weight = " << data.weight << ")" << std::endl;
+          tpeSolver->potentials.push_back(new LengthDifferencePotential(data.weight));
           break;
           case PotentialType::Area:
           std::cerr << "Area potential is not implemented yet" << std::endl;

@@ -596,6 +596,18 @@ namespace LWS {
     }
 
 
+    Vector3 TPESC::edge_length_wrt_vert(CurveEdge* edge, CurveVertex* wrt) {
+        if (edge->prevVert != wrt && edge->nextVert != wrt) {
+            return Vector3{0, 0, 0};
+        }
+        Vector3 wrt_pos = wrt->Position();
+        Vector3 opp_pos = edge->Opposite(wrt)->Position();
+
+        // To increase the edge length, we want to move away from the opposite vertex
+        Vector3 outward = wrt_pos - opp_pos;
+        return outward.normalize();
+    }
+
     Vector3 TPESC::length_wrt_vert(CurveVertex* lengthVert, CurveVertex* wrt) {
         // If differentiating wrt self, need to consider both side
         if (lengthVert == wrt) {
