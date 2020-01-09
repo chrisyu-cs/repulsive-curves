@@ -200,6 +200,7 @@ namespace LWS {
         else if (j.type() == TPEPointType::Edge && (wrt == j.curvePt || wrt == j.curvePt2)) {
             deriv_B += (-beta * pow(norm(disp), beta - 1) * unit_disp) / 2;
         }
+
         // Quotient rule for A / B
         return (deriv_A * B - A * deriv_B) / (B * B);
     }
@@ -305,7 +306,7 @@ namespace LWS {
 
         // If the displacement is actually exactly perpendicular to the tangent,
         // then the contribution is exactly 0.
-        if (proj_len < 1e-12) return Vector3{0, 0, 0};
+        if (proj_len < 1e-10) return Vector3{0, 0, 0};
 
         // Derivative of |f(x) - ...|^alpha = alpha * |f(x) - ...|^(alpha - 1)
         double alpha_deriv = alpha * pow(proj_len, alpha - 1);
@@ -339,6 +340,10 @@ namespace LWS {
         // Projection onto normal plane
         Vector3 normal_proj = disp - dot(disp, T_i) * T_i;
         double proj_len = norm(normal_proj);
+
+        // If the displacement is actually exactly perpendicular to the tangent,
+        // then the contribution is exactly 0.
+        if (proj_len < 1e-10) return Vector3{0, 0, 0};
 
         // Derivative of |f(x) - ...|^alpha = alpha * |f(x) - ...|^(alpha - 1)
         double alpha_deriv = alpha * pow(proj_len, alpha - 1);
@@ -376,6 +381,10 @@ namespace LWS {
         // Projection onto normal plane
         Vector3 normal_proj = disp - dot(disp, T_i) * T_i;
         double proj_len = norm(normal_proj);
+
+        // If the displacement is actually exactly perpendicular to the tangent,
+        // then the contribution is exactly 0.
+        if (proj_len < 1e-10) return Vector3{0, 0, 0};
 
         // Derivative of |f(x) - ...|^alpha = alpha * |f(x) - ...|^(alpha - 1)
         double alpha_deriv = alpha * pow(proj_len, alpha - 1);
