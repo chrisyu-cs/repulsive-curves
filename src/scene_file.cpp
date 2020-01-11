@@ -130,6 +130,19 @@ namespace LWS {
             }
         }
 
+        else if (key == "optimize_pin_angles") {
+            if (parts.size() == 1) {
+                data.extraPotentials.push_back(PotentialData{PotentialType::PinAngles, 1, ""});
+            }
+            else if (parts.size() == 2) {
+                data.extraPotentials.push_back(PotentialData{PotentialType::PinAngles, stod(parts[1]), ""});
+            }
+            else {
+                std::cerr << "Incorrect arguments to optimize_length" << std::endl;
+                exit(1);
+            }
+        }
+
         else if (key == "optimize_area") {
             if (parts.size() == 1) {
                 data.extraPotentials.push_back(PotentialData{PotentialType::Area, 1, ""});

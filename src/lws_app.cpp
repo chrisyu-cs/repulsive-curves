@@ -542,6 +542,10 @@ namespace LWS {
           std::cout << "Adding length diff potential (weight = " << data.weight << ")" << std::endl;
           tpeSolver->potentials.push_back(new LengthDifferencePotential(data.weight));
           break;
+          case PotentialType::PinAngles:
+          std::cout << "Adding pin angle potential (weight = " << data.weight << ")" << std::endl;
+          tpeSolver->potentials.push_back(new PinBendingPotential(data.weight));
+          break;
           case PotentialType::Area:
           std::cerr << "Area potential is not implemented yet" << std::endl;
           break;

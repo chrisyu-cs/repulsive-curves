@@ -90,10 +90,12 @@ namespace LWS {
             Vector3 deriv2_mid = TPESC::edge_length_wrt_vert(e2, v_i);
             Vector3 deriv1_mid = -TPESC::edge_length_wrt_vert(e1, v_i);
             Vector3 deriv1_prev = -TPESC::edge_length_wrt_vert(e1, v_prev);
+            
+            double lenWeight = lDiff * weight;
 
-            AddToRow(gradient, v_prev->GlobalIndex(), weight * deriv1_prev);
-            AddToRow(gradient, v_i->GlobalIndex(), weight * (deriv1_mid + deriv2_mid));
-            AddToRow(gradient, v_next->GlobalIndex(), weight * deriv2_next);
+            AddToRow(gradient, v_prev->GlobalIndex(), lenWeight * deriv1_prev);
+            AddToRow(gradient, v_i->GlobalIndex(), lenWeight * (deriv1_mid + deriv2_mid));
+            AddToRow(gradient, v_next->GlobalIndex(), lenWeight * deriv2_next);
         }
     }
 
@@ -101,7 +103,62 @@ namespace LWS {
     //     weight = wt;
     // }
 
-    
+    PinBendingPotential::PinBendingPotential(double wt) {
+        weight = wt;
+    }
+
+    double PinBendingPotential::CurrentValue(PolyCurveNetwork* curves) {
+        int nVerts = curves->NumVertices();
+        double energy = 0;
+
+        for (int i = 0; i < nVerts; i++) {
+            CurveVertex* v_i = curves->GetVertex(i);
+            if (v_i->numEdges() != 2) continue;
+            CurveEdge* e1 = v_i->edge(0);
+            CurveEdge* e2 = v_i->edge(1);
+
+            Vector3 vec1 = e1->Vector();
+            Vector3 vec2 = e2->Vector();
+            double pair = 1 - dot(vec1.normalize(), vec2.normalize());
+            energy += pair * pair;
+        }
+
+        return 0.5 * weight * energy;
+    }
+
+    void PinBendingPotential::AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient) {
+        int nVerts = curves->NumVertices();
+
+        for (int i = 0; i < nVerts; i++) {
+            CurveVertex* v_i = curves->GetVertex(i);
+            if (v_i->numEdges() != 2) continue;
+            CurveEdge* e1 = v_i->edge(0);
+            CurveEdge* e2 = v_i->edge(1);
+
+            Vector3 vec1 = e1->Vector();
+            Vector3 vec2 = e2->Vector();
+            double pair = 1 - dot(vec1.normalize(), vec2.normalize());
+            
+            CurveVertex* v_prev = e1->Opposite(v_i);
+            CurveVertex* v_next = e2->Opposite(v_i);
+
+            // We want to differentiate dot(vec1_hat, vec2_hat)
+            VertJacobian vec1_deriv_prev = TPESC::edge_tangent_wrt_vert(e1, v_prev);
+            VertJacobian vec1_deriv_i = TPESC::edge_tangent_wrt_vert(e1, v_i);
+            VertJacobian vec2_deriv_i = TPESC::edge_tangent_wrt_vert(e2, v_i);
+            VertJacobian vec2_deriv_next = TPESC::edge_tangent_wrt_vert(e2, v_next);
+
+            Vector3 deriv_prev = vec1_deriv_prev.LeftMultiply(vec2);
+            Vector3 deriv_i = vec1_deriv_i.LeftMultiply(vec2) + vec2_deriv_i.LeftMultiply(vec1);
+            Vector3 deriv_next = vec2_deriv_next.LeftMultiply(vec1);
+
+            double pairWeight = pair * weight;
+            AddToRow(gradient, v_prev->GlobalIndex(), pairWeight * deriv_prev);
+            AddToRow(gradient, v_i->GlobalIndex(), pairWeight * deriv_i);
+            AddToRow(gradient, v_next->GlobalIndex(), pairWeight * deriv_next);
+        }
+    }
+
 
 
 }

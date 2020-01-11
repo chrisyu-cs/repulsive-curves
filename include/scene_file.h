@@ -24,7 +24,7 @@ namespace LWS {
     };
 
     enum class PotentialType {
-        Length, LengthDiff, Area, VectorField
+        Length, LengthDiff, PinAngles, Area, VectorField
     };
 
     struct PotentialData {
