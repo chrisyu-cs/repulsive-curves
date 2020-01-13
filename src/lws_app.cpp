@@ -345,11 +345,19 @@ namespace LWS {
     ImGui::Checkbox("Output frames", &LWSOptions::outputFrames);
     ImGui::SameLine(160);
     ImGui::Checkbox("Output OBJs", &writeOBJs);
+    
+    ImGui::Checkbox("Log performance", &perfLogging);
+    if (perfLogging && !tpeSolver->PerformanceLogEnabled()) {
+      tpeSolver->EnablePerformanceLog("performance_" + curveName + ".csv");
+    }
 
     bool buttonStepTPE = ImGui::Button("Single TPE step");
 
     ImGui::Checkbox("Use Sobolev", &LWSOptions::useSobolev);
+    ImGui::SameLine(160);
+    ImGui::Checkbox("Use backprjection", &useBackproj);
     ImGui::Checkbox("Use Barnes-Hut", &LWSOptions::useBarnesHut);
+    ImGui::SameLine(160);
     ImGui::Checkbox("Use multigrid", &LWSOptions::useMultigrid);
 
     if (LWSOptions::runTPE || buttonStepTPE) {
@@ -366,10 +374,10 @@ namespace LWS {
       bool good_step;
       if (LWSOptions::useSobolev) {
         if (LWSOptions::useMultigrid) {
-          good_step = tpeSolver->StepSobolevLSIterative(0);
+          good_step = tpeSolver->StepSobolevLSIterative(0, useBackproj);
         }
         else {
-          good_step = tpeSolver->StepSobolevLS(LWSOptions::useBarnesHut);
+          good_step = tpeSolver->StepSobolevLS(LWSOptions::useBarnesHut, useBackproj);
         }
       }
       else {
@@ -489,6 +497,9 @@ namespace LWS {
   void LWSApp::initSolver() {
     numStuckIterations = 0;
     subdivideCount = 0;
+
+    useBackproj = true;
+
     if (sceneData.subdivideLimit > 0) {
       subdivideLimit = sceneData.subdivideLimit;
       std::cout << "Setting curve subdivision limit to " << subdivideLimit << std::endl;

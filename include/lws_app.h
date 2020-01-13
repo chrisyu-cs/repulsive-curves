@@ -60,6 +60,8 @@ namespace LWS {
         int subdivideCount;
         int currentStep;
         int stepLimit;
+        bool perfLogging;
+        bool useBackproj;
         int screenshotNum;
         bool writeOBJs;
         int objNum;

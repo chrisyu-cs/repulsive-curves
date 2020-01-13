@@ -25,7 +25,7 @@ namespace LWS {
         separationCoeff = sepCoeff;
         epsilon = e;
 
-        std::cout << "Using " << nThreads << " threads." << std::endl;
+        // std::cout << "Using " << nThreads << " threads." << std::endl;
 
         tree_root = tree;
         ClusterPair pair(tree, tree);

@@ -16,8 +16,16 @@ namespace LWS {
         iterNum = 0;
         lastStepSize = 0;
 
+        mg_tolerance = 1e-2;
+
+        double averageLength = g->TotalLength();
+        averageLength /= g->NumEdges();
+        mg_backproj_threshold = fmin(1e-4, averageLength * mg_tolerance / 10);
+        std::cout << "Multigrid backprojection threshold set to " << mg_backproj_threshold << std::endl;
+
         UpdateTargetLengths();
         useEdgeLengthScale = false;
+        perfLogEnabled = false;
     }
 
     TPEFlowSolverSC::~TPEFlowSolverSC() {
@@ -39,6 +47,16 @@ namespace LWS {
             double averageLength = curveNetwork->TotalLength() / curveNetwork->NumEdges();
             lengthScaleStep = averageLength / 100;
         }
+    }
+
+    void TPEFlowSolverSC::EnablePerformanceLog(std::string logFile) {
+        perfFile.open(logFile);
+        perfLogEnabled = true;
+        std::cout << "Started logging performance to " << logFile << std::endl;
+    }
+
+    void TPEFlowSolverSC::ClosePerformanceLog() {
+        perfFile.close();
     }
 
     void TPEFlowSolverSC::SetTotalLengthScaleTarget(double scale) {
@@ -155,13 +173,10 @@ namespace LWS {
     double TPEFlowSolverSC::LineSearchStep(Eigen::MatrixXd &gradient, double gradDot, BVHNode3D* root, bool resetStep) {
         double gradNorm = gradient.norm();
         //std::cout << "Norm of gradient = " << gradNorm << std::endl;
-        double initGuess;
+        double initGuess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
         // Use the step size from the previous iteration, if it exists
         if (!resetStep && lastStepSize > fmax(ls_step_threshold, 1e-5)) {
-            initGuess = lastStepSize * 1.5;
-        }
-        else {
-            initGuess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
+            initGuess = fmin(lastStepSize * 1.5, initGuess * 16);
         }
         std::cout << "  Starting line search with initial guess " << initGuess << std::endl;
         return LineSearchStep(gradient, initGuess, 0, gradDot, root);
@@ -278,13 +293,13 @@ namespace LWS {
         double delta = initGuess;
         int attempts = 0;
 
-        while (delta > ls_step_threshold || (useEdgeLengthScale && attempts < 10)) {
+        while ((delta > ls_step_threshold || useEdgeLengthScale) && attempts < 10) {
+            attempts++;
             SetGradientStep(gradient, delta);
             if (root) {
                 // Update the centers of mass to reflect the new positions
                 root->recomputeCentersOfMass(curveNetwork);
             }
-            attempts++;
 
             for (int i = 0; i < 3; i++) {
                 double maxValue = BackprojectConstraints(lu);
@@ -524,7 +539,7 @@ namespace LWS {
         }
     }
 
-    bool TPEFlowSolverSC::StepSobolevLS(bool useBH) {
+    bool TPEFlowSolverSC::StepSobolevLS(bool useBH, bool useBackproj) {
         long start = Utils::currentTimeMilliseconds();
 
         size_t nVerts = curveNetwork->NumVertices();
@@ -584,7 +599,9 @@ namespace LWS {
 
         // Correct for drift with backprojection
         double bp_start = Utils::currentTimeMilliseconds();
-        step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
+        if (useBackproj) {
+            step_size = LSBackproject(vertGradients, step_size, lu, dot_acc, tree_root);
+        }
         double bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
         std::cout << "  Final step size = " << step_size << std::endl;
@@ -602,7 +619,7 @@ namespace LWS {
         return step_size > 0;
     }
 
-    bool TPEFlowSolverSC::StepSobolevLSIterative(double epsilon) {
+    bool TPEFlowSolverSC::StepSobolevLSIterative(double epsilon, bool useBackproj) {
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
         long all_start = Utils::currentTimeMilliseconds();
 
@@ -635,7 +652,7 @@ namespace LWS {
 
         // Use multigrid to compute the Sobolev gradient
         long mg_start = Utils::currentTimeMilliseconds();
-        double dot_acc = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients, 1e-2);
+        double dot_acc = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients, mg_tolerance);
         long mg_end = Utils::currentTimeMilliseconds();
         std::cout << "  Multigrid solve: " << (mg_end - mg_start) << " ms" << std::endl;
 
@@ -649,7 +666,10 @@ namespace LWS {
 
         // Correct for drift with backprojection
         long bp_start = Utils::currentTimeMilliseconds();
-        step_size = LSBackprojectMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, step_size, multigrid, tree_root, 1e-2);
+        if (useBackproj) {
+            step_size = LSBackprojectMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients,
+            step_size, multigrid, tree_root, mg_tolerance);
+        }
         long bp_end = Utils::currentTimeMilliseconds();
         std::cout << "  Backprojection: " << (bp_end - bp_start) << " ms" << std::endl;
         std::cout << "  Final step size = " << step_size << std::endl;
@@ -659,6 +679,16 @@ namespace LWS {
 
         long all_end = Utils::currentTimeMilliseconds();
         std::cout << "  Total time: " << (all_end - all_start) << " ms" << std::endl;
+
+        if (perfLogEnabled) {
+            double bh_time = bh_end - bh_start;
+            double mg_time = mg_end - mg_setup_start;
+            double ls_time = ls_end - ls_start;
+            double bp_time = bp_end - bp_start;
+            double all_time = all_end - all_start;
+
+            perfFile << iterNum << ", " << bh_time << ", " << mg_time << ", " << ls_time << ", " << bp_time << ", " << all_time << std::endl;
+        }
 
         lastStepSize = step_size;
         return step_size > 0;

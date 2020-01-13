@@ -33,6 +33,8 @@ namespace LWS {
         ConstraintClassType constraint;
 
         void ReplaceCurve(PolyCurveNetwork* new_p);
+        void EnablePerformanceLog(std::string logFile);
+        void ClosePerformanceLog();
 
         void UpdateTargetLengths();
         void SetTotalLengthScaleTarget(double scale);
@@ -56,8 +58,8 @@ namespace LWS {
         bool StepNaive(double h);
         bool StepLS();
         bool StepLSConstrained();
-        bool StepSobolevLS(bool useBH);
-        bool StepSobolevLSIterative(double epsilon);
+        bool StepSobolevLS(bool useBH, bool useBackproj);
+        bool StepSobolevLSIterative(double epsilon, bool useBackproj);
 
         double ProjectGradient(Eigen::MatrixXd &gradients, Eigen::MatrixXd &A, Eigen::PartialPivLU<Eigen::MatrixXd> &lu);
         double ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients);
@@ -80,14 +82,22 @@ namespace LWS {
         template<typename Domain, typename Smoother>
         double BackprojectConstraintsMultigrid(Eigen::MatrixXd &gradient, MultigridHierarchy<Domain>* solver, double tol);
 
+        inline bool PerformanceLogEnabled() {
+            return perfLogEnabled;
+        }
+
         private:
+        bool perfLogEnabled;
+        std::ofstream perfFile;
         bool useEdgeLengthScale;
         bool useTotalLengthScale;
         double lengthScaleStep;
         int iterNum;
         double targetLength;
         double ls_step_threshold;
+        double mg_tolerance;
         double backproj_threshold;
+        double mg_backproj_threshold;
         double lastStepSize;
         PolyCurveNetwork* curveNetwork;
         Eigen::MatrixXd originalPositionMatrix;
@@ -136,6 +146,7 @@ namespace LWS {
         }
         // Add length violations to RHS
         double maxViolation = constraint.FillConstraintValues(phi, constraintTargets, 0);
+        std::cout << "  Constraint value = " << maxViolation << std::endl;
         return maxViolation;
     }
 
@@ -143,12 +154,9 @@ namespace LWS {
     double TPEFlowSolverSC::LSBackprojectMultigrid(Eigen::MatrixXd &gradient, double initGuess,
     MultigridHierarchy<Domain>* solver, BVHNode3D* root, double tol) {
         double delta = initGuess;
-        int nVerts = curveNetwork->NumVertices();
-        int nEdges = curveNetwork->NumEdges();
-        Eigen::MatrixXd correction(nVerts, 3);
         int attempts = 0;
 
-        while (delta > ls_step_threshold) {
+        while ((delta > ls_step_threshold || useEdgeLengthScale) && attempts < 10) {
             attempts++;
             SetGradientStep(gradient, delta);
             if (root) {
@@ -156,12 +164,9 @@ namespace LWS {
                 root->recomputeCentersOfMass(curveNetwork);
             }
 
-            Eigen::VectorXd phi(constraint.NumConstraintRows());
-
-            for (int c = 0; c < 1; c++) {
+            for (int c = 0; c < 2; c++) {
                 double maxViolation = BackprojectConstraintsMultigrid<Domain, Smoother>(gradient, solver, tol);
-
-                if (maxViolation < backproj_threshold) {
+                if (maxViolation < mg_backproj_threshold) {
                     std::cout << "Backprojection successful after " << attempts << " attempts" << std::endl;
                     std::cout << "Used " << (c + 1) << " Newton steps on successful attempt" << std::endl;
                     return delta;
@@ -169,14 +174,9 @@ namespace LWS {
             }
 
             delta /= 2;
-
-            if (attempts >= 3) {
-                std::cout << "Max number of backprojection attempts reached" << std::endl;
-                return delta;
-            }
         }
-
-        std::cout << "Couldn't make backprojection succeed (initial step " << initGuess << ")" << std::endl;
-        return 0;
+        std::cout << "Couldn't make backprojection succeed after " << attempts << " attempts (initial step " << initGuess << ")" << std::endl;
+        BackprojectConstraintsMultigrid<Domain, Smoother>(gradient, solver, tol);
+        return delta;
     }
 }

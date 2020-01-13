@@ -161,7 +161,7 @@ namespace LWS {
                 double residNorm = overallResidual.lpNorm<Eigen::Infinity>() / b.lpNorm<Eigen::Infinity>();
 
                 numIters++;
-                done = (residNorm < tolerance || numIters >= 25);
+                done = (residNorm < tolerance || numIters >= 20);
 
                 std::cerr << "  * [Iteration " << numIters << "] residual = " << residNorm << "     \r" << std::flush;
             }
