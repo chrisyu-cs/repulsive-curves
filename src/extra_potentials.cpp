@@ -159,6 +159,128 @@ namespace LWS {
         }
     }
 
+    VectorField::VectorField() {}
+    VectorField::~VectorField() {}
+    Vector3 VectorField::Sample(Vector3 x) {
+        return Vector3{0, 0, 0};
+    }
+    VertJacobian VectorField::SpatialDerivative(Vector3 x) {
+        return VertJacobian{Vector3{0, 0, 0}, Vector3{0, 0, 0}, Vector3{0, 0, 0}};
+    }
+
+    ConstantVectorField::ConstantVectorField(Vector3 v) {
+        c = v.normalize();
+    }
+
+    Vector3 ConstantVectorField::Sample(Vector3 x) {
+        return c;
+    }
+    
+    VertJacobian ConstantVectorField::SpatialDerivative(Vector3 x) {
+        return VertJacobian{Vector3{0, 0, 0}, Vector3{0, 0, 0}, Vector3{0, 0, 0}};
+    }
+
+    CircularVectorField::CircularVectorField() {}
+
+    Vector3 CircularVectorField::Sample(Vector3 x) {
+        if (x.x == 0 && x.z == 0) return Vector3{0, 0, 0};
+
+        Vector3 outward{x.x, 0, x.z};
+        outward.normalize();
+        Vector3 up{0, 1, 0};
+        Vector3 circle = cross(up, outward).normalize();
+        return circle;
+    }
+
+    VertJacobian CircularVectorField::SpatialDerivative(Vector3 x) {
+        Vector3 dir_x = dirDeriv(x, Vector3{1, 0, 0});
+        Vector3 dir_y = dirDeriv(x, Vector3{0, 1, 0});
+        Vector3 dir_z = dirDeriv(x, Vector3{0, 0, 1});
+        return VertJacobian{dir_x, dir_y, dir_z};
+    }
+
+    Vector3 CircularVectorField::dirDeriv(Vector3 x, Vector3 dir) {
+        Vector3 T = Sample(x);
+        double radius = x.norm();
+        double rate = dot(T, dir);
+        return (rate / radius) * -x.normalize();
+    }
+
+    VectorFieldPotential::VectorFieldPotential(double wt, VectorField* vf) {
+        weight = wt;
+        field = vf;
+    }
+
+    VectorFieldPotential::~VectorFieldPotential() {
+        delete field;
+    }
+
+    double VectorFieldPotential::CurrentValue(PolyCurveNetwork* curves) {
+        int nEdges = curves->NumEdges();
+        double sum = 0;
+
+        for (int i = 0; i < nEdges; i++) {
+            CurveEdge* e_i = curves->GetEdge(i);
+            Vector3 center = e_i->Midpoint();
+            Vector3 tangent = e_i->Tangent();
+            Vector3 vf = field->Sample(center);
+            Vector3 vxt = cross(vf, tangent);
+            sum += dot(vxt, vxt);
+        }
+
+        return sum * weight;
+    }
+
+    void VectorFieldPotential::AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient) {
+        int nEdges = curves->NumEdges();
+
+        for (int i = 0; i < nEdges; i++) {
+            CurveEdge* e_i = curves->GetEdge(i);
+            // Midpoint of edge
+            Vector3 center = e_i->Midpoint();
+            // Tangent at edge
+            Vector3 tangent = e_i->Tangent();
+            // Sample the vector field at edge midpoint
+            Vector3 vf = field->Sample(center);
+            Vector3 vxt = cross(vf, tangent);
+
+            // Cross product matrix from tangent
+            Eigen::Matrix3d Y_skw, T_skw, deriv_Y;
+            VertJacobian deriv_Y_J = field->SpatialDerivative(center);
+            CrossMatrix(vf, Y_skw);
+            deriv_Y_J.FillMatrix(deriv_Y);
+            CrossMatrix(tangent, T_skw);
+
+            CurveVertex* v_prev = e_i->prevVert;
+            CurveVertex* v_next = e_i->nextVert;
+
+            // Derivatives of lengths and trangents
+            VertJacobian ddx_t_prev_J = TPESC::edge_tangent_wrt_vert(e_i, v_prev);
+            VertJacobian ddx_t_next_J = TPESC::edge_tangent_wrt_vert(e_i, v_next);
+            Vector3 deriv_len_prev = TPESC::edge_length_wrt_vert(e_i, v_prev);
+            Vector3 deriv_len_next = TPESC::edge_length_wrt_vert(e_i, v_next);
+
+            // Transfer tangent Jacobians into Eigen 3x3 matrices
+            Eigen::Matrix3d ddx_t_prev, ddx_t_next;
+            ddx_t_prev_J.FillMatrix(ddx_t_prev);
+            ddx_t_next_J.FillMatrix(ddx_t_next);
+
+            // Transfer length gradients into Eigen 3-vectors
+            Eigen::Vector3d vxt_vec, ddx_len_prev, ddx_len_next;
+            vxt_vec(0) = vxt.x; vxt_vec(1) = vxt.y; vxt_vec(2) = vxt.z;
+            ddx_len_prev(0) = deriv_len_prev.x; ddx_len_prev(1) = deriv_len_prev.y; ddx_len_prev(2) = deriv_len_prev.z;
+            ddx_len_next(0) = deriv_len_next.x; ddx_len_next(1) = deriv_len_next.y; ddx_len_next(2) = deriv_len_next.z;
+
+            // Derivative of (norm cross product)^2 = (cross product) * (cross product)
+            Eigen::Vector3d deriv_prev = -2 * (Y_skw * ddx_t_prev - 0.5 * T_skw * deriv_Y) * vxt_vec;
+            Eigen::Vector3d deriv_next = -2 * (Y_skw * ddx_t_next - 0.5 * T_skw * deriv_Y) * vxt_vec;
+            double normcross2 = dot(vxt, vxt);
+            double len = e_i->Length();
+
+            gradient.row(v_prev->GlobalIndex()) += ((ddx_len_prev * normcross2) + (len * deriv_prev)) * weight;
+            gradient.row(v_next->GlobalIndex()) += ((ddx_len_next * normcross2) + (len * deriv_next)) * weight;
+        }
+    }
 
 
 }

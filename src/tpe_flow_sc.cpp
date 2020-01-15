@@ -25,6 +25,7 @@ namespace LWS {
 
         UpdateTargetLengths();
         useEdgeLengthScale = false;
+        useTotalLengthScale = false;
         perfLogEnabled = false;
     }
 
@@ -624,6 +625,7 @@ namespace LWS {
 
         lastStepSize = step_size;
         soboNormZero = (soboDot < 1e-4);
+
         return step_size > ls_step_threshold;
     }
 

@@ -21,6 +21,18 @@ namespace LWS {
         return sqrt(n2);
     }
 
+    void VertJacobian::FillMatrix(Eigen::Matrix3d &matrix) {
+        double values[9] = {directional_x.x, directional_y.x, directional_z.x, 
+        directional_x.y, directional_y.y, directional_z.y, 
+        directional_x.z, directional_y.z, directional_z.z};
+
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                matrix(i, j) = values[3 * i + j];
+            }
+        }
+    }
+
     Vector3 VertJacobian::RightMultiply(Vector3 v) {
         double x = directional_x.x * v.x + directional_y.x * v.y + directional_z.x * v.z;
         double y = directional_x.y * v.x + directional_y.y * v.y + directional_z.y * v.z;

@@ -48,6 +48,12 @@ namespace LWS {
         A(row, 2) += toAdd.z;
     }
 
+    inline void CrossMatrix(Vector3 &v, Eigen::Matrix3d &skw) {
+        skw(0, 0) = 0; skw(0, 1) = -v.z; skw(0, 2) = v.y;
+        skw(1, 0) = v.z; skw(1, 1) = 0; skw(1, 2) = -v.x;
+        skw(2, 0) = -v.y; skw(2, 1) = v.x; skw(2, 2) = 0;
+    }
+
     template<typename Matrix>
     inline void MatrixIntoVectorX3(Matrix &A, Eigen::VectorXd &v) {
         for (int i = 0; i < A.rows(); i++) {

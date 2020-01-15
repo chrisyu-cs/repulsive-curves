@@ -2,6 +2,7 @@
 
 #include <Eigen/Core>
 #include "poly_curve_network.h"
+#include "vert_jacobian.h"
 
 namespace LWS {
 
@@ -42,6 +43,43 @@ namespace LWS {
 
         private:
         double weight;
+    };
+
+    class VectorField {
+        public:
+        VectorField();
+        virtual ~VectorField();
+        virtual Vector3 Sample(Vector3 x);
+        virtual VertJacobian SpatialDerivative(Vector3 x);
+    };
+
+    class ConstantVectorField : public VectorField {
+        public:
+        ConstantVectorField(Vector3 v);
+        virtual Vector3 Sample(Vector3 x);
+        virtual VertJacobian SpatialDerivative(Vector3 x);
+        private:
+        Vector3 c;
+    };
+
+    class CircularVectorField : public VectorField {
+        public:
+        CircularVectorField();
+        virtual Vector3 Sample(Vector3 x);
+        virtual VertJacobian SpatialDerivative(Vector3 x);
+        private:
+        Vector3 dirDeriv(Vector3 x, Vector3 dir);
+    };
+
+    class VectorFieldPotential : public CurvePotential {
+        public:
+        VectorFieldPotential(double wt, VectorField* vf);
+        ~VectorFieldPotential();
+        virtual double CurrentValue(PolyCurveNetwork* curves);
+        virtual void AddGradient(PolyCurveNetwork* curves, Eigen::MatrixXd &gradient);
+        private:
+        double weight;
+        VectorField* field;
     };
 
     // class AreaPotential : public CurvePotential {

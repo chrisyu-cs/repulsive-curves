@@ -1,6 +1,7 @@
 #pragma once
 
 #include "geometrycentral/utilities/vector3.h"
+#include <Eigen/Core>
 
 namespace LWS {
     
@@ -17,6 +18,7 @@ namespace LWS {
         Vector3 LeftMultiply(Vector3 v);
         void Print();
         double Norm();
+        void FillMatrix(Eigen::Matrix3d &matrix);
 
         // Add two matrices
         friend VertJacobian operator+(const VertJacobian& a, const VertJacobian& b);

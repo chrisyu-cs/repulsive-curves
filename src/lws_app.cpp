@@ -565,8 +565,18 @@ namespace LWS {
           std::cerr << "Area potential is not implemented yet" << std::endl;
           break;
           case PotentialType::VectorField:
-          std::cerr << "Vector fields are not implemented yet" << std::endl;
-          exit(1);
+          if (data.extraInfo == "constant") {
+            std::cout << "Adding constant vector field potential (weight = " << data.weight << ")" << std::endl;
+            tpeSolver->potentials.push_back(new VectorFieldPotential(data.weight, new ConstantVectorField(Vector3{1, 0, 1})));
+          }
+          else if (data.extraInfo == "circular") {
+            std::cout << "Adding circular vector field potential (weight = " << data.weight << ")" << std::endl;
+            tpeSolver->potentials.push_back(new VectorFieldPotential(data.weight, new CircularVectorField()));
+          }
+          else {
+            std::cerr << "Invalid vector field " << data.extraInfo << std::endl;
+            exit(1);
+          }
           break;
         }
       }
