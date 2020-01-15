@@ -45,6 +45,7 @@ namespace LWS {
         std::vector<int> surfaceConstrainedVertices;
         bool pinSpecialVertices;
         bool pinSpecialTangents;
+        bool pinEndpointVertices;
         bool constrainEndpointsToSurface;
         bool constrainAllToSurface;
         int subdivideLimit;

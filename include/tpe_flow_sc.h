@@ -57,7 +57,7 @@ namespace LWS {
 
         bool StepNaive(double h);
         bool StepLS();
-        bool StepLSConstrained();
+        bool StepLSConstrained(bool useBH, bool useBackproj);
         bool StepSobolevLS(bool useBH, bool useBackproj);
         bool StepSobolevLSIterative(double epsilon, bool useBackproj);
 
@@ -85,6 +85,8 @@ namespace LWS {
         inline bool PerformanceLogEnabled() {
             return perfLogEnabled;
         }
+
+        bool soboNormZero;
 
         private:
         bool perfLogEnabled;
@@ -124,10 +126,11 @@ namespace LWS {
         // Solve PGPx = Pb using multigrid
         Eigen::VectorXd sobolevGradients = solver->template VCycleSolve<Smoother>(gradients3x, tol);
         // Compute dot product with unprojected gradient, and copy into results vector
-        double dirDot = gradients3x.dot(sobolevGradients) / (gradients3x.norm() * sobolevGradients.norm());
+        double soboDot = gradients3x.dot(sobolevGradients); 
+        // double dirDot = soboDot / (gradients3x.norm() * sobolevGradients.norm());
         output.setZero();
         VectorXdIntoMatrix(sobolevGradients, output);
-        return dirDot;
+        return soboDot;
     }
 
     template<typename Domain, typename Smoother>
@@ -153,6 +156,9 @@ namespace LWS {
     template<typename Domain, typename Smoother>
     double TPEFlowSolverSC::LSBackprojectMultigrid(Eigen::MatrixXd &gradient, double initGuess,
     MultigridHierarchy<Domain>* solver, BVHNode3D* root, double tol) {
+        if (initGuess == 0) {
+            return 0;
+        }
         double delta = initGuess;
         int attempts = 0;
 

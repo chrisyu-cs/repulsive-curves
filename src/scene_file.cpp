@@ -257,6 +257,19 @@ namespace LWS {
             }
         }
 
+        else if (key == "fix_endpoint_vertices") {
+            if (parts.size() == 1) {
+                if (!vectorContains(data.constraints, ConstraintType::Pins)) {
+                    data.constraints.push_back(ConstraintType::Pins);
+                }
+                data.pinEndpointVertices = true;
+            }
+            else {
+                std::cerr << "Incorrect arguments to fix_special_vertices" << std::endl;
+                exit(1);
+            }
+        }
+
         else if (key == "fix_special_tangents") {
             if (parts.size() == 1) {
                 if (!vectorContains(data.constraints, ConstraintType::TangentPins)) {
@@ -462,6 +475,7 @@ namespace LWS {
         sceneData.useTotalLengthScale = false;
         sceneData.pinSpecialTangents = false;
         sceneData.pinSpecialVertices = false;
+        sceneData.pinEndpointVertices = false;
         sceneData.constraintSurface = 0;
         sceneData.subdivideLimit = 0;
         sceneData.iterationLimit = 0;

@@ -20,7 +20,7 @@ namespace LWS {
 
         double averageLength = g->TotalLength();
         averageLength /= g->NumEdges();
-        mg_backproj_threshold = fmin(1e-4, averageLength * mg_tolerance / 10);
+        mg_backproj_threshold = fmin(1e-4, averageLength * mg_tolerance * 1e-2);
         std::cout << "Multigrid backprojection threshold set to " << mg_backproj_threshold << std::endl;
 
         UpdateTargetLengths();
@@ -176,7 +176,7 @@ namespace LWS {
         double initGuess = (gradNorm > 1) ? 1.0 / gradNorm : 1.0 / sqrt(gradNorm);
         // Use the step size from the previous iteration, if it exists
         if (!resetStep && lastStepSize > fmax(ls_step_threshold, 1e-5)) {
-            initGuess = fmin(lastStepSize * 1.5, initGuess * 16);
+            initGuess = fmin(lastStepSize * 1.5, initGuess * 4);
         }
         std::cout << "  Starting line search with initial guess " << initGuess << std::endl;
         return LineSearchStep(gradient, initGuess, 0, gradDot, root);
@@ -290,6 +290,9 @@ namespace LWS {
 
     double TPEFlowSolverSC::LSBackproject(Eigen::MatrixXd &gradient, double initGuess,
     Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, BVHNode3D* root) {
+        if (initGuess == 0) {
+            return 0;
+        }
         double delta = initGuess;
         int attempts = 0;
 
@@ -329,14 +332,15 @@ namespace LWS {
         return good_step;
     }
 
-    bool TPEFlowSolverSC::StepLSConstrained() {
+    bool TPEFlowSolverSC::StepLSConstrained(bool useBH, bool useBackproj) {
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
         // Compute gradient
         int nVerts = curveNetwork->NumVertices();
         Eigen::MatrixXd gradients(nVerts, 3);
         gradients.setZero();
-        // FillGradientVectorDirect(gradients);
-        AddAllGradients(0, gradients);
+        BVHNode3D *tree_root = 0;
+        if (useBH) tree_root = CreateBVHFromCurve(curveNetwork);
+        AddAllGradients(tree_root, gradients);
 
         // Set up saddle matrix
         Eigen::MatrixXd A;
@@ -361,12 +365,19 @@ namespace LWS {
 
         // Project gradient onto constraint differential
         ProjectSoboSloboGradient(lu, gradients);
-        double step_size = LineSearchStep(gradients);
+        double gradNorm = gradients.norm();
+        std::cout << "  Norm gradient = " << gradNorm << std::endl;
+        double step_size = LineSearchStep(gradients, 1, tree_root);
 
         // Backprojection
-        LSBackproject(gradients, step_size, lu, 1, 0);
+        if (useBackproj) {
+            step_size = LSBackproject(gradients, step_size, lu, 1, tree_root);
+        }
 
-        return (step_size > 0);
+        if (tree_root) delete tree_root;
+
+        soboNormZero = (gradNorm < 1e-4);
+        return (step_size > ls_step_threshold);
     }
 
     double TPEFlowSolverSC::ProjectSoboSloboGradient(Eigen::PartialPivLU<Eigen::MatrixXd> &lu, Eigen::MatrixXd &gradients) {
@@ -434,18 +445,13 @@ namespace LWS {
         ProjectSoboSloboGradient(lu, gradients);
         double factor_end = Utils::currentTimeMilliseconds();
 
-        double dot_acc = 0;
-        double norm_l2 = l2gradients.norm();
-        double norm_w2 = gradients.norm();
+        double soboDot = 0;
 
         for (int i = 0; i < gradients.rows(); i++) {
-            dot_acc += dot(SelectRow(l2gradients, i), SelectRow(gradients, i));
+            soboDot += dot(SelectRow(l2gradients, i), SelectRow(gradients, i));
         }
 
-        std::cout << "  Norm of gradient = " << dot_acc << std::endl;
-        double dir_dot = dot_acc / (norm_l2 * norm_w2);
-
-        return dir_dot;
+        return soboDot;
     }
 
     void TPEFlowSolverSC::GetSecondDerivative(SpatialTree* tree_root,
@@ -561,7 +567,6 @@ namespace LWS {
         double grad_end = Utils::currentTimeMilliseconds();
 
         std::cout << "  Assemble gradient " << (useBH ? "(Barnes-Hut)" : "(direct)") << ": " << (grad_end - grad_start) << " ms" << std::endl;
-
         std::cout << "  L2 gradient norm = " << l2Gradients.norm() << std::endl;
 
         double length1 = curveNetwork->TotalLength();
@@ -571,9 +576,11 @@ namespace LWS {
 
         long project_start = Utils::currentTimeMilliseconds();
         // Compute the Sobolev gradient
-        double dot_acc = ProjectGradient(vertGradients, A, lu);
+        double soboDot = ProjectGradient(vertGradients, A, lu);
         long project_end = Utils::currentTimeMilliseconds();
 
+        std::cout << "  Sobolev gradient norm = " << soboDot << std::endl;
+        double dot_acc = soboDot / (l2Gradients.norm() * vertGradients.norm());
         std::cout << "  Project gradient: " << (project_end - project_start) << " ms" << std::endl;
 
         /*
@@ -616,7 +623,8 @@ namespace LWS {
         std::cout << "Time = " << (end - start) << " ms" << std::endl;
 
         lastStepSize = step_size;
-        return step_size > 0;
+        soboNormZero = (soboDot < 1e-4);
+        return step_size > ls_step_threshold;
     }
 
     bool TPEFlowSolverSC::StepSobolevLSIterative(double epsilon, bool useBackproj) {
@@ -652,9 +660,11 @@ namespace LWS {
 
         // Use multigrid to compute the Sobolev gradient
         long mg_start = Utils::currentTimeMilliseconds();
-        double dot_acc = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients, mg_tolerance);
+        double soboDot = ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients, mg_tolerance);
+        double dot_acc = soboDot / (l2gradients.norm() * vertGradients.norm());
         long mg_end = Utils::currentTimeMilliseconds();
         std::cout << "  Multigrid solve: " << (mg_end - mg_start) << " ms" << std::endl;
+        std::cout << "  Sobolev gradient norm = " << soboDot << std::endl;
 
         // Take a line search step using this gradient
         long ls_start = Utils::currentTimeMilliseconds();
@@ -690,7 +700,9 @@ namespace LWS {
             perfFile << iterNum << ", " << bh_time << ", " << mg_time << ", " << ls_time << ", " << bp_time << ", " << all_time << std::endl;
         }
 
+        soboNormZero = (soboDot < 1e-4);
+
         lastStepSize = step_size;
-        return step_size > 0;
+        return step_size > ls_step_threshold;
     }
 }

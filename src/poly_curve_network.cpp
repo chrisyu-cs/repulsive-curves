@@ -136,6 +136,17 @@ namespace LWS {
         }
     }
 
+    void PolyCurveNetwork::PinAllEndpoints(bool includeTangents) {
+        for (CurveVertex* v : vertices) {
+            if (v->numEdges() == 1) {
+                PinVertex(v->id);
+                if (includeTangents) {
+                    PinTangent(v->id);
+                }
+            }
+        }
+    }
+
     void PolyCurveNetwork::PinVertex(int i) {
         // Add if not already pinned
         if (!pinnedSet.count(i)) {

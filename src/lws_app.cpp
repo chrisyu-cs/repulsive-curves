@@ -381,10 +381,14 @@ namespace LWS {
         }
       }
       else {
-        good_step = tpeSolver->StepLSConstrained();
+        good_step = tpeSolver->StepLSConstrained(LWSOptions::useBarnesHut, useBackproj);
       }
       
       UpdateCurvePositions();
+      if (tpeSolver->soboNormZero) {
+        std::cout << "Stopped because flow is (probably) near a local minimum." << std::endl;
+        LWSOptions::runTPE = false;
+      }
       if (!good_step) {
         numStuckIterations++;
         if (numStuckIterations >= 10 && tpeSolver->TargetLengthReached()) {
@@ -932,6 +936,11 @@ namespace LWS {
     if (data.pinSpecialVertices) {
       std::cout << "Pinning all special vertices" << std::endl;
       curves->PinAllSpecialVertices(data.pinSpecialTangents);
+    }
+
+    else if (data.pinEndpointVertices) {
+      std::cout << "Pinning all endpoint vertices" << std::endl;
+      curves->PinAllEndpoints(data.pinSpecialTangents);
     }
 
     if (data.constraintSurface) {

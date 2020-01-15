@@ -65,6 +65,7 @@ namespace LWS
         void PinTangent(int i);
         void PinToSurface(int i);
         void PinAllSpecialVertices(bool includeTangents);
+        void PinAllEndpoints(bool includeTangents);
         void PrintPins();
 
         bool pinnedAllToSurface;
