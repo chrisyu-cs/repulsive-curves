@@ -291,9 +291,6 @@ namespace LWS {
 
     double TPEFlowSolverSC::LSBackproject(Eigen::MatrixXd &gradient, double initGuess,
     Eigen::PartialPivLU<Eigen::MatrixXd> &lu, double gradDot, BVHNode3D* root) {
-        if (initGuess == 0) {
-            return 0;
-        }
         double delta = initGuess;
         int attempts = 0;
 
@@ -317,6 +314,7 @@ namespace LWS {
             delta /= 2;
         }
         std::cout << "Couldn't make backprojection succeed after " << attempts << " attempts (initial step " << initGuess << ")" << std::endl;
+        SetGradientStep(gradient, 0);
         BackprojectConstraints(lu);
         return delta;
     }
@@ -588,6 +586,11 @@ namespace LWS {
         long project_end = Utils::currentTimeMilliseconds();
 
         std::cout << "  Sobolev gradient norm = " << soboDot << std::endl;
+        if (__isnan(soboDot)) {
+            std::cout << "Sobolev projection produced NaN; aborting." << std::endl;
+            return false;
+        }
+
         double dot_acc = soboDot / (l2Gradients.norm() * vertGradients.norm());
         std::cout << "  Project gradient: " << (project_end - project_start) << " ms" << std::endl;
 

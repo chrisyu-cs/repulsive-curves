@@ -392,8 +392,8 @@ namespace LWS {
       }
       if (!good_step) {
         numStuckIterations++;
-        if (numStuckIterations >= 10 && tpeSolver->TargetLengthReached()) {
-          std::cout << "Stopped because flow is (probably) near a local minimum." << std::endl;
+        if (numStuckIterations >= 5 && tpeSolver->TargetLengthReached()) {
+          std::cout << "Stopped because flow hasn't made progress in a while." << std::endl;
           LWSOptions::runTPE = false;
         }
       }
@@ -515,6 +515,7 @@ namespace LWS {
     }
 
     // for (int i = 0; i < curves->NumVertices(); i++) {
+    //   if (curves->GetVertex(i)->numEdges() != 2) continue;
     //   Vector3 v1 = curves->GetVertex(i)->edge(0)->Vector().normalize();
     //   Vector3 v2 = curves->GetVertex(i)->edge(1)->Vector().normalize();
     //   if (fabs(dot(v1, v2)) < 0.999) {

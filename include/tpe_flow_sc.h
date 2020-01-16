@@ -156,9 +156,6 @@ namespace LWS {
     template<typename Domain, typename Smoother>
     double TPEFlowSolverSC::LSBackprojectMultigrid(Eigen::MatrixXd &gradient, double initGuess,
     MultigridHierarchy<Domain>* solver, BVHNode3D* root, double tol) {
-        if (initGuess == 0) {
-            return 0;
-        }
         double delta = initGuess;
         int attempts = 0;
 

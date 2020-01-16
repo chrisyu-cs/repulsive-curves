@@ -157,7 +157,7 @@ namespace LWS {
         
         triplets.push_back(Eigen::Triplet<double>(row + 1, col,     J.directional_x.y));
         triplets.push_back(Eigen::Triplet<double>(row + 1, col + 1, J.directional_y.y));
-        triplets.push_back(Eigen::Triplet<double>(row + 1, col + 2, J.directional_y.y));
+        triplets.push_back(Eigen::Triplet<double>(row + 1, col + 2, J.directional_z.y));
 
         triplets.push_back(Eigen::Triplet<double>(row + 2, col,     J.directional_x.z));
         triplets.push_back(Eigen::Triplet<double>(row + 2, col + 1, J.directional_y.z));
@@ -177,7 +177,7 @@ namespace LWS {
                 VertJacobian derivTangent = TPESC::vertex_tangent_wrt_vert(v, v_neighbor);
                 AddJacobianTriplets(triplets, derivTangent, rowStart + 3 * i, 3 * id);
             }
-            VertJacobian derivTangentCenter = TPESC::vertex_tangent_wrt_vert(v, v);
+            VertJacobian derivTangentCenter = -1 * TPESC::vertex_tangent_wrt_vert(v, v);
             AddJacobianTriplets(triplets, derivTangentCenter, rowStart + 3 * i, 3 * v->id);
 
         }
