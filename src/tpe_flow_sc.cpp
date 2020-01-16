@@ -321,16 +321,22 @@ namespace LWS {
         return delta;
     }
 
-    bool TPEFlowSolverSC::StepLS() {
+    bool TPEFlowSolverSC::StepLS(bool useBH) {
         int nVerts = curveNetwork->NumVertices();
         Eigen::MatrixXd gradients(nVerts, 3);
         gradients.setZero();
 
         // FillGradientVectorDirect(gradients);
-        AddAllGradients(0, gradients);
-        bool good_step = LineSearchStep(gradients);
+        BVHNode3D *tree_root = 0;
+        if (useBH) tree_root = CreateBVHFromCurve(curveNetwork);
+        AddAllGradients(tree_root, gradients);
+        double gradNorm = gradients.norm();
+        double step_size = LineSearchStep(gradients, 1, tree_root);
 
-        return good_step;
+        delete tree_root;
+        soboNormZero = (gradNorm < 1e-4);
+        lastStepSize = step_size;
+        return (step_size > ls_step_threshold);
     }
 
     bool TPEFlowSolverSC::StepLSConstrained(bool useBH, bool useBackproj) {
@@ -377,6 +383,7 @@ namespace LWS {
 
         if (tree_root) delete tree_root;
 
+        lastStepSize = step_size;
         soboNormZero = (gradNorm < 1e-4);
         return (step_size > ls_step_threshold);
     }

@@ -381,7 +381,8 @@ namespace LWS {
         }
       }
       else {
-        good_step = tpeSolver->StepLSConstrained(LWSOptions::useBarnesHut, useBackproj);
+        good_step = tpeSolver->StepLS(LWSOptions::useBarnesHut);
+        // good_step = tpeSolver->StepLSConstrained(LWSOptions::useBarnesHut, useBackproj);
       }
       
       UpdateCurvePositions();

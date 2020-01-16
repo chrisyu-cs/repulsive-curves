@@ -35,6 +35,7 @@ namespace LWS {
 
     PolyCurveNetwork::~PolyCurveNetwork() {
         CleanUpStructs();
+        if (constraintProjector) delete constraintProjector;
     }
 
     void PolyCurveNetwork::InitStructs(std::vector<std::array<size_t, 2>> &es) {
