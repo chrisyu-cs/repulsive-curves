@@ -575,6 +575,10 @@ namespace LWS {
             std::cout << "Adding circular vector field potential (weight = " << data.weight << ")" << std::endl;
             tpeSolver->potentials.push_back(new VectorFieldPotential(data.weight, new CircularVectorField()));
           }
+          else if (data.extraInfo == "interesting") {
+            std::cout << "Adding interesting vector field potential (weight = " << data.weight << ")" << std::endl;
+            tpeSolver->potentials.push_back(new VectorFieldPotential(data.weight, new InterestingVectorField()));
+          }
           else {
             std::cerr << "Invalid vector field " << data.extraInfo << std::endl;
             exit(1);

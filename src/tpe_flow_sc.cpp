@@ -563,16 +563,16 @@ namespace LWS {
         MoveLengthTowardsTarget();
 
         // Assemble gradient, either exactly or with Barnes-Hut
-        long grad_start = Utils::currentTimeMilliseconds();
+        long bh_start = Utils::currentTimeMilliseconds();
         BVHNode3D *tree_root = 0;
         if (useBH) tree_root = CreateBVHFromCurve(curveNetwork);
         AddAllGradients(tree_root, vertGradients);
         Eigen::MatrixXd l2Gradients = vertGradients;
 
         std::cout << "=== Iteration " << ++iterNum << " ===" << std::endl;
-        double grad_end = Utils::currentTimeMilliseconds();
+        double bh_end = Utils::currentTimeMilliseconds();
 
-        std::cout << "  Assemble gradient " << (useBH ? "(Barnes-Hut)" : "(direct)") << ": " << (grad_end - grad_start) << " ms" << std::endl;
+        std::cout << "  Assemble gradient " << (useBH ? "(Barnes-Hut)" : "(direct)") << ": " << (bh_end - bh_start) << " ms" << std::endl;
         std::cout << "  L2 gradient norm = " << l2Gradients.norm() << std::endl;
 
         double length1 = curveNetwork->TotalLength();
@@ -632,6 +632,17 @@ namespace LWS {
         std::cout << "Length " << length1 << " -> " << length2 << std::endl;
         long end = Utils::currentTimeMilliseconds();
         std::cout << "Time = " << (end - start) << " ms" << std::endl;
+
+
+        if (perfLogEnabled) {
+            double bh_time = bh_end - bh_start;
+            double mg_time = project_end - project_start;
+            double ls_time = ls_end - ls_start;
+            double bp_time = bp_end - bp_start;
+            double all_time = end - start;
+
+            perfFile << iterNum << ", " << bh_time << ", " << mg_time << ", " << ls_time << ", " << bp_time << ", " << all_time << std::endl;
+        }
 
         lastStepSize = step_size;
         soboNormZero = (soboDot < 1e-4);

@@ -206,6 +206,60 @@ namespace LWS {
         return (rate / radius) * -x.normalize();
     }
 
+    // Evaluates the gradient of the function f (defined above) at x
+    Vector3 gradF(Vector3 x)
+    {
+        return x.normalize(); // unit normal to the sphere
+    }
+
+
+    Vector3 gradGaussian(double a, double b, Vector3 c, Vector3 x)
+    {
+        Vector3 r = (x - c) / b;
+        return -2. * (a / (b * b)) * exp( -r.norm2() ) * (x - c);
+    }
+
+    // Evaluates a tangent vector field at x
+    Vector3 coolField(Vector3 x) {
+        // constants used to define the vector field (via a sum of Gaussians)
+        const int nTerms = 2;
+        double as[nTerms] = {0.33570404546960386, 0.6339815359591325}; // amplitudes
+        double bs[nTerms] = {0.45645123825263556, 0.39270985340263576}; // widths
+        double cxs[nTerms] = { 0.6127842849933675, -0.5468629255159502 }; // centers x
+        double cys[nTerms] = { -0.7513894319788624, -0.8331733676192284 }; // centers y
+        double czs[nTerms] = { 0.24476384858808273, 0.08223794857710300 }; // centers z
+
+        // get a vector by summing the gradient of Gaussians
+        Vector3 X{0., 0., 0.};
+        for( int i = 0; i < nTerms; i++ )
+        {
+            Vector3 csi{cxs[i], cys[i], czs[i]};
+            X += gradGaussian(as[i], bs[i], csi, x);
+        }
+
+        // project onto tangent space at x
+        Vector3 N = gradF(x).normalize(); // unit surface normal
+        X -= dot(X, N) * N;
+
+        // rotate by 90 degrees around normal
+        X = cross(X, N);
+
+        // normalize
+        X = X.normalize();
+
+        return X;
+    }
+
+    InterestingVectorField::InterestingVectorField() {}
+
+    Vector3 InterestingVectorField::Sample(Vector3 x) {
+        return coolField(x);
+    }
+
+    VertJacobian InterestingVectorField::SpatialDerivative(Vector3 x) {
+        return VertJacobian{Vector3{0, 0, 0}, Vector3{0, 0, 0}, Vector3{0, 0, 0}};
+    }
+
     VectorFieldPotential::VectorFieldPotential(double wt, VectorField* vf) {
         weight = wt;
         field = vf;
@@ -281,6 +335,4 @@ namespace LWS {
             gradient.row(v_next->GlobalIndex()) += ((ddx_len_next * normcross2) + (len * deriv_next)) * weight;
         }
     }
-
-
 }

@@ -71,6 +71,13 @@ namespace LWS {
         Vector3 dirDeriv(Vector3 x, Vector3 dir);
     };
 
+    class InterestingVectorField : public VectorField {
+        public:
+        InterestingVectorField();
+        virtual Vector3 Sample(Vector3 x);
+        virtual VertJacobian SpatialDerivative(Vector3 x);
+    };
+
     class VectorFieldPotential : public CurvePotential {
         public:
         VectorFieldPotential(double wt, VectorField* vf);
