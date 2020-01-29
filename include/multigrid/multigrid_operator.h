@@ -14,11 +14,7 @@ namespace LWS {
 
     enum class ProlongationMode {
         MatrixOnly,
-        MatrixAndProjector,
-        Barycenter,
-        Matrix3Only,
         Matrix3AndProjector,
-        Matrix3AndBarycenter,
         Matrix3AndEdgeConstraints
     };
     
