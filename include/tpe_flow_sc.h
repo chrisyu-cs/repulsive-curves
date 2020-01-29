@@ -5,7 +5,7 @@
 #include "spatial/tpe_bvh.h"
 #include "product/block_cluster_tree.h"
 
-#include "product/matrix_free.h"
+#include "multigrid/matrix_free.h"
 #include "multigrid/multigrid_hierarchy.h"
 #include "multigrid/constraint_projector_domain.h"
 #include "flow/gradient_constraint_enum.h"

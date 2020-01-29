@@ -1,6 +1,7 @@
 #pragma once
 
-#include "vector_multiplier.h"
+#include "multigrid/matrix_free.h"
+#include "multigrid/vector_multiplier.h"
 #include <vector>
 #include "Eigen/Dense"
 
@@ -42,5 +43,5 @@ namespace LWS {
         return v1.dot(A * v2);
     }
 
-    
+    using WrappedMatrix = Product::MatrixReplacement<DenseMatrixMult>;
 }

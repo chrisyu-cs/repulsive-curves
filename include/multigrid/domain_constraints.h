@@ -8,6 +8,7 @@ namespace LWS {
     template<typename T>
     class DomainConstraints {
         public:
+        // Should return how many 
         int NumConstraintRows() const {
             return static_cast<const T&>(*this).NumConstraintRows();
         }

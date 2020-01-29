@@ -2,7 +2,8 @@
 
 #include "../spatial/vertex_body.h"
 #include "../spatial/tpe_bvh.h"
-#include "vector_multiplier.h"
+#include "multigrid/matrix_free.h"
+#include "multigrid/vector_multiplier.h"
 #include "sobo_slobo.h"
 #include "multigrid/domain_constraints.h"
 #include "poly_curve_network.h"
@@ -449,4 +450,7 @@ namespace LWS {
         // Multiply B^T * phi (lagrange multipliers block)
         b.block(0, 0, B_start, 1) += B.transpose() * v.block(B_start, 0, nConstraints, 1);
     }
+
+    // Typedef for a matrix-free multiplier using hierarchical block cluster trees.
+    using HMatrix = Product::MatrixReplacement<BlockClusterTree>;
 }

@@ -2,7 +2,7 @@
 
 #include "multigrid_domain.h"
 #include "spatial/tpe_bvh.h"
-#include "product/matrix_free.h"
+#include "matrix_free.h"
 #include "product/dense_matrix.h"
 #include "constraint_projector_operator.h"
 

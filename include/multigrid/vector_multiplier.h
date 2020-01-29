@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-
 namespace LWS {
     template <typename T>
     class VectorMultiplier {
