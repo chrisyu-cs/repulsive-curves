@@ -4,7 +4,7 @@
 #include "tpe_energy_sc.h"
 #include "sobo_slobo.h"
 #include "poly_curve_network.h"
-#include "flow/gradient_constraints.h"
+#include "multigrid/domain_constraints.h"
 
 namespace LWS {
 
@@ -17,14 +17,14 @@ namespace LWS {
 
         template<typename T>
         Eigen::VectorXd DifferentiateRHS(Eigen::VectorXd &projectedGradient,
-            GradientConstraints<T> &constraints, Eigen::MatrixXd &A);
+            DomainConstraints<T> &constraints, Eigen::MatrixXd &A);
 
         template<typename T>
         Eigen::VectorXd SolveSecondDerivative(Eigen::VectorXd &projectedGradient,
-            GradientConstraints<T> &constraints, Eigen::MatrixXd &l2_dE, Eigen::MatrixXd &A);
+            DomainConstraints<T> &constraints, Eigen::MatrixXd &l2_dE, Eigen::MatrixXd &A);
 
         template<typename T>
-        double CircleSearchStep(Eigen::MatrixXd &projectedGradient, GradientConstraints<T> &constraints,
+        double CircleSearchStep(Eigen::MatrixXd &projectedGradient, DomainConstraints<T> &constraints,
             Eigen::MatrixXd &l2_dE, Eigen::MatrixXd &A, Eigen::VectorXd &constraintTargets);
 
         PolyCurveNetwork* curves;
@@ -52,7 +52,7 @@ namespace LWS {
 
     template<typename T>
     Eigen::VectorXd CircleSearch::SolveSecondDerivative(Eigen::VectorXd &projectedGradient,
-    GradientConstraints<T> &constraints, Eigen::MatrixXd &l2_dE, Eigen::MatrixXd &A) {
+    DomainConstraints<T> &constraints, Eigen::MatrixXd &l2_dE, Eigen::MatrixXd &A) {
         int nVerts = curves->NumVertices();
         auto lu = A.partialPivLu();
         Eigen::VectorXd rhs = DifferentiateRHS(projectedGradient, constraints, A);
@@ -67,14 +67,14 @@ namespace LWS {
     }
 
     template<typename T>
-    double CircleSearch::CircleSearchStep(Eigen::MatrixXd &projectedGradient, GradientConstraints<T> &constraints,
+    double CircleSearch::CircleSearchStep(Eigen::MatrixXd &projectedGradient, DomainConstraints<T> &constraints,
     Eigen::MatrixXd &l2_dE, Eigen::MatrixXd &A, Eigen::VectorXd &constraintTargets) {
         return 0;
     }
 
     template<typename T>
     Eigen::VectorXd CircleSearch::DifferentiateRHS(Eigen::VectorXd &projectedGradient,
-    GradientConstraints<T> &constraints, Eigen::MatrixXd &A) {
+    DomainConstraints<T> &constraints, Eigen::MatrixXd &A) {
         int nVerts = curves->NumVertices();
         int nEdges = curves->NumEdges();
 

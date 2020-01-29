@@ -1,7 +1,6 @@
 #pragma once
 
 #include "multigrid_domain.h"
-#include "geometrycentral/utilities/vector3.h"
 
 namespace LWS {
 

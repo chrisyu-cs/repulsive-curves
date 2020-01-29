@@ -1,5 +1,4 @@
 #include "circle_search.h"
-#include "flow/gradient_constraint_types.h"
 
 namespace LWS {
 

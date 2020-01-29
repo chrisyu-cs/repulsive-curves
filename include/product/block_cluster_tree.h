@@ -4,7 +4,7 @@
 #include "../spatial/tpe_bvh.h"
 #include "vector_multiplier.h"
 #include "sobo_slobo.h"
-#include "flow/gradient_constraints.h"
+#include "multigrid/domain_constraints.h"
 #include "poly_curve_network.h"
 #include "ThreadPool.h"
 
@@ -96,7 +96,7 @@ namespace LWS {
         void MultiplyWithConstraints3(V3 &v, Dest &b) const;
 
         template<typename T>
-        void SetConstraints(GradientConstraints<T> &constraints) {
+        void SetConstraints(DomainConstraints<T> &constraints) {
             constraints.FillConstraintMatrix(B);
             constraintsSet = true;
         }

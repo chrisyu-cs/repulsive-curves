@@ -2,12 +2,11 @@
 
 #include <Eigen/Core>
 #include <Eigen/Sparse>
-#include <iostream>
 
 namespace LWS {
     
     template<typename T>
-    class GradientConstraints {
+    class DomainConstraints {
         public:
         int NumConstraintRows() const {
             return static_cast<const T&>(*this).NumConstraintRows();

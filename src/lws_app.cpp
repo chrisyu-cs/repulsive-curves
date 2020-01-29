@@ -11,7 +11,7 @@
 #include "polyscope/curve_network.h"
 #include "product/test_matrices.h"
 #include "spatial/tpe_bvh.h"
-#include "multigrid/multigrid_domain.h"
+#include "multigrid/constraint_projector_domain.h"
 #include "multigrid/multigrid_hierarchy.h"
 #include "multigrid/nullspace_projector.h"
 

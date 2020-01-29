@@ -56,7 +56,7 @@ namespace LWS {
             double beta, Eigen::MatrixXd &A, double diagEps = 0);
 
         template<typename T>
-        static void Sobolev3XWithConstraints(PolyCurveNetwork* loop, GradientConstraints<T> &constraints,
+        static void Sobolev3XWithConstraints(PolyCurveNetwork* loop, DomainConstraints<T> &constraints,
             double alpha, double beta, Eigen::MatrixXd &A, double diagEps = 0);
         
         // Computes the inner product of the two given vectors, under the metric
@@ -73,7 +73,7 @@ namespace LWS {
         // Assemble the Df differential operator as a matrix
         static void DfMatrix(PolyCurveNetwork* loop, Eigen::MatrixXd &out);
 
-        // Map a scalar-valued function on vertices to a gradient-valued function on edges
+        // Map a scalar-valued function on vertices to a `-valued function on edges
         template<typename V, typename M>
         static void ApplyDf(PolyCurveNetwork* loop, V &as, M &out);
 
@@ -150,7 +150,7 @@ namespace LWS {
 
 
     template<typename T>
-    void SobolevCurves::Sobolev3XWithConstraints(PolyCurveNetwork* loop, GradientConstraints<T> &constraints,
+    void SobolevCurves::Sobolev3XWithConstraints(PolyCurveNetwork* loop, DomainConstraints<T> &constraints,
     double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
         int nRows = constraints.NumConstraintRows() + constraints.NumExpectedCols();
         A.setZero(nRows, nRows);

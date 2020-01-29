@@ -170,7 +170,7 @@ namespace LWS
 
         NullSpaceProjector* constraintProjector;
         template<typename T>
-        void AddConstraintProjector(GradientConstraints<T> &constraints) {
+        void AddConstraintProjector(DomainConstraints<T> &constraints) {
             if (constraintProjector) {
                 delete constraintProjector;
             }

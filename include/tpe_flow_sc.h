@@ -7,7 +7,7 @@
 
 #include "product/matrix_free.h"
 #include "multigrid/multigrid_hierarchy.h"
-#include "flow/gradient_constraint_types.h"
+#include "multigrid/constraint_projector_domain.h"
 #include "flow/gradient_constraint_enum.h"
 
 #include "obstacles/obstacle.h"

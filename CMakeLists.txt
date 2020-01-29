@@ -83,7 +83,6 @@ set(SRCS
   src/applications/pathplanning.cpp
   src/flow/constraint_functions.cpp
   src/flow/gradient_constraint_enum.cpp
-  src/flow/gradient_constraint_types.cpp
   src/marchingcubes/CIsoSurface.cpp
   src/marchingcubes/Vectors.cpp
   src/obstacles/obstacle.cpp

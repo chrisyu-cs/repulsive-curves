@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gradient_constraints.h"
+#include "multigrid/domain_constraints.h"
 
 namespace LWS {
     enum class ConstraintType {
@@ -11,7 +11,7 @@ namespace LWS {
     int NumRowsForConstraint(ConstraintType type, PolyCurveNetwork* curve);
     std::string NameOfConstraint(ConstraintType type);
 
-    class VariableConstraintSet : public GradientConstraints<VariableConstraintSet> {
+    class VariableConstraintSet : public DomainConstraints<VariableConstraintSet> {
         private:
         PolyCurveNetwork* curves;
 
