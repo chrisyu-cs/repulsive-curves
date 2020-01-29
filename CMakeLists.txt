@@ -74,7 +74,6 @@ set(SRCS
   src/lws_app.cpp
   src/lws_options.cpp
   src/poly_curve_network.cpp
-  src/multigrid/multigrid_operator.cpp
   src/scene_file.cpp
   src/sobo_slobo.cpp
   src/tpe_energy_sc.cpp

@@ -233,8 +233,12 @@ namespace LWS {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 2;
 
-      std::vector<MultigridOperator> ops(logNumVerts);
+      std::vector<MultigridOperator*> ops(logNumVerts);
       std::vector<PolyCurveNetwork*> ps(logNumVerts);
+
+      for (size_t i = 0; i < ops.size(); i++) {
+        ops[i] = new MatrixProjectorOperator();
+      }
 
       ps[0] = curves;
 
@@ -257,81 +261,6 @@ namespace LWS {
 
     if (ImGui::Button("Export implicit surface")) {
       WriteImplicitSurface();
-    }
-
-    if (ImGui::Button("Test 3x saddle")) {
-      // Get the TPE gradient as a test problem
-      int nVerts = curves->NumVertices();
-      int logNumVerts = log2(nVerts) - 5;
-      std::cout << "Using " << logNumVerts << " levels" << std::endl;
-
-      tpeSolver->SetExponents(3, 6);
-
-      long setupStart = Utils::currentTimeMilliseconds();
-      LWS::BVHNode3D* tree = CreateBVHFromCurve(curves);
-      Eigen::MatrixXd gradients;
-      gradients.setZero(nVerts, 3);
-      tpeSolver->FillGradientVectorBH(tree, gradients);
-
-      using TestDomain = EdgeLengthNullProjectorDomain;
-      TestDomain* domain = new TestDomain(curves, 3, 6, 0.5);
-
-      // Reshape the V x 3 matrix into a 3V x 1 vector
-      Eigen::VectorXd gradientsLong(domain->NumRows());
-      gradientsLong.setZero();
-      MatrixIntoVectorX3(gradients, gradientsLong);
-
-      EdgeLengthConstraint constraint(curves);
-      Eigen::SparseMatrix<double> B;
-      constraint.FillConstraintMatrix(B);
-
-      Eigen::VectorXd gradientOrig = gradientsLong;
-
-      if (domain->GetMode() == ProlongationMode::Matrix3AndProjector) {
-          gradientsLong = curves->constraintProjector->ProjectToNullspace(gradientsLong);
-      }
-
-      long setupEnd = Utils::currentTimeMilliseconds();
-      std::cout << "Setup time = " << (setupEnd - setupStart) << " ms" << std::endl;
-
-      // Multigrid solve
-      long multigridStart = Utils::currentTimeMilliseconds();
-      MultigridHierarchy<TestDomain>* hierarchy = new MultigridHierarchy<TestDomain>(domain, logNumVerts);
-      std::cout << "Created hierarchy" << std::endl;
-      Eigen::VectorXd sol = hierarchy->VCycleSolve<MultigridHierarchy<TestDomain>::EigenCG>(gradientsLong, 1e-2);
-      long multigridEnd = Utils::currentTimeMilliseconds();
-      std::cout << "Multigrid time = " << (multigridEnd - multigridStart) << " ms" << std::endl;
-
-      std::cout << "Well-separated cluster time (total) = " << domain->tree->wellSepTime << " ms" << std::endl;
-      std::cout << "Ill-separated cluster time (total) = " << domain->tree->illSepTime << " ms" << std::endl;
-
-      // Direct solve
-      long directStart = Utils::currentTimeMilliseconds();
-      Eigen::VectorXd ref_sol = domain->DirectSolve(gradientOrig);
-      long directEnd = Utils::currentTimeMilliseconds();
-      std::cout << "Direct time = " << (directEnd - directStart) << " ms" << std::endl;
-      Eigen::VectorXd diff = ref_sol - sol;
-
-      Eigen::VectorXd constrValues = B * sol.block(0, 0, B.cols(), 1);
-      Eigen::VectorXd ref_constrValues = B * ref_sol.block(0, 0, B.cols(), 1);
-
-      std::cout << "Final constraint violation = " << constrValues.lpNorm<Eigen::Infinity>() << std::endl;
-      std::cout << "Reference constraint violation = " << ref_constrValues.lpNorm<Eigen::Infinity>() << std::endl;
-
-      Eigen::MatrixXd comp(sol.rows(), 2);
-      comp.col(0) = sol;
-      comp.col(1) = ref_sol;
-
-      std::cout << "Reference norm = " << ref_sol.norm() << std::endl;
-      std::cout << "Multigrid norm = " << sol.norm() << std::endl;
-      std::cout << "Difference norm = " << diff.norm() << std::endl;
-      std::cout << "Multigrid error from ground truth = " << 100 * (diff.norm() / ref_sol.norm()) << " percent" << std::endl;
-
-      double dot = sol.normalized().dot(ref_sol.normalized());
-      std::cout << "Dot product between directions = " << dot << std::endl;
-
-      delete tree;
-      delete hierarchy;
     }
 
     if (ImGui::Button("Output frame")) {

@@ -10,7 +10,7 @@ namespace LWS {
         public:
         using Mult = typename T::MultType;
         std::vector<MultigridDomain<T, Mult>*> levels;
-        std::vector<MultigridOperator> prolongationOps;
+        std::vector<MultigridOperator*> prolongationOps;
 
         MultigridHierarchy(MultigridDomain<T, Mult>* topLevel, size_t numLevels) {
             AddLevels(topLevel, numLevels);
@@ -27,6 +27,10 @@ namespace LWS {
             for (size_t i = 0; i < levels.size(); i++) {
                 delete levels[i];
             }
+
+            for (size_t i = 0; i < prolongationOps.size(); i++) {
+                delete prolongationOps[i];
+            }
         }
 
         void AddLevels(MultigridDomain<T, Mult>* topLevel, size_t numLevels) {
@@ -38,7 +42,7 @@ namespace LWS {
 
         void AddNextLevel() {
             MultigridDomain<T, Mult>* lastLevel = levels[levels.size() - 1];
-            MultigridOperator prolongOp;
+            MultigridOperator* prolongOp = lastLevel->MakeNewOperator();
             MultigridDomain<T, Mult>* nextLevel = lastLevel->Coarsen(prolongOp);
 
             prolongationOps.push_back(prolongOp);
@@ -54,7 +58,7 @@ namespace LWS {
         }
 
         template<typename Smoother>
-        Eigen::VectorXd VCycleInitGuess(Eigen::VectorXd b, ProlongationMode mode, std::vector<Product::MatrixReplacement<Mult>> &hMatrices) {
+        Eigen::VectorXd VCycleInitGuess(Eigen::VectorXd b, std::vector<Product::MatrixReplacement<Mult>> &hMatrices) {
             int numLevels = levels.size();
             Eigen::VectorXd coarseB = b;
 
@@ -63,7 +67,7 @@ namespace LWS {
 
             // Propagate RHS downward
             for (int i = 0; i < numLevels - 1; i++) {
-                coarseB = prolongationOps[i].restrictWithTranspose(coarseB, mode);
+                coarseB = prolongationOps[i]->restrictWithTranspose(coarseB);
                 coarseBs[i + 1] = coarseB;
             }
 
@@ -71,7 +75,7 @@ namespace LWS {
 
             // Propagate solution upward
             for (int i = numLevels - 2; i >= 0; i--) {
-                sol = prolongationOps[i].prolong(sol, mode);
+                sol = prolongationOps[i]->prolong(sol);
                 Smoother smoother;
                 smoother.compute(hMatrices[i]);
                 smoother.setMaxIterations(24);
@@ -87,8 +91,6 @@ namespace LWS {
         // Solve Gx = b, where G is the Sobolev Gram matrix of the top-level curve.
         template<typename Smoother>
         Eigen::VectorXd VCycleSolve(Eigen::VectorXd b, double tolerance) {
-            ProlongationMode mode = levels[0]->GetMode();
-
             int numLevels = levels.size();
             std::vector<Eigen::VectorXd> residuals(numLevels);
             std::vector<Eigen::VectorXd> solutions(numLevels);
@@ -104,7 +106,7 @@ namespace LWS {
             bool done = false;
             int numIters = 0;
 
-            Eigen::VectorXd initGuess = VCycleInitGuess<Smoother>(b, mode, hMatrices);
+            Eigen::VectorXd initGuess = VCycleInitGuess<Smoother>(b, hMatrices);
             Eigen::VectorXd initResidual = b - hMatrices[0] * initGuess;
             double initRelative = initResidual.lpNorm<Eigen::Infinity>() / b.lpNorm<Eigen::Infinity>();
             // std::cout << "Initial residual = " << initRelative << std::endl;
@@ -137,7 +139,7 @@ namespace LWS {
                     // On the next level, the right-hand side becomes the restricted    
                     // residual from this level.
                     Eigen::VectorXd resid_i = residuals[i] - hMatrices[i] * solutions[i];
-                    residuals[i + 1] = prolongationOps[i].restrictWithTranspose(resid_i, mode);
+                    residuals[i + 1] = prolongationOps[i]->restrictWithTranspose(resid_i);
                 }
 
                 // Assemble full operator on sparsest curve and solve normally
@@ -153,7 +155,7 @@ namespace LWS {
                     smoother.setMaxIterations(12);
                     // Compute the new initial guess -- old solution from this level, plus
                     // new solution from prolongation operator
-                    Eigen::VectorXd guess = solutions[i] + prolongationOps[i].prolong(solutions[i + 1], mode);
+                    Eigen::VectorXd guess = solutions[i] + prolongationOps[i]->prolong(solutions[i + 1]);
                     solutions[i] = smoother.solveWithGuess(residuals[i], guess);
                 }
 

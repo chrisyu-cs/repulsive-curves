@@ -303,7 +303,7 @@ namespace LWS {
         return p;
     }
 
-    PolyCurveNetwork* PolyCurveNetwork::Coarsen(MultigridOperator &op, bool doEdgeMatrix) {
+    PolyCurveNetwork* PolyCurveNetwork::Coarsen(MultigridOperator* op, bool doEdgeMatrix) {
         Eigen::SparseMatrix<double> prolongMatrix, edgeMatrix;
         int nEdges = NumEdges();
         // Determine which vertices should be kept and which shouldn't
@@ -397,7 +397,7 @@ namespace LWS {
 
         prolongMatrix.resize(vertices.size(), coarseCount);
         prolongMatrix.setFromTriplets(triplets.begin(), triplets.end());
-        op.matrices.push_back(IndexedMatrix{prolongMatrix, 0, 0});
+        op->matrices.push_back(IndexedMatrix{prolongMatrix, 0, 0});
         
         // Assemble the edge prolongation operator
         std::vector<Eigen::Triplet<double>> edgeTriplets;
@@ -456,7 +456,7 @@ namespace LWS {
         if (doEdgeMatrix) {
             edgeMatrix.resize(edges.size(), coarseEdges.size());
             edgeMatrix.setFromTriplets(edgeTriplets.begin(), edgeTriplets.end());
-            op.edgeMatrices.push_back(IndexedMatrix{edgeMatrix, 0, 0});
+            op->edgeMatrices.push_back(IndexedMatrix{edgeMatrix, 0, 0});
         }
 
         std::vector<int> vertCounts(coarseCount);
@@ -469,8 +469,8 @@ namespace LWS {
         // Get the coarsened positions
         Eigen::MatrixXd coarsePosMat = ApplyPinv(prolongMatrix, positions);
         PolyCurveNetwork* p = new PolyCurveNetwork(coarsePosMat, coarseEdges);
-        op.lowerSize = p->NumVertices();
-        op.upperSize = NumVertices();
+        op->lowerSize = p->NumVertices();
+        op->upperSize = NumVertices();
 
         // Pin corresponding vertices in the coarsened curve
         for (int pin : pinnedVertices) {
