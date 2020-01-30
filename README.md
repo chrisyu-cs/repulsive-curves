@@ -1,28 +1,31 @@
-# gc-polyscope-project-template
-A template project to get started with geometry-central and Polyscope.
+# Repulsive Curves
+Christopher Yu, Henrik Schumacher, Keenan Crane
+SIGGRAPH 2020 (submitted)
 
-TODO instructions for IDEs and Windows
+## Quick setup instructions
 
-TODO this repo is set up as a template, but it seems the submodules don't get copied to the new project?
-
-### Get the code
-Clone the project 
+First, clone the project and all its dependencies:
 ```
-git clone --recursive https://github.com/nmwsharp/gc-polyscope-project-template.git
+git clone --recursive https://github.com/icethrush/self-avoiding-flow.git
 ```
 
-### Build the code
-
-Configure (with cmake) and compile
+If the recursive flag was not used to clone, then one can also get the dependencies by running:
 ```
-cd gc-polyscope-project-template
+git submodule update --init --recursive
+```
+
+From there, the project can be built using CMake:
+```
+cd self-avoiding-flow
 mkdir build
 cd build
 cmake ..
-make -j6
+make -j4
 ```
 
-### Run the code
+The code can then be run:
 ```
-./bin/gc_project /path/to/a/mesh
+./bin/lws path/to/scene.txt
 ```
+
+Note that the file `scene.txt` has a particular format that describes where to find the curve data, as well as what constraints will be used. See FORMATS.md for details.
