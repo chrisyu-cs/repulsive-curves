@@ -67,7 +67,20 @@ namespace LWS {
         void GetSecondDerivative(SpatialTree* tree_root, Eigen::MatrixXd &projected1, double epsilon, Eigen::MatrixXd &secondDeriv);
 
         template<typename Domain, typename Smoother>
-        void BackprojectMultigrid(MultigridHierarchy<Domain>* solver, PolyCurveNetwork* curveNetwork, Eigen::VectorXd &phi, Eigen::MatrixXd &output, double tol);
+        inline void BackprojectMultigrid(MultigridHierarchy<Domain>* solver, PolyCurveNetwork* curveNetwork, Eigen::VectorXd &phi, Eigen::MatrixXd &output, double tol) {
+            int nRows = solver->NumRows();
+            // Flatten the gradient matrix into a long vector
+            Eigen::VectorXd B_pinv_phi(nRows);
+            curveNetwork->constraintProjector->ApplyBPinv(phi, B_pinv_phi);
+            Product::MatrixReplacement<typename Domain::MultType> multiplier(solver->GetTopLevelMultiplier(), nRows);
+            Eigen::VectorXd GB_phi = multiplier * B_pinv_phi;
+            // Solve Gv = b by solving PGPv = Pb
+            GB_phi = curveNetwork->constraintProjector->ProjectToNullspace(GB_phi);
+            Eigen::VectorXd v = solver->template VCycleSolve<Smoother>(GB_phi, tol);
+            v = B_pinv_phi - v;
+            VectorXdIntoMatrix(v, output);
+        }
+
         template<typename Domain, typename Smoother>
         double ProjectGradientMultigrid(Eigen::MatrixXd &gradients, MultigridHierarchy<Domain>* solver, Eigen::MatrixXd &output, double tol);
         template<typename Domain, typename Smoother>
@@ -137,21 +150,6 @@ namespace LWS {
     }
 
     template<typename Domain, typename Smoother>
-    void BackprojectMultigrid(MultigridHierarchy<Domain>* solver, PolyCurveNetwork* curveNetwork, Eigen::VectorXd &phi, Eigen::MatrixXd &output, double tol) {
-        int nRows = solver->NumRows();
-        // Flatten the gradient matrix into a long vector
-        Eigen::VectorXd B_pinv_phi(nRows);
-        curveNetwork->constraintProjector->ApplyBPinv(phi, B_pinv_phi);
-        Product::MatrixReplacement<typename Domain::MultType> multiplier(solver->GetTopLevelMultiplier(), nRows);
-        Eigen::VectorXd GB_phi = multiplier * B_pinv_phi;
-        // Solve Gv = b by solving PGPv = Pb
-        GB_phi = curveNetwork->constraintProjector->ProjectToNullspace(GB_phi);
-        Eigen::VectorXd v = solver->template VCycleSolve<Smoother>(GB_phi, tol);
-        v = B_pinv_phi - v;
-        VectorXdIntoMatrix(v, output);
-    }
-
-    template<typename Domain, typename Smoother>
     double TPEFlowSolverSC::BackprojectConstraintsMultigrid(Eigen::MatrixXd &gradient, MultigridHierarchy<Domain>* solver, double tol) {
         int nVerts = curveNetwork->NumVertices();
         Eigen::VectorXd phi(constraint.NumConstraintRows());
@@ -159,7 +157,7 @@ namespace LWS {
         correction.setZero();
         constraint.FillConstraintValues(phi, constraintTargets, 0);
         // Compute and apply the correction
-        BackprojectMultigrid<Domain, Smoother>(solver, curveNetwork, phi, correction, tol);
+        this->template BackprojectMultigrid<Domain, Smoother>(solver, curveNetwork, phi, correction, tol);
         for (int i = 0; i < nVerts; i++) {
             CurveVertex* p = curveNetwork->GetVertex(i);
             Vector3 cur = p->Position();
