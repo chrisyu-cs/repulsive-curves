@@ -9,7 +9,7 @@
 namespace LWS {
 
     template<typename Constraint>
-    class ConstraintProjectorDomain : public MultigridDomain<ConstraintProjectorDomain<Constraint>, BlockClusterTree> {
+    class ConstraintProjectorDomain : public MultigridDomain<BlockClusterTree> {
         public:
         PolyCurveNetwork* curves;
         BVHNode3D* bvh;
@@ -47,7 +47,7 @@ namespace LWS {
             delete bvh;
         }
 
-        MultigridDomain<ConstraintProjectorDomain<Constraint>, BlockClusterTree>* Coarsen(MultigridOperator* prolongOp) const {
+        virtual MultigridDomain<BlockClusterTree>* Coarsen(MultigridOperator* prolongOp) const {
             PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
             ConstraintProjectorDomain<Constraint>* coarseDomain = new ConstraintProjectorDomain<Constraint>(coarsened, alpha, beta, sepCoeff, epsilon);
             prolongOp->lowerP = coarseDomain->GetConstraintProjector();
@@ -56,17 +56,17 @@ namespace LWS {
             return coarseDomain;
         }
 
-        BlockClusterTree* GetMultiplier() const {
+        virtual BlockClusterTree* GetMultiplier() const {
             return tree;
         }
 
-        Eigen::MatrixXd GetFullMatrix() const {
+        virtual Eigen::MatrixXd GetFullMatrix() const {
             Eigen::MatrixXd A;
             SobolevCurves::Sobolev3XWithConstraints<Constraint>(curves, alpha, beta, A);
             return A;
         }
 
-        Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
+        virtual Eigen::VectorXd DirectSolve(Eigen::VectorXd &b) const {
             int fullRows = constraint.SaddleNumRows();
             int constraintRows = constraint.NumConstraintRows();
 
@@ -79,19 +79,19 @@ namespace LWS {
             return b_aug.block(0, 0, b.rows(), 1);
         }
 
-        int NumVertices() const {
+        virtual int NumVertices() const {
             return nVerts;
         }
 
-        int NumRows() const {
+        virtual int NumRows() const {
             return 3 * nVerts;
         }
 
-        MultigridOperator* MakeNewOperator() const {
+        virtual MultigridOperator* MakeNewOperator() const {
             return new MatrixProjectorOperator();
         }
 
-        NullSpaceProjector* GetConstraintProjector() const {
+        virtual NullSpaceProjector* GetConstraintProjector() const {
             return curves->constraintProjector;
         }
     };

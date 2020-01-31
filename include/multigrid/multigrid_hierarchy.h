@@ -9,14 +9,14 @@ namespace LWS {
     class MultigridHierarchy {
         public:
         using Mult = typename Domain::MultType;
-        std::vector<MultigridDomain<Domain, Mult>*> levels;
+        std::vector<MultigridDomain<Mult>*> levels;
         std::vector<MultigridOperator*> prolongationOps;
 
-        MultigridHierarchy(MultigridDomain<Domain, Mult>* topLevel, size_t numLevels) {
+        MultigridHierarchy(MultigridDomain<Mult>* topLevel, size_t numLevels) {
             AddLevels(topLevel, numLevels);
         }
 
-        MultigridHierarchy(MultigridDomain<Domain, Mult>* topLevel) {
+        MultigridHierarchy(MultigridDomain<Mult>* topLevel) {
             int nVerts = topLevel->NumVertices();
             int logNumVerts = log2(nVerts) - 4;
             logNumVerts = std::max(1, logNumVerts);
@@ -33,7 +33,7 @@ namespace LWS {
             }
         }
 
-        void AddLevels(MultigridDomain<Domain, Mult>* topLevel, size_t numLevels) {
+        void AddLevels(MultigridDomain<Mult>* topLevel, size_t numLevels) {
             levels.push_back(topLevel);
             while (levels.size() < numLevels) {
                 AddNextLevel();
@@ -41,9 +41,9 @@ namespace LWS {
         }
 
         void AddNextLevel() {
-            MultigridDomain<Domain, Mult>* lastLevel = levels[levels.size() - 1];
+            MultigridDomain<Mult>* lastLevel = levels[levels.size() - 1];
             MultigridOperator* prolongOp = lastLevel->MakeNewOperator();
-            MultigridDomain<Domain, Mult>* nextLevel = lastLevel->Coarsen(prolongOp);
+            MultigridDomain<Mult>* nextLevel = lastLevel->Coarsen(prolongOp);
 
             prolongationOps.push_back(prolongOp);
             levels.push_back(nextLevel);
