@@ -101,5 +101,6 @@ set(SRCS
 # To change the name of your executable, change "gc_project" in the lines below to whatever you want
 add_executable(lws "${SRCS}")
 target_include_directories(lws PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
+target_include_directories(lws PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/libgmultigrid/include/")
 target_link_libraries(lws geometry-central polyscope)
 

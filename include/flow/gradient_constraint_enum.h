@@ -1,6 +1,6 @@
 #pragma once
 
-#include "multigrid/domain_constraints.h"
+#include "libgmultigrid/domain_constraints.h"
 
 namespace LWS {
     enum class ConstraintType {

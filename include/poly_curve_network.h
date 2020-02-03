@@ -4,7 +4,7 @@
 #include "geometrycentral/utilities/vector3.h"
 #include "Eigen/Core"
 #include "utils.h"
-#include "multigrid/multigrid_operator.h"
+#include "libgmultigrid/multigrid_operator.h"
 #include <unordered_set>
 #include "flow/gradient_constraint_enum.h"
 #include "implicit_surface.h"

@@ -4,7 +4,7 @@
 #include "tpe_energy_sc.h"
 #include "sobo_slobo.h"
 #include "poly_curve_network.h"
-#include "multigrid/domain_constraints.h"
+#include "libgmultigrid/domain_constraints.h"
 
 namespace LWS {
 

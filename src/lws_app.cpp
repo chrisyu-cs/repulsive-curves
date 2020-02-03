@@ -12,8 +12,8 @@
 #include "product/test_matrices.h"
 #include "spatial/tpe_bvh.h"
 #include "multigrid/constraint_projector_domain.h"
-#include "multigrid/multigrid_hierarchy.h"
-#include "multigrid/nullspace_projector.h"
+#include "libgmultigrid/multigrid_hierarchy.h"
+#include "libgmultigrid/nullspace_projector.h"
 
 #include "poly_curve_network.h"
 #include "obstacles/mesh_obstacle.h"

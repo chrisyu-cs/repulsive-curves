@@ -1,6 +1,6 @@
 #pragma once
 
-#include "multigrid_operator.h"
+#include "libgmultigrid/multigrid_operator.h"
 
 namespace LWS {
 

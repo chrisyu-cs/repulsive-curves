@@ -2,10 +2,10 @@
 
 #include "../spatial/vertex_body.h"
 #include "../spatial/tpe_bvh.h"
-#include "multigrid/matrix_free.h"
-#include "multigrid/vector_multiplier.h"
+#include "libgmultigrid/matrix_free.h"
+#include "libgmultigrid/vector_multiplier.h"
 #include "sobo_slobo.h"
-#include "multigrid/domain_constraints.h"
+#include "libgmultigrid/domain_constraints.h"
 #include "poly_curve_network.h"
 #include "ThreadPool.h"
 

@@ -6,3 +6,6 @@
 	path = deps/polyscope
 	url = https://github.com/nmwsharp/polyscope.git
 	branch = master
+[submodule "deps/libgmultigrid"]
+	path = deps/libgmultigrid
+	url = git@github.com:icethrush/libgmultigrid.git

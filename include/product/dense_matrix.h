@@ -1,7 +1,7 @@
 #pragma once
 
-#include "multigrid/matrix_free.h"
-#include "multigrid/vector_multiplier.h"
+#include "libgmultigrid/matrix_free.h"
+#include "libgmultigrid/vector_multiplier.h"
 #include <vector>
 #include "Eigen/Dense"
 
