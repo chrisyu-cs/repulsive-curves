@@ -9,4 +9,3 @@
 [submodule "deps/libgmultigrid"]
 	path = deps/libgmultigrid
 	url = https://github.com/icethrush/libgmultigrid.git
-	branch = master
