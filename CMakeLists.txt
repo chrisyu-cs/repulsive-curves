@@ -22,7 +22,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STR
 
   # using Clang (linux or apple) or GCC
   message("Using clang/gcc compiler flags")
-  SET(BASE_CXX_FLAGS "-std=c++11 -Wall -Wextra -Werror -g3")
+  SET(BASE_CXX_FLAGS "-std=c++11 -Wall -Wextra -Werror -g3 -fPIC")
   SET(DISABLED_WARNINGS " -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations -Wno-missing-braces -Wno-unused-private-field")
   SET(TRACE_INCLUDES " -H -Wno-error=unused-command-line-argument")
 
@@ -71,7 +71,6 @@ set(SRCS
   src/curve_io.cpp
   src/extra_potentials.cpp
   src/implicit_surface.cpp
-  src/lws_app.cpp
   src/lws_options.cpp
   src/poly_curve_network.cpp
   src/scene_file.cpp
@@ -98,9 +97,21 @@ set(SRCS
 	# add any other source files here
 )
 
-# To change the name of your executable, change "gc_project" in the lines below to whatever you want
-add_executable(lws "${SRCS}")
-target_include_directories(lws PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
-target_include_directories(lws PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/libgmultigrid/include/")
-target_link_libraries(lws geometry-central polyscope)
+# add_executable(rcurves_app src/lws_app.cpp "${SRCS}")
+# target_include_directories(rcurves_app PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
+# target_include_directories(rcurves_app PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/libgmultigrid/include/")
+# target_link_libraries(rcurves_app geometry-central polyscope)
+
+add_library(rcurves STATIC "${SRCS}")
+target_include_directories(rcurves PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
+target_include_directories(rcurves PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/libgmultigrid/include/")
+target_link_libraries(rcurves geometry-central polyscope)
+target_compile_options(rcurves PUBLIC -fvisibility=hidden)
+
+add_executable(rcurves_app src/lws_app.cpp)
+target_link_libraries(rcurves_app rcurves)
+
+add_library(rcurves_shared SHARED src/export/mvproduct.cpp)
+target_link_libraries(rcurves_shared rcurves)
+target_compile_options(rcurves_shared PUBLIC -fvisibility=default)
 

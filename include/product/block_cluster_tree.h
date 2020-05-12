@@ -67,21 +67,6 @@ namespace LWS {
         template<typename V, typename Dest>
         void MultiplyVector(V &v, Dest &b) const;
 
-        // Multiplies the inadmissible clusters for A * v, storing it in b.
-        void MultiplyInadmissible(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int startIndex, int endIndex) const;
-        void MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
-        void MultiplyAdmissibleFast(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
-        // Multiplies the admissible clusters for A * v, storing it in b.
-        void MultiplyAdmissible(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
-        void MultiplyAdmissibleExact(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
-
-        // Same, but for low-order term.
-        void MultiplyAdmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
-        void MultiplyAdmissibleLowFast(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
-        void MultiplyAdmissibleLowExact(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
-        void MultiplyInadmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int startIndex, int endIndex) const;
-        void MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
-
         // Multiplies A * v, where v holds a vector3 at each vertex in a flattened column,
         //  and stores it in b.
         template<typename V3, typename Dest>
@@ -145,6 +130,21 @@ namespace LWS {
         static int nThreads;
 
         private:
+        // Multiplies the inadmissible clusters for A * v, storing it in b.
+        void MultiplyInadmissible(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int startIndex, int endIndex) const;
+        void MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
+        void MultiplyAdmissibleFast(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
+        // Multiplies the admissible clusters for A * v, storing it in b.
+        void MultiplyAdmissible(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
+        void MultiplyAdmissibleExact(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
+
+        // Same, but for low-order term.
+        void MultiplyAdmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
+        void MultiplyAdmissibleLowFast(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
+        void MultiplyAdmissibleLowExact(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
+        void MultiplyInadmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int startIndex, int endIndex) const;
+        void MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
+
         Eigen::VectorXd Af_1, Af_1_low;
         BlockTreeMode mode;
         int nVerts;
