@@ -1,0 +1,9 @@
+curve curve.obj
+repel_curve 3 6
+fix_special_vertices
+fix_special_tangents
+optimize_length 0.5 
+iteration_limit 65
+fix_vertex 33
+fix_vertex 97
+

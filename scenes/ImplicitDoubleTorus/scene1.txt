@@ -1,0 +1,9 @@
+curve on-torus1.obj
+repel_curve 3 6
+fix_edgelengths
+# fix_barycenter
+subdivide_limit 5
+constraint_surface doubletorus
+constrain_all
+iteration_limit 80
+

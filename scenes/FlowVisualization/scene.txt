@@ -1,0 +1,6 @@
+curve curves2x.obj
+repel_curve 3 6
+# fix_edgelengths
+constraint_surface sphere
+constrain_all
+optimize_field interesting 500

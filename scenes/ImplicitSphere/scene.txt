@@ -1,0 +1,9 @@
+curve squiggle-on-sphere.obj
+repel_curve 3 6
+fix_edgelengths 10
+# fix_barycenter
+constraint_surface sphere
+constrain_all
+subdivide_limit 2
+iteration_limit 400
+

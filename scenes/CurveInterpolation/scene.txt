@@ -1,0 +1,13 @@
+curve loop.obj
+repel_curve 4 8
+optimize_length 5
+optimize_length_diffs 10000
+fix_vertex 62 
+fix_vertex 94
+fix_vertex 126
+fix_vertex 158
+fix_vertex 222
+fix_vertex 254
+fix_vertex 286
+fix_vertex 318
+

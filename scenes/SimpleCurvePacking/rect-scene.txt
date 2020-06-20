@@ -1,0 +1,8 @@
+curve square-loop.obj
+repel_curve 3 6
+fix_barycenter
+fix_edgelengths 60
+subdivide_limit 5
+iteration_limit 600
+repel_surface rectangle.obj 1
+

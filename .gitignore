@@ -4,6 +4,7 @@ loops/
 models/
 __pycache__
 *.png
+*.ini
 
 # Build directories
 build/

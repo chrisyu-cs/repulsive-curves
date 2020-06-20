@@ -1,0 +1,8 @@
+curve graph-sampled.obj
+repel_curve 3 6
+fix_barycenter
+fix_edgelengths
+constraint_surface yplane
+constrain_all
+iteration_limit 100
+

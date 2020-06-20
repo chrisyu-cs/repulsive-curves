@@ -1,0 +1,9 @@
+curve InitialLoop.obj
+repel_curve 3 6
+union_type smooth
+constraint_surface torus 0 0 0 1 0.5
+constraint_surface torus 3 0 0 1 0.5
+constrain_all
+fix_edgelengths 0.76
+iteration_limit 300
+

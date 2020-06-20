@@ -1,0 +1,9 @@
+curve curves.obj
+repel_curve 3 6
+repel_surface arm-12k.obj 0.003
+fix_edgelengths
+constraint_surface sphere 1.6 0 0.6 0.5
+constraint_surface sphere -1.56 0 0.36 0.45
+constraint_surface sphere -1.17 0 2.74 0.25
+constrain_endpoints
+iteration_limit 40

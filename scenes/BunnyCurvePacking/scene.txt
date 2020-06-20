@@ -1,0 +1,11 @@
+curve circle.obj
+repel_curve 3 6
+repel_surface bunny.obj
+fix_barycenter
+# fix_vertex 1
+fix_edgelengths 90
+subdivide_limit 5
+iteration_limit 700
+
+
+

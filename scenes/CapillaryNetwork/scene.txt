@@ -1,0 +1,7 @@
+curve two-networks.obj
+repel_curve 3 6
+fix_endpoint_vertices
+fix_edgelengths
+repel_surface hand-tri.obj 1
+
+

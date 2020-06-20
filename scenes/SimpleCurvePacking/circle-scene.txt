@@ -1,0 +1,8 @@
+curve square-loop-smaller.obj
+repel_curve 3 6
+fix_barycenter
+fix_edgelengths 45
+subdivide_limit 5
+iteration_limit 600
+repel_surface round-cup.obj 1
+

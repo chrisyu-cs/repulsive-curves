@@ -1,0 +1,9 @@
+curve flat-circles.obj
+repel_curve 3 6
+repel_surface bear-outline.obj 0.25
+fix_barycenter
+fix_edgelengths 1.5
+constraint_surface yplane
+constrain_all
+iteration_limit 200
+

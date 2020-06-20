@@ -1,0 +1,8 @@
+curve rings.obj
+repel_curve 3 6
+repel_surface bunny.obj
+fix_barycenter
+fix_edgelengths 120
+subdivide_limit 6
+iteration_limit 800
+

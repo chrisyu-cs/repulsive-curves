@@ -145,11 +145,13 @@ namespace LWS {
 
     ImGuiIO& io = ImGui::GetIO();
 
-    ImGui::Begin("Hull settings", &LWSOptions::showWindow);
+    ImGui::Begin("Curve options", &LWSOptions::showWindow);
 
-    if (io.KeysDown[(int)' '] && io.KeysDownDurationPrev[(int)' '] == 0) {
-      cout << "space bar" << endl;
-    }
+    // if (io.KeysDown[(int)' '] && io.KeysDownDurationPrev[(int)' '] == 0) {
+    //   cout << "space bar" << endl;
+    // }
+
+    /*
 
     ImGui::LabelText("Current step", "%d", currentStep);
     ImGui::InputInt("Step limit", &stepLimit);
@@ -258,6 +260,7 @@ namespace LWS {
     if (ImGui::Button("Slice path planning")) {
       Applications::SampleAndWritePaths(curves, 1000, "path-planning.obj");
     }
+    */
 
     if (ImGui::Button("Export implicit surface")) {
       WriteImplicitSurface();
@@ -275,10 +278,10 @@ namespace LWS {
     ImGui::SameLine(160);
     ImGui::Checkbox("Output OBJs", &writeOBJs);
     
-    ImGui::Checkbox("Log performance", &perfLogging);
-    if (perfLogging && !tpeSolver->PerformanceLogEnabled()) {
-      tpeSolver->EnablePerformanceLog("performance_" + curveName + ".csv");
-    }
+    // ImGui::Checkbox("Log performance", &perfLogging);
+    // if (perfLogging && !tpeSolver->PerformanceLogEnabled()) {
+    //   tpeSolver->EnablePerformanceLog("performance_" + curveName + ".csv");
+    // }
 
     bool buttonStepTPE = ImGui::Button("Single TPE step");
 

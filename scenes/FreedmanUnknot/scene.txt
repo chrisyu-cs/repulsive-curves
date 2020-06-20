@@ -1,0 +1,5 @@
+curve freedmancurve600.obj
+repel_curve 2 4.5
+fix_edgelengths
+fix_barycenter
+
