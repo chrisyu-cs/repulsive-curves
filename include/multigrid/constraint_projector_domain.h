@@ -91,7 +91,7 @@ namespace LWS {
             return new MatrixProjectorOperator();
         }
 
-        virtual NullSpaceProjector* GetConstraintProjector() const {
+        NullSpaceProjector* GetConstraintProjector() const {
             return curves->constraintProjector;
         }
     };

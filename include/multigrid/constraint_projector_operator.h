@@ -4,9 +4,15 @@
 
 namespace LWS {
 
+    struct IndexedMatrix {
+        Eigen::SparseMatrix<double> M;
+        int fineOffset;
+        int coarseOffset;
+    };
+    
     class MatrixProjectorOperator : public MultigridOperator {
         public:
-        
+
         int lowerSize;
         int upperSize;
         NullSpaceProjector* lowerP;
