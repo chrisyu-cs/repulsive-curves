@@ -303,7 +303,7 @@ namespace LWS {
         return p;
     }
 
-    PolyCurveNetwork* PolyCurveNetwork::Coarsen(MultigridOperator* op, bool doEdgeMatrix) {
+    PolyCurveNetwork* PolyCurveNetwork::Coarsen(MatrixProjectorOperator* op, bool doEdgeMatrix) {
         Eigen::SparseMatrix<double> prolongMatrix, edgeMatrix;
         int nEdges = NumEdges();
         // Determine which vertices should be kept and which shouldn't

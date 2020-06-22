@@ -2,7 +2,4 @@
 
 namespace LWS {
 
-    DenseMatrixMult::DenseMatrixMult(Eigen::MatrixXd mat) {
-        A = mat;
-    }
 }

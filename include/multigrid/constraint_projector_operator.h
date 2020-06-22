@@ -6,6 +6,14 @@ namespace LWS {
 
     class MatrixProjectorOperator : public MultigridOperator {
         public:
+        
+        int lowerSize;
+        int upperSize;
+        NullSpaceProjector* lowerP;
+        NullSpaceProjector* upperP;
+        
+        std::vector<IndexedMatrix> matrices;
+        std::vector<IndexedMatrix> edgeMatrices;
 
         template<typename V, typename Dest>
         void prolongVerts3X(V &in, Dest &out) {

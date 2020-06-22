@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include "flow/gradient_constraint_enum.h"
 #include "implicit_surface.h"
+#include "multigrid/constraint_projector_operator.h"
 
 namespace LWS
 {
@@ -166,7 +167,7 @@ namespace LWS
         double TotalLength();
         Vector3 AreaVector();
         PolyCurveNetwork* Subdivide();
-        PolyCurveNetwork* Coarsen(MultigridOperator* op, bool doEdgeMatrix = false);
+        PolyCurveNetwork* Coarsen(MatrixProjectorOperator* op, bool doEdgeMatrix = false);
 
         NullSpaceProjector* constraintProjector;
         template<typename T>

@@ -235,7 +235,7 @@ namespace LWS {
       int nVerts = curves->NumVertices();
       int logNumVerts = log2(nVerts) - 2;
 
-      std::vector<MultigridOperator*> ops(logNumVerts);
+      std::vector<Operator*> ops(logNumVerts);
       std::vector<PolyCurveNetwork*> ps(logNumVerts);
 
       for (size_t i = 0; i < ops.size(); i++) {

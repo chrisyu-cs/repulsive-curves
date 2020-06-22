@@ -2,7 +2,6 @@
 
 #include "../spatial/vertex_body.h"
 #include "../spatial/tpe_bvh.h"
-#include "libgmultigrid/matrix_free.h"
 #include "libgmultigrid/vector_multiplier.h"
 #include "sobo_slobo.h"
 #include "libgmultigrid/domain_constraints.h"
@@ -54,10 +53,6 @@ namespace LWS {
         void PrintData();
         void PrintAdmissibleClusters(std::ofstream &stream);
         void PrintInadmissibleClusters(std::ofstream &stream);
-
-        // Dot product of v1 and v2 using the Gram matrix represented by this tree.
-        template<typename V>
-        double DotProduct(V &v1, V &v2);
 
         // Multiplies v and stores in b. Dispatches to the specific multiplication case below.
         template<typename V, typename Dest>
@@ -254,14 +249,6 @@ namespace LWS {
         }
     }
 
-    template<typename V>
-    double BlockClusterTree::DotProduct(V &v1, V &v2) {
-        Eigen::VectorXd G_v2;
-        G_v2.setZero(v2.rows());
-        Multiply(v2, G_v2);
-        return v1.dot(G_v2);
-    }
-
     template<typename V, typename Dest>
     void BlockClusterTree::Multiply(V &v, Dest &b) const {
         if (mode == BlockTreeMode::MatrixOnly) {
@@ -450,7 +437,4 @@ namespace LWS {
         // Multiply B^T * phi (lagrange multipliers block)
         b.block(0, 0, B_start, 1) += B.transpose() * v.block(B_start, 0, nConstraints, 1);
     }
-
-    // Typedef for a matrix-free multiplier using hierarchical block cluster trees.
-    using HMatrix = Product::MatrixReplacement<BlockClusterTree>;
 }

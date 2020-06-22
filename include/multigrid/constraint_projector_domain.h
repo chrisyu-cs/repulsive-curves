@@ -9,7 +9,7 @@
 namespace LWS {
 
     template<typename Constraint>
-    class ConstraintProjectorDomain : public MultigridDomain<BlockClusterTree> {
+    class ConstraintProjectorDomain : public MultigridDomain<BlockClusterTree, MatrixProjectorOperator> {
         public:
         PolyCurveNetwork* curves;
         BVHNode3D* bvh;
@@ -47,7 +47,7 @@ namespace LWS {
             delete bvh;
         }
 
-        virtual MultigridDomain<BlockClusterTree>* Coarsen(MultigridOperator* prolongOp) const {
+        virtual MultigridDomain<BlockClusterTree, MatrixProjectorOperator>* Coarsen(MatrixProjectorOperator* prolongOp) const {
             PolyCurveNetwork* coarsened = curves->Coarsen(prolongOp);
             ConstraintProjectorDomain<Constraint>* coarseDomain = new ConstraintProjectorDomain<Constraint>(coarsened, alpha, beta, sepCoeff, epsilon);
             prolongOp->lowerP = coarseDomain->GetConstraintProjector();
@@ -87,7 +87,7 @@ namespace LWS {
             return 3 * nVerts;
         }
 
-        virtual MultigridOperator* MakeNewOperator() const {
+        virtual MatrixProjectorOperator* MakeNewOperator() const {
             return new MatrixProjectorOperator();
         }
 
