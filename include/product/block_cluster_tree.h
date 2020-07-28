@@ -341,7 +341,8 @@ namespace LWS {
         int nEdges = curves->NumEdges();
         Eigen::MatrixXd v_hat(nEdges, 3);
         v_hat.setZero();
-        Eigen::MatrixXd v_mid = v_hat;
+        Eigen::VectorXd v_mid(nEdges);
+        v_mid.setZero();
 
         // Set up input and outputs for metric
         SobolevCurves::ApplyDf(curves, v, v_hat);
