@@ -1,7 +1,9 @@
-curve two-networks.obj
+# curve two-networks.obj
+curve two-networks-high.obj
 repel_curve 3 6
 fix_endpoint_vertices
 fix_edgelengths
 repel_surface hand-tri.obj 1
+iteration_limit 130
 
 
