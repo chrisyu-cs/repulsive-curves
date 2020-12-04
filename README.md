@@ -1,6 +1,6 @@
 # Repulsive Curves
 Christopher Yu, Henrik Schumacher, Keenan Crane
-SIGGRAPH 2020 (submitted)
+ACM Transactions on Graphics 2020 (accepted)
 
 ## Quick setup instructions
 
@@ -28,6 +28,8 @@ The code can then be run:
 ```
 ./bin/rcurves_app path/to/scene.txt
 ```
+
+For best performance, you should make sure that OpenMP is supported on your system.
 
 Note that the file `scene.txt` has a particular format that describes where to find the curve data, as well as what constraints will be used. See `scenes/FORMATS.md` for details.
 
