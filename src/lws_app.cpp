@@ -288,7 +288,7 @@ namespace LWS {
 
     ImGui::Checkbox("Use Sobolev", &LWSOptions::useSobolev);
     ImGui::SameLine(160);
-    ImGui::Checkbox("Use backprjection", &useBackproj);
+    ImGui::Checkbox("Project constraints", &useBackproj);
     ImGui::Checkbox("Use Barnes-Hut", &LWSOptions::useBarnesHut);
     ImGui::SameLine(160);
     ImGui::Checkbox("Use multigrid", &LWSOptions::useMultigrid);
