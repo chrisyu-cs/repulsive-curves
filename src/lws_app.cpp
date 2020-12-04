@@ -7,6 +7,7 @@
 #include "lws_app.h"
 #include "polyscope/gl/ground_plane.h"
 #include "utils.h"
+#include <omp.h>
 
 #include "polyscope/curve_network.h"
 #include "product/test_matrices.h"
@@ -951,6 +952,11 @@ void customWindow() {
 
 
 int main(int argc, char** argv) {
+  int default_threads = omp_get_max_threads();
+  int used_threads = default_threads / 2 + 2;
+  omp_set_num_threads(used_threads);
+  std::cout << "OMP autodetected " << default_threads << " max threads; using " << used_threads << std::endl;
+
   // Configure the argument parser
   args::ArgumentParser parser("An optimizer for self-avoiding curve energies.",
                               "");

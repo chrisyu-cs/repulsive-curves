@@ -1,5 +1,6 @@
 #include "spatial/tpe_bvh.h"
 #include <algorithm>
+#include <omp.h>
 
 namespace LWS {
 

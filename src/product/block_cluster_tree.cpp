@@ -1,6 +1,7 @@
 #include "product/block_cluster_tree.h"
 #include "utils.h"
 
+#include <omp.h>
 #include <thread>
 #include <fstream>
 #include <sstream>
@@ -12,11 +13,6 @@ namespace LWS {
     long BlockClusterTree::illSepTime = 0;
     long BlockClusterTree::wellSepTime = 0;
     long BlockClusterTree::traversalTime = 0;
-
-    // Set up thread pool here, since we need it for premultiplying Af
-    int nMachineThreads = std::thread::hardware_concurrency();
-    int BlockClusterTree::nThreads = std::max( 2, nMachineThreads );
-    progschj::ThreadPool* BlockClusterTree::threadpool = new progschj::ThreadPool(nThreads);
 
     BlockClusterTree::BlockClusterTree(PolyCurveNetwork* cg, BVHNode3D* tree, double sepCoeff, double a, double b, double e) {
         curves = cg;
@@ -152,23 +148,17 @@ namespace LWS {
 
     void BlockClusterTree::sum_AIJ_VJ_Parallel() const {
         // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
+        #pragma omp parallel for shared(admissibleByCluster)
         for (size_t i = 0; i < admissibleByCluster.size(); i++) {
             if (admissibleByCluster[i].size() > 0) {
-                auto multiply = [&, i]() {
-                    for (auto &pair : admissibleByCluster[i]) {
-                        double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta,
-                            pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
-                            pair.cluster1->averageTangent, pair.cluster2->averageTangent);
-                        pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
-                    }
-                };
-                threadpool->enqueue(multiply);
-                // multiply();
+                for (auto &pair : admissibleByCluster[i]) {
+                    double a_IJ = SobolevCurves::MetricDistanceTerm(alpha, beta,
+                        pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
+                        pair.cluster1->averageTangent, pair.cluster2->averageTangent);
+                    pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
+                }
             }
         }
-        
-        threadpool->wait_until_empty();
-        threadpool->wait_until_nothing_in_flight();
     }
 
     void BlockClusterTree::sum_AIJ_VJ_Low() const {
@@ -187,23 +177,17 @@ namespace LWS {
 
     void BlockClusterTree::sum_AIJ_VJ_Low_Parallel() const {
         // First accumulate the sums of a_IJ * V_J from admissible cluster pairs
+        #pragma omp parallel for shared(admissibleByCluster)
         for (size_t i = 0; i < admissibleByCluster.size(); i++) {
             if (admissibleByCluster[i].size() > 0) {
-                auto multiply = [&, i]() {
-                    for (auto &pair : admissibleByCluster[i]) {
-                        double a_IJ = SobolevCurves::MetricDistanceTermLow(alpha, beta,
-                            pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
-                            pair.cluster1->averageTangent, pair.cluster2->averageTangent);
-                        pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
-                    }
-                };
-                threadpool->enqueue(multiply);
-                // multiply();
+                for (auto &pair : admissibleByCluster[i]) {
+                    double a_IJ = SobolevCurves::MetricDistanceTermLow(alpha, beta,
+                        pair.cluster1->centerOfMass, pair.cluster2->centerOfMass,
+                        pair.cluster1->averageTangent, pair.cluster2->averageTangent);
+                    pair.cluster1->aIJ_VJ += a_IJ * pair.cluster2->V_I;
+                }
             }
         }
-
-        threadpool->wait_until_empty();
-        threadpool->wait_until_nothing_in_flight();
     }
 
     void BlockClusterTree::MultiplyAdmissible(Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
@@ -264,94 +248,36 @@ namespace LWS {
     }
 
     void BlockClusterTree::MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const {
-        int nPairs = inadmissiblePairs.size();
-        // How many would be left if we rounded down to the nearest multiple of nThreads
-        int leftovers = nPairs % nThreads;
-        std::vector<int> counts(nThreads);
-        // Split into nThreads roughly equal groups
-        for (int i = 0; i < nThreads; i++) {
-            counts[i] = nPairs / nThreads;
-            // Add the extras from rounding down, so that the totals match up
-            if (i < leftovers) counts[i]++;
-        }
-
-        std::vector<Eigen::VectorXd> out_bs(nThreads);
-
-        for (int i = 0; i < nThreads; i++) {
-            out_bs[i].setZero(b_mid.rows());
-        }
-
-        // std::vector<std::thread> threads;
-
-        int startIndex = 0;
-        for (int i = 0; i < nThreads; i++) {
-            int endIndex = startIndex + counts[i];
-            
-            auto multiply = [&, i, startIndex, endIndex]() {
-                MultiplyInadmissibleLow(v_mid, out_bs[i], startIndex, endIndex);
-            };
-            // threads.push_back(std::thread(multiply));
-            threadpool->enqueue(multiply);
-
-            startIndex = endIndex;
-        }
-
-        // for (int i = 0; i < nThreads; i++) {
-        //     threads[i].join();
-        // }
-        threadpool->wait_until_empty();
-        threadpool->wait_until_nothing_in_flight();
-
-        // Add up all the result vectors
-        b_mid = out_bs[0];
-        for (int i = 1; i < nThreads; i++) {
-            b_mid += out_bs[i];
+        Eigen::VectorXd partialOutput = b_mid;
+        partialOutput.setZero();
+        
+        #pragma omp parallel firstprivate(partialOutput) shared(v_mid, b_mid, inadmissiblePairs)
+        {
+            #pragma omp for
+            for (size_t i = 0; i < inadmissiblePairs.size(); i++) {
+                AfFullProductLow(inadmissiblePairs[i], v_mid, partialOutput);
+            }
+            #pragma omp critical
+            {
+                b_mid += partialOutput;
+            }
         }
     }
 
     void BlockClusterTree::MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const {
-        int nPairs = inadmissiblePairs.size();
-        // How many would be left if we rounded down to the nearest multiple of nThreads
-        int leftovers = nPairs % nThreads;
-        std::vector<int> counts(nThreads);
-        // Split into nThreads roughly equal groups
-        for (int i = 0; i < nThreads; i++) {
-            counts[i] = nPairs / nThreads;
-            // Add the extras from rounding down, so that the totals match up
-            if (i < leftovers) counts[i]++;
-        }
+        Eigen::MatrixXd partialOutput = b_hat;
+        partialOutput.setZero();
 
-        std::vector<Eigen::MatrixXd> out_bs(nThreads);
-
-        for (int i = 0; i < nThreads; i++) {
-            out_bs[i].setZero(b_hat.rows(), b_hat.cols());
-        }
-
-        // std::vector<std::thread> threads;
-
-        int startIndex = 0;
-        for (int i = 0; i < nThreads; i++) {
-            int endIndex = startIndex + counts[i];
-            
-            auto multiply = [&, i, startIndex, endIndex]() {
-                MultiplyInadmissible(v_hat, out_bs[i], startIndex, endIndex);
-            };
-            // threads.push_back(std::thread(multiply));
-            threadpool->enqueue(multiply);
-
-            startIndex = endIndex;
-        }
-
-        // for (int i = 0; i < nThreads; i++) {
-        //     threads[i].join();
-        // }
-        threadpool->wait_until_empty();
-        threadpool->wait_until_nothing_in_flight();
-
-        // Add up all the result vectors
-        b_hat = out_bs[0];
-        for (int i = 1; i < nThreads; i++) {
-            b_hat += out_bs[i];
+        #pragma omp parallel firstprivate(partialOutput) shared(v_hat, b_hat, inadmissiblePairs)
+        {
+            #pragma omp for
+            for (size_t i = 0; i < inadmissiblePairs.size(); i++) {
+                AfFullProduct(inadmissiblePairs[i], v_hat, partialOutput);
+            }
+            #pragma omp critical
+            {
+                b_hat += partialOutput;
+            }
         }
     }
 

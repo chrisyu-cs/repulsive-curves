@@ -6,7 +6,6 @@
 #include "sobo_slobo.h"
 #include "libgmultigrid/domain_constraints.h"
 #include "poly_curve_network.h"
-#include "ThreadPool.h"
 
 #include "Eigen/Dense"
 #include <fstream>
@@ -120,9 +119,6 @@ namespace LWS {
 
         template<typename V>
         void TestAdmissibleMultiply(V &v) const;
-
-        static progschj::ThreadPool* threadpool;
-        static int nThreads;
 
         private:
         // Multiplies the inadmissible clusters for A * v, storing it in b.

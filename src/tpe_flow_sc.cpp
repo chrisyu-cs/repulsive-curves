@@ -110,7 +110,8 @@ namespace LWS {
         return TPESC::tpe_total(curveNetwork, alpha, beta);
     }
 
-    double TPEFlowSolverSC::TPEnergyBH(SpatialTree *root) {
+    double TPEFlowSolverSC::TPEnergyBH(SpatialTree *root)
+    {
         return SpatialTree::TPEnergyBH(curveNetwork, root, alpha, beta);
     }
 
