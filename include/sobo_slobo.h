@@ -41,6 +41,8 @@ namespace LWS
         static void AddEdgePairContributionLow(PolyCurveNetwork *loop, double alpha, double beta,
                                                CurveEdge *p1, CurveEdge *p2, Eigen::MatrixXd &A);
 
+        static void AddEdgePairContributionFrac(PolyCurveNetwork *loop, double order_s, CurveEdge *s, CurveEdge *t, Eigen::MatrixXd &A);
+
         // Fills the global Sobolev-Slobodeckij Gram matrix.
         static void SobolevGramMatrix(PolyCurveNetwork *loop, double alpha,
                                       double beta, Eigen::MatrixXd &A, double diagEps = 0);
@@ -48,6 +50,9 @@ namespace LWS
         // Fills the global Sobolev-Slobodeckij Gram matrix.
         static void SobolevGramMatrix3X(PolyCurveNetwork *loop, double alpha,
                                         double beta, Eigen::MatrixXd &A, double diagEps = 0);
+
+        // Fills the fractional Laplacian of order s.
+        static void FractionalLaplacian(PolyCurveNetwork *loop, double s, Eigen::MatrixXd &A, double diagEps = 0);
 
         // Fills the global Sobolev-Slobodeckij Gram matrix, plus an
         // extra row for a barycenter constraint.
@@ -110,7 +115,7 @@ namespace LWS
             return TPESC::tpe_Kf_pts_sym(v1, v2, t1, t2, a, b);
         }
 
-        static inline double MetricDistanceTermFrac(double s, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2)
+        static inline double MetricDistanceTermFrac(double s, Vector3 v1, Vector3 v2)
         {
             double dist_term = 1.0 / pow(norm(v1 - v2), 2 * s + 1);
             return dist_term;

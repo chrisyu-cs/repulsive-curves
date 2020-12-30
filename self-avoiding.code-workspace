@@ -86,7 +86,8 @@
 			"specialfunctions": "cpp",
 			"splines": "cpp",
 			"codecvt": "cpp",
-			"filesystem": "cpp"
+			"filesystem": "cpp",
+			"iterativesolvers": "cpp"
 		}
 	}
 }

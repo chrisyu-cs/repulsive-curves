@@ -1,9 +1,11 @@
 #include "sobo_slobo.h"
 
-namespace LWS {
+namespace LWS
+{
     void SobolevCurves::LocalMatrix(EdgePositionPair e1, EdgePositionPair e2, double t1, double t2,
-        double alpha, double beta, double out[4][4]) {
-        
+                                    double alpha, double beta, double out[4][4])
+    {
+
         Vector3 f1 = (1 - t1) * e1.f1 + t1 * e1.f2;
         Vector3 f2 = (1 - t2) * e2.f1 + t2 * e2.f2;
 
@@ -25,25 +27,27 @@ namespace LWS {
         out[1][1] = 1.0 / (l1 * l1);
         out[1][2] = 1.0 / (l1 * l2);
         out[1][3] = -1.0 / (l1 * l2);
-        
+
         out[2][0] = -1.0 / (l1 * l2);
         out[2][1] = 1.0 / (l1 * l2);
         out[2][2] = 1.0 / (l2 * l2);
         out[2][3] = -1.0 / (l2 * l2);
-        
+
         out[3][0] = 1.0 / (l1 * l2);
         out[3][1] = -1.0 / (l1 * l2);
         out[3][2] = -1.0 / (l2 * l2);
         out[3][3] = 1.0 / (l2 * l2);
-        
+
         //double denominator = pow(r2, (beta - alpha) / 2);
         // This exponent comes from http://brickisland.net/winegarden/2018/12/10/sobolev-slobodeckij-spaces/
         // double pow_s = 1. - 1. / alpha;
         double pow_s = (beta - alpha);
         double denominator = pow(r, pow_s);
 
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < 4; i++)
+        {
+            for (int j = 0; j < 4; j++)
+            {
                 out[i][j] /= denominator;
                 out[i][j] *= area;
             }
@@ -51,7 +55,8 @@ namespace LWS {
     }
 
     void SobolevCurves::KfMatrix(EdgePositionPair e1, EdgePositionPair e2, double t1, double t2,
-        double alpha, double beta, double out[4][4]) {
+                                 double alpha, double beta, double out[4][4])
+    {
 
         // Interpolated position on edges
         Vector3 f1 = (1 - t1) * e1.f1 + t1 * e1.f2;
@@ -76,12 +81,12 @@ namespace LWS {
         out[1][1] = t1 * t1;
         out[1][2] = t1 * (-1 + t2);
         out[1][3] = -t1 * t2;
-        
+
         out[2][0] = (1 - t1) * (-1 + t2);
         out[2][1] = t1 * (-1 + t2);
         out[2][2] = (-1 + t2) * (-1 + t2);
         out[2][3] = -(-1 + t2) * t2;
-        
+
         out[3][0] = -(1 - t1) * t2;
         out[3][1] = -t1 * t2;
         out[3][2] = -(-1 + t2) * t2;
@@ -90,23 +95,29 @@ namespace LWS {
         double denominator = sqrt(r2);
         double kfxy = TPESC::tpe_Kf_pts(f1, f2, tangent_x, alpha, beta);
 
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < 4; i++)
+        {
+            for (int j = 0; j < 4; j++)
+            {
                 out[i][j] = (area * kfxy * out[i][j]) / denominator;
             }
         }
     }
 
-    void SobolevCurves::AddToFirst(double acc[4][4], double add[4][4], double weight) {
-        for (int i = 0; i < 4; i++){
-            for (int j = 0; j < 4; j++) {
+    void SobolevCurves::AddToFirst(double acc[4][4], double add[4][4], double weight)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            for (int j = 0; j < 4; j++)
+            {
                 acc[i][j] += add[i][j] * weight;
             }
         }
     }
 
     void SobolevCurves::IntegrateLocalMatrix(EdgePositionPair e1, EdgePositionPair e2,
-        double alpha, double beta, double out[4][4]) {
+                                             double alpha, double beta, double out[4][4])
+    {
 
         // Quadrature points and weights
         double points[1] = {0.5};
@@ -118,15 +129,19 @@ namespace LWS {
         double temp_out[4][4];
 
         // Zero out the output array
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < 4; i++)
+        {
+            for (int j = 0; j < 4; j++)
+            {
                 out[i][j] = 0;
             }
         }
 
         // Loop over all pairs of quadrature points
-        for (int x = 0; x < 1; x++) {
-            for (int y = 0; y < 1; y++) {
+        for (int x = 0; x < 1; x++)
+        {
+            for (int y = 0; y < 1; y++)
+            {
                 double weight = weights[x] * weights[y];
                 // Compute contribution to local matrix from each quadrature point
                 LocalMatrix(e1, e2, points[x], points[y], alpha, beta, temp_out);
@@ -136,48 +151,56 @@ namespace LWS {
                 // KfMatrix(e1, e2, points[x], points[y], alpha, beta, temp_out);
                 // AddToFirst(out, temp_out, weight);
             }
-        } 
+        }
     }
 
-    Vector3 HatGradientOnEdge(CurveEdge* edge, CurveVertex* vertex) {
-        CurveVertex* edgeStart = edge->prevVert;
-        CurveVertex* edgeEnd = edge->nextVert;
+    Vector3 HatGradientOnEdge(CurveEdge *edge, CurveVertex *vertex)
+    {
+        CurveVertex *edgeStart = edge->prevVert;
+        CurveVertex *edgeEnd = edge->nextVert;
 
-        if (vertex == edgeStart) {
+        if (vertex == edgeStart)
+        {
             Vector3 towardsVertex = edgeStart->Position() - edgeEnd->Position();
             double length = norm(towardsVertex);
             // 1 over length times normalized edge vector towards the vertex
             return towardsVertex / (length * length);
         }
-        else if (vertex == edgeEnd) {
+        else if (vertex == edgeEnd)
+        {
             Vector3 towardsVertex = edgeEnd->Position() - edgeStart->Position();
             double length = norm(towardsVertex);
             return towardsVertex / (length * length);
         }
-        else {
+        else
+        {
             return Vector3{0, 0, 0};
         }
     }
 
-    double SobolevCurves::HatMidpoint(CurveEdge* edge, CurveVertex* vertex) {
-        CurveVertex* edgeStart = edge->prevVert;
-        CurveVertex* edgeEnd = edge->nextVert;
+    double SobolevCurves::HatMidpoint(CurveEdge *edge, CurveVertex *vertex)
+    {
+        CurveVertex *edgeStart = edge->prevVert;
+        CurveVertex *edgeEnd = edge->nextVert;
 
-        if (vertex == edgeStart) {
+        if (vertex == edgeStart)
+        {
             return 0.5;
         }
-        else if (vertex == edgeEnd) {
+        else if (vertex == edgeEnd)
+        {
             return 0.5;
         }
-        else {
+        else
+        {
             return 0;
         }
     }
 
-
-    void SobolevCurves::AddEdgePairContribution(PolyCurveNetwork* loop, double alpha, double beta,
-    CurveEdge* s, CurveEdge* t, Eigen::MatrixXd &A) {
-        CurveVertex* endpoints[4] = {s->prevVert, s->nextVert, t->prevVert, t->nextVert};
+    void SobolevCurves::AddEdgePairContribution(PolyCurveNetwork *loop, double alpha, double beta,
+                                                CurveEdge *s, CurveEdge *t, Eigen::MatrixXd &A)
+    {
+        CurveVertex *endpoints[4] = {s->prevVert, s->nextVert, t->prevVert, t->nextVert};
         double len1 = s->Length();
         double len2 = t->Length();
         Vector3 mid1 = s->Midpoint();
@@ -187,8 +210,10 @@ namespace LWS {
 
         double dist_term = SobolevCurves::MetricDistanceTerm(alpha, beta, mid1, mid2, tangent_s, tangent_t);
 
-        for (CurveVertex* u : endpoints) {
-            for (CurveVertex* v : endpoints) {
+        for (CurveVertex *u : endpoints)
+        {
+            for (CurveVertex *v : endpoints)
+            {
                 Vector3 u_hat_s = HatGradientOnEdge(s, u);
                 Vector3 u_hat_t = HatGradientOnEdge(t, u);
                 Vector3 v_hat_s = HatGradientOnEdge(s, v);
@@ -203,9 +228,10 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::AddEdgePairContributionLow(PolyCurveNetwork* loop, double alpha, double beta,
-    CurveEdge* s, CurveEdge* t, Eigen::MatrixXd &A) {
-        CurveVertex* endpoints[4] = {s->prevVert, s->nextVert, t->prevVert, t->nextVert};
+    void SobolevCurves::AddEdgePairContributionLow(PolyCurveNetwork *loop, double alpha, double beta,
+                                                   CurveEdge *s, CurveEdge *t, Eigen::MatrixXd &A)
+    {
+        CurveVertex *endpoints[4] = {s->prevVert, s->nextVert, t->prevVert, t->nextVert};
         double len1 = s->Length();
         double len2 = t->Length();
         Vector3 mid_s = s->Midpoint();
@@ -215,8 +241,10 @@ namespace LWS {
 
         double kf_st = MetricDistanceTermLow(alpha, beta, mid_s, mid_t, tangent_s, tangent_t);
 
-        for (CurveVertex* u : endpoints) {
-            for (CurveVertex* v : endpoints) {
+        for (CurveVertex *u : endpoints)
+        {
+            for (CurveVertex *v : endpoints)
+            {
                 double u_s = HatMidpoint(s, u);
                 double u_t = HatMidpoint(t, u);
                 double v_s = HatMidpoint(s, v);
@@ -231,40 +259,106 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::SobolevGramMatrix(PolyCurveNetwork* curves, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
-        double out[4][4];
+    void SobolevCurves::AddEdgePairContributionFrac(PolyCurveNetwork *loop, double order_s, CurveEdge *s, CurveEdge *t, Eigen::MatrixXd &A)
+    {
+        CurveVertex *endpoints[4] = {s->prevVert, s->nextVert, t->prevVert, t->nextVert};
+        double len1 = s->Length();
+        double len2 = t->Length();
+        Vector3 mid_s = s->Midpoint();
+        Vector3 mid_t = t->Midpoint();
+        Vector3 tangent_s = s->Tangent();
+        Vector3 tangent_t = t->Tangent();
+
+        double kf_st = MetricDistanceTermFrac(order_s, mid_s, mid_t);
+
+        for (CurveVertex *u : endpoints)
+        {
+            for (CurveVertex *v : endpoints)
+            {
+                double u_s = HatMidpoint(s, u);
+                double u_t = HatMidpoint(t, u);
+                double v_s = HatMidpoint(s, v);
+                double v_t = HatMidpoint(t, v);
+
+                double numer = (u_s - u_t) * (v_s - v_t);
+                int index_u = u->GlobalIndex();
+                int index_v = v->GlobalIndex();
+
+                A(index_u, index_v) += numer * kf_st * len1 * len2;
+            }
+        }
+    }
+
+    void SobolevCurves::SobolevGramMatrix(PolyCurveNetwork *curves, double alpha, double beta, Eigen::MatrixXd &A, double diagEps)
+    {
         int nEdges = curves->NumEdges();
         int nVerts = curves->NumVertices();
 
         int numTerms = 0;
 
-        for (int i = 0; i < nEdges; i++) {
-            CurveEdge* pc_i = curves->GetEdge(i);
-            
-            for (int j = 0; j < nEdges; j++) {
-                CurveEdge* pc_j = curves->GetEdge(j);
+        for (int i = 0; i < nEdges; i++)
+        {
+            CurveEdge *pc_i = curves->GetEdge(i);
+
+            for (int j = 0; j < nEdges; j++)
+            {
+                CurveEdge *pc_j = curves->GetEdge(j);
                 // if (pc_i == pc_j) continue;
-                if (pc_i == pc_j || pc_i->IsNeighbors(pc_j)) continue;
+                if (pc_i == pc_j || pc_i->IsNeighbors(pc_j))
+                    continue;
 
                 AddEdgePairContribution(curves, alpha, beta, pc_i, pc_j, A);
                 AddEdgePairContributionLow(curves, alpha, beta, pc_i, pc_j, A);
             }
         }
 
-        for (int i = 0; i < nVerts; i++) {
+        for (int i = 0; i < nVerts; i++)
+        {
             A(i, i) += diagEps * curves->GetVertex(i)->DualLength();
         }
     }
 
-    void SobolevCurves::SobolevGramMatrix3X(PolyCurveNetwork* curves, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
+    // Fills the fractional Laplacian of order s.
+    void SobolevCurves::FractionalLaplacian(PolyCurveNetwork *curves, double s, Eigen::MatrixXd &A, double diagEps)
+    {
+        int nEdges = curves->NumEdges();
+        int nVerts = curves->NumVertices();
+
+        int numTerms = 0;
+
+        for (int i = 0; i < nEdges; i++)
+        {
+            CurveEdge *pc_i = curves->GetEdge(i);
+
+            for (int j = 0; j < nEdges; j++)
+            {
+                CurveEdge *pc_j = curves->GetEdge(j);
+                // if (pc_i == pc_j) continue;
+                if (pc_i == pc_j || pc_i->IsNeighbors(pc_j))
+                    continue;
+
+                AddEdgePairContributionFrac(curves, s, pc_i, pc_j, A);
+            }
+        }
+
+        for (int i = 0; i < nVerts; i++)
+        {
+            A(i, i) += diagEps * curves->GetVertex(i)->DualLength();
+        }
+    }
+
+    void SobolevCurves::SobolevGramMatrix3X(PolyCurveNetwork *curves, double alpha, double beta, Eigen::MatrixXd &A, double diagEps)
+    {
         Eigen::MatrixXd topLeft;
         int nVerts = curves->NumVertices();
         topLeft.setZero(nVerts, nVerts);
 
         SobolevGramMatrix(curves, alpha, beta, topLeft, diagEps);
 
-        for (int i = 0; i < nVerts; i++) {
-            for (int j = 0; j < nVerts; j++) {
+        for (int i = 0; i < nVerts; i++)
+        {
+            for (int j = 0; j < nVerts; j++)
+            {
                 A(3 * i, 3 * j) = topLeft(i, j);
                 A(3 * i + 1, 3 * j + 1) = topLeft(i, j);
                 A(3 * i + 2, 3 * j + 2) = topLeft(i, j);
@@ -272,7 +366,8 @@ namespace LWS {
         }
     }
 
-    void SobolevCurves::SobolevPlusBarycenter(PolyCurveNetwork* loop, double alpha, double beta, Eigen::MatrixXd &A, double diagEps) {
+    void SobolevCurves::SobolevPlusBarycenter(PolyCurveNetwork *loop, double alpha, double beta, Eigen::MatrixXd &A, double diagEps)
+    {
         int nVerts = loop->NumVertices();
         // Fill the top-left block with the gram matrix
         SobolevCurves::SobolevGramMatrix(loop, alpha, beta, A, diagEps);
@@ -280,7 +375,8 @@ namespace LWS {
         double sumLength = loop->TotalLength();
 
         // Fill the bottom row with weights for the constraint
-        for (int i = 0; i < nVerts; i++) {
+        for (int i = 0; i < nVerts; i++)
+        {
             double areaWeight = loop->GetVertex(i)->DualLength() / sumLength;
             // Fill in bottom row and rightmost column
             A(i, nVerts) = areaWeight;
@@ -288,7 +384,8 @@ namespace LWS {
         }
     }
 
-    double SobolevCurves::SobolevDot(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J) {
+    double SobolevCurves::SobolevDot(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J)
+    {
         double dot_x = as.col(0).transpose() * J * bs.col(0);
         double dot_y = as.col(1).transpose() * J * bs.col(1);
         double dot_z = as.col(2).transpose() * J * bs.col(2);
@@ -296,35 +393,41 @@ namespace LWS {
         return dot_x + dot_y + dot_z;
     }
 
-    void SobolevCurves::SobolevNormalize(Eigen::MatrixXd &as, Eigen::MatrixXd &J) {
+    void SobolevCurves::SobolevNormalize(Eigen::MatrixXd &as, Eigen::MatrixXd &J)
+    {
         double sobo_norm = sqrt(SobolevDot(as, as, J));
-        for (int i = 0; i < as.rows(); i++) {
+        for (int i = 0; i < as.rows(); i++)
+        {
             as(i, 0) /= sobo_norm;
             as(i, 1) /= sobo_norm;
             as(i, 2) /= sobo_norm;
         }
     }
 
-    void SobolevCurves::SobolevOrthoProjection(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J) {
+    void SobolevCurves::SobolevOrthoProjection(Eigen::MatrixXd &as, Eigen::MatrixXd &bs, Eigen::MatrixXd &J)
+    {
         double d1 = SobolevDot(as, bs, J);
         double d2 = SobolevDot(bs, bs, J);
         // Take the projection, and divide out the norm of b
-        for (int i = 0; i < as.rows(); i++) {
+        for (int i = 0; i < as.rows(); i++)
+        {
             AddToRow(as, i, -(d1 / d2) * SelectRow(bs, i));
         }
     }
 
-    void SobolevCurves::DfMatrix(PolyCurveNetwork* loop, Eigen::MatrixXd &out) {
+    void SobolevCurves::DfMatrix(PolyCurveNetwork *loop, Eigen::MatrixXd &out)
+    {
         int nVerts = loop->NumVertices();
         int nEdges = loop->NumEdges();
         // Maps from 1 scalar per vertex to a 3-vector per edge
         out.setZero(nEdges * 3, nVerts);
-        
-        for (int i = 0; i < nEdges; i++) {
-            CurveEdge* e_i = loop->GetEdge(i);
-            CurveVertex* p1 = e_i->prevVert;
+
+        for (int i = 0; i < nEdges; i++)
+        {
+            CurveEdge *e_i = loop->GetEdge(i);
+            CurveVertex *p1 = e_i->prevVert;
             int i1 = p1->GlobalIndex();
-            CurveVertex* p2 = e_i->nextVert;
+            CurveVertex *p2 = e_i->nextVert;
             int i2 = p2->GlobalIndex();
 
             // Positive weight on the second vertex, negative on the first
@@ -341,37 +444,44 @@ namespace LWS {
             out(3 * i1 + 2, i2) = weight.z;
         }
     }
-    
-    void SobolevCurves::MultiplyComponents(Eigen::MatrixXd &A, std::vector<Vector3> &x, std::vector<Vector3> &out) {
+
+    void SobolevCurves::MultiplyComponents(Eigen::MatrixXd &A, std::vector<Vector3> &x, std::vector<Vector3> &out)
+    {
         int n = x.size();
         Eigen::VectorXd xVec;
         xVec.setZero(n);
 
         // First multiply x coordinates
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++)
+        {
             xVec(i) = x[i].x;
         }
         Eigen::VectorXd res = A * xVec;
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++)
+        {
             out[i].x = res(i);
         }
 
         // Multiply y coordinates
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++)
+        {
             xVec(i) = x[i].y;
         }
         res = A * xVec;
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++)
+        {
             out[i].y = res(i);
         }
 
         // Multiply z coordinates
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++)
+        {
             xVec(i) = x[i].z;
         }
         res = A * xVec;
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++)
+        {
             out[i].z = res(i);
         }
     }
-}
+} // namespace LWS

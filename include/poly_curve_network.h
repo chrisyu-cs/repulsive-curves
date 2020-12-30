@@ -79,7 +79,7 @@ namespace LWS
             SetPosition(v->id, newPos);
         }
 
-        inline int NumVertices() {
+        inline int NumVertices() const {
             return nVerts;
         }
 

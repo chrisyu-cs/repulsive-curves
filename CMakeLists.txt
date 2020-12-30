@@ -88,6 +88,8 @@ set(SRCS
   src/obstacles/mesh_obstacle.cpp
   src/obstacles/plane_obstacle.cpp
   src/obstacles/sphere_obstacle.cpp
+  src/preconditioned/iterative_solve.cpp
+  src/preconditioned/sparse_preconditioner.cpp
   src/product/block_cluster_tree.cpp
   src/product/dense_matrix.cpp
   src/product/test_matrices.cpp

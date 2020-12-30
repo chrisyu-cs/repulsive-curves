@@ -51,6 +51,7 @@ namespace LWS {
         void outputOBJFrame();
         void writeCurves( PolyCurveNetwork* network, const std::string& positionFilename, const std::string& tangentFilename );
         void benchmarkMethods();
+        void testFracLaplacian();
         
         SceneData sceneData;
         std::unique_ptr<surface::HalfedgeMesh> mesh;

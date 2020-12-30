@@ -24,6 +24,8 @@
 #include "scene_file.h"
 #include "applications/pathplanning.h"
 
+#include "preconditioned/iterative_solve.h"
+
 #include <limits>
 #include <random>
 #include <iostream>
@@ -131,9 +133,63 @@ namespace LWS
     writeCurves(curves, "objs/curve" + std::string(buffer) + ".obj", "objTangents/curve" + std::string(buffer) + ".obj");
   }
 
+  void LWSApp::testFracLaplacian()
+  {
+    Eigen::MatrixXd vertGradients;
+    int nVerts = curves->NumVertices();
+    vertGradients.setZero(nVerts, 3);
+
+    // Assemble the L2 gradient
+    long bh_start = Utils::currentTimeMilliseconds();
+    BVHNode3D* vertTree = CreateBVHFromCurve(curves);
+    tpeSolver->AddAllGradients(vertTree, vertGradients);
+    Eigen::MatrixXd l2gradients = vertGradients;
+    long bh_end = Utils::currentTimeMilliseconds();
+    std::cout << "  Barnes-Hut: " << (bh_end - bh_start) << " ms" << std::endl;
+
+    Eigen::VectorXd l2vec = l2gradients.col(0);
+
+    double s = 5.0 / 3.0;
+
+    long denseStart = Utils::currentTimeMilliseconds();
+    Eigen::MatrixXd fracL;
+    fracL.setZero(curves->NumVertices(), curves->NumVertices());
+    SobolevCurves::FractionalLaplacian(curves, s, fracL);
+    Eigen::VectorXd denseRes = fracL * l2vec;
+    long denseEnd = Utils::currentTimeMilliseconds();
+
+    std::cout << "Dense time = " << (denseEnd - denseStart) << " ms" << std::endl;
+
+    long bctStart = Utils::currentTimeMilliseconds();
+    BVHNode3D* edgeTree = CreateEdgeBVHFromCurve(curves);
+    BlockClusterTree* bct = new BlockClusterTree(curves, edgeTree, 0.5, 3, 6);
+    bct->PremultiplyAfFrac(s);
+
+    Eigen::VectorXd bctRes;
+    bctRes.setZero(3 * nVerts);
+    bct->MultiplyByFracLaplacian(l2vec, bctRes, s);
+    long bctEnd = Utils::currentTimeMilliseconds();
+
+    std::cout << "BCT time = " << (bctEnd - bctStart) << " ms" << std::endl;
+
+    Eigen::VectorXd diff = bctRes - denseRes;
+    double relErr = diff.norm() / denseRes.norm() * 100;
+
+    std::cout << "Dense norm = " << denseRes.norm() << std::endl;
+    std::cout << "BCT norm = " << bctRes.norm() << std::endl;
+
+    std::cout << "Relative error = " << relErr << " percent" << std::endl;
+
+    delete vertTree;
+    delete bct;
+    delete edgeTree;
+  }
+
   void LWSApp::benchmarkMethods()
   {
     size_t nVerts = curves->NumVertices();
+    curves->appliedConstraints.clear();
+    curves->appliedConstraints.push_back(ConstraintType::Barycenter);
     BVHNode3D *tree_root = 0;
 
     Eigen::MatrixXd vertGradients;
@@ -168,6 +224,18 @@ namespace LWS
     delete multigrid;
     if (tree_root)
       delete tree_root;
+    
+    Eigen::VectorXd l2vec(3 * nVerts + 3);
+    MatrixIntoVectorX3(l2gradients, l2vec);
+
+    Eigen::VectorXd hsIter;
+    hsIter.setZero(3 * nVerts + 3);
+
+    long iter_start = Utils::currentTimeMilliseconds(); 
+    preconditioned::SolveIterative(curves, l2vec, hsIter);
+    long iter_end = Utils::currentTimeMilliseconds();
+
+    std::cout << "  Iterative solve: " << (iter_end - iter_start) << " ms" << std::endl;
   }
 
   void LWSApp::writeCurves(PolyCurveNetwork *network, const std::string &positionFilename, const std::string &tangentFilename)
@@ -383,6 +451,11 @@ namespace LWS
     }
 
     double delta = 0.001;
+
+    if (ImGui::Button("Test fractional laplacian"))
+    {
+      testFracLaplacian();
+    }
 
     if (ImGui::Button("Benchmark methods"))
     {
