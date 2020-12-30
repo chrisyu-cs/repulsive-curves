@@ -595,16 +595,6 @@ namespace LWS {
         double dot_acc = soboDot / (l2Gradients.norm() * vertGradients.norm());
         std::cout << "  Project gradient: " << (project_end - project_start) << " ms" << std::endl;
 
-        /*
-        project_start = Utils::currentTimeMilliseconds();
-        // Evaluate second point for circular line search
-        Eigen::MatrixXd secondDeriv;
-        secondDeriv.setZero(nVerts, 3);
-        GetSecondDerivative(tree_root, vertGradients, 1e-5, secondDeriv);
-        project_end = Utils::currentTimeMilliseconds();
-        std::cout << "  Second derivative: " << (project_end - project_start) << " ms" << std::endl;
-        */
-
         // Take a line search step using this gradient
         double ls_start = Utils::currentTimeMilliseconds();
         double step_size = LineSearchStep(vertGradients, dot_acc, tree_root);

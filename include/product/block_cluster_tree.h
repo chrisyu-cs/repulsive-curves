@@ -88,7 +88,6 @@ namespace LWS {
 
         void AfFullProduct(ClusterPair pair, const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
         void AfFullProductLow(ClusterPair pair, const Eigen::VectorXd &v_mid, Eigen::VectorXd &result) const;
-        void AfFullProductLowVerts(ClusterPair pair, const Eigen::VectorXd &v_mid, Eigen::VectorXd &result) const;
         void AfApproxProduct(ClusterPair pair, const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &result) const;
         void AfApproxProductLow(ClusterPair pair, const Eigen::VectorXd &v_mid, Eigen::VectorXd &result) const;
 
@@ -110,30 +109,15 @@ namespace LWS {
         template<typename Dest>
         void PropagateBIs(BVHNode3D* node, double parent_BI, Dest &b_tilde) const;
 
-        void CompareBlocks();
-
-        Eigen::MatrixXd AfFullBlock(ClusterPair pair);
-        Eigen::MatrixXd AfApproxBlock(ClusterPair pair);
-
         void SetBlockTreeMode(BlockTreeMode m);
-
-        template<typename V>
-        void TestAdmissibleMultiply(V &v) const;
 
         private:
         // Multiplies the inadmissible clusters for A * v, storing it in b.
-        void MultiplyInadmissible(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat, int startIndex, int endIndex) const;
         void MultiplyInadmissibleParallel(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
         void MultiplyAdmissibleFast(const Eigen::MatrixXd &v_hat, Eigen::MatrixXd &b_hat) const;
-        // Multiplies the admissible clusters for A * v, storing it in b.
-        void MultiplyAdmissible(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
-        void MultiplyAdmissibleExact(Eigen::MatrixXd &v, Eigen::MatrixXd &b) const;
 
         // Same, but for low-order term.
-        void MultiplyAdmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
         void MultiplyAdmissibleLowFast(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
-        void MultiplyAdmissibleLowExact(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
-        void MultiplyInadmissibleLow(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid, int startIndex, int endIndex) const;
         void MultiplyInadmissibleLowParallel(const Eigen::VectorXd &v_mid, Eigen::VectorXd &b_mid) const;
 
         Eigen::VectorXd Af_1, Af_1_low;
@@ -150,10 +134,6 @@ namespace LWS {
         std::vector<ClusterPair> inadmissiblePairs;
         bool constraintsSet;
         Eigen::SparseMatrix<double> B;
-
-#ifdef DUMP_BCT_VISUALIZATION
-        void writeVisualization();
-#endif
     };
 
     template<typename V>
@@ -293,45 +273,7 @@ namespace LWS {
             b(i) += epsilon * curves->GetVertex(i)->DualLength() * v(i);
         }
     }
-
-    template<typename V>
-    void BlockClusterTree::TestAdmissibleMultiply(V &v) const {
-        int nVerts = curves->NumVertices();
-        Eigen::MatrixXd v_hat(nVerts, 3);
-        v_hat.setZero();
-
-        SobolevCurves::ApplyDf(curves, v, v_hat);
-        
-        Eigen::MatrixXd b_hat_ref(nVerts, 3);
-        b_hat_ref.setZero();
-        Eigen::MatrixXd b_hat_fast(nVerts, 3);
-        b_hat_fast.setZero();
-
-        MultiplyAdmissible(v_hat, b_hat_ref);
-        MultiplyAdmissibleFast(v_hat, b_hat_fast);
-
-        Eigen::VectorXd b_ref;
-        b_ref.setZero(nVerts);
-        Eigen::VectorXd b_fast;
-        b_fast.setZero(nVerts);
-
-        SobolevCurves::ApplyDfTranspose(curves, b_hat_ref, b_ref);
-        SobolevCurves::ApplyDfTranspose(curves, b_hat_fast, b_fast);
-
-        double normDiff = (b_ref - b_fast).norm();
-        double normTruth = b_ref.norm();
-
-        std::cout << "Admissible blocks reference norm = " << normTruth << std::endl;
-        std::cout << "Admissible blocks fast norm = " << b_fast.norm()  << std::endl;
-
-        double dir_dot = b_ref.dot(b_fast) / (b_ref.norm() * b_fast.norm());
-
-        std::cout << "Admissible blocks multiply error = " << 100 * (normDiff / normTruth) << " percent" << std::endl;
-        std::cout << "Dot product direction = " << dir_dot << std::endl;
-        std::cout << "Norm ratio = " << b_ref.norm() / b_fast.norm() << std::endl;
-
-    }
-
+    
     template<typename V, typename Dest>
     void BlockClusterTree::MultiplyVector(V &v, Dest &b) const {
         int nEdges = curves->NumEdges();
