@@ -87,7 +87,8 @@
 			"splines": "cpp",
 			"codecvt": "cpp",
 			"filesystem": "cpp",
-			"iterativesolvers": "cpp"
+			"iterativesolvers": "cpp",
+			"bit": "cpp"
 		}
 	}
 }

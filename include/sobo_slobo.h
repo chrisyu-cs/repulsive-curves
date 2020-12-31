@@ -109,9 +109,8 @@ namespace LWS
         static inline double MetricDistanceTermLow(double alpha, double beta, Vector3 v1, Vector3 v2, Vector3 t1, Vector3 t2)
         {
             double s_pow = (beta - 1) / alpha;
-            s_pow = 2 * (s_pow - 1) + 1;
             double a = 2;
-            double b = 4 + s_pow;
+            double b = 4 + (2 * (s_pow - 1) + 1);
             return TPESC::tpe_Kf_pts_sym(v1, v2, t1, t2, a, b);
         }
 

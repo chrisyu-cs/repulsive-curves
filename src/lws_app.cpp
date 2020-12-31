@@ -203,39 +203,81 @@ namespace LWS
     long bh_end = Utils::currentTimeMilliseconds();
     std::cout << "  Barnes-Hut: " << (bh_end - bh_start) << " ms" << std::endl;
 
+    double s = 5.0 / 3.0;
+
+    long denseStart = Utils::currentTimeMilliseconds();
+    Eigen::MatrixXd M;
+    M.setZero(3 * nVerts + 3, 3 * nVerts + 3);
+    SobolevCurves::Sobolev3XWithConstraints<VariableConstraintSet>(curves, 3, 6, M);
+    Eigen::PartialPivLU<Eigen::MatrixXd> lu = M.partialPivLu();
+    Eigen::MatrixXd denseMat = l2gradients;
+
+    tpeSolver->ProjectSoboSloboGradient(lu, denseMat);
+    
+    Eigen::VectorXd denseRes(3 * nVerts + 3);
+    denseRes.setZero();
+
+    MatrixIntoVectorX3(denseMat, denseRes);
+    
+    long denseEnd = Utils::currentTimeMilliseconds();
+
+    std::cout << "Dense time: " << (denseEnd - denseStart) << " ms" << std::endl;
+    std::cout << "Dense norm = " << denseRes.norm() << std::endl;
+
+    double sep = 0.5;
+
     // Set up multigrid stuff
     long mg_setup_start = Utils::currentTimeMilliseconds();
     using MultigridDomain = ConstraintProjectorDomain<VariableConstraintSet>;
     using MultigridSolver = MultigridHierarchy<MultigridDomain>;
-    double sep = 1.0;
     MultigridDomain *domain = new MultigridDomain(curves, 3, 6, sep, 0);
     MultigridSolver *multigrid = new MultigridSolver(domain);
-    long mg_setup_end = Utils::currentTimeMilliseconds();
-    std::cout << "  Multigrid setup: " << (mg_setup_end - mg_setup_start) << " ms" << std::endl;
 
     // Use multigrid to compute the Sobolev gradient
-    long mg_start = Utils::currentTimeMilliseconds();
     double soboDot = tpeSolver->ProjectGradientMultigrid<MultigridDomain, MultigridSolver::EigenCG>(vertGradients, multigrid, vertGradients, 1e-2);
-    double dot_acc = soboDot / (l2gradients.norm() * vertGradients.norm());
     long mg_end = Utils::currentTimeMilliseconds();
-    std::cout << "  Multigrid solve: " << (mg_end - mg_start) << " ms" << std::endl;
-    std::cout << "  Sobolev gradient norm = " << soboDot << std::endl;
+    Eigen::VectorXd mgVec(3 * nVerts + 3);
+    mgVec.setZero();
+    MatrixIntoVectorX3(vertGradients, mgVec);
+
+    mgVec(nVerts) = 0;
+    mgVec(nVerts + 1) = 0;
+    mgVec(nVerts + 2) = 0;
+    double mgDot = mgVec.dot(denseRes) / (mgVec.norm() * denseRes.norm());
+    double mgErr = (denseRes - mgVec).norm() / denseRes.norm() * 100;
+
+    std::cout << "Multigrid time: " << (mg_end - mg_setup_start) << " ms" << std::endl;
+    std::cout << "Multigrid norm = " << mgVec.norm() << std::endl;
+    std::cout << "Multigrid error = " << mgErr << " percent" << std::endl;
+    std::cout << "Dot product of directions = " << mgDot << std::endl;
 
     delete multigrid;
     if (tree_root)
       delete tree_root;
     
-    Eigen::VectorXd l2vec(3 * nVerts + 3);
-    MatrixIntoVectorX3(l2gradients, l2vec);
-
     Eigen::VectorXd hsIter;
     hsIter.setZero(3 * nVerts + 3);
 
+    Eigen::VectorXd l2vec(3 * nVerts + 3);
+    l2vec.setZero();
+    MatrixIntoVectorX3(l2gradients, l2vec);
+
     long iter_start = Utils::currentTimeMilliseconds(); 
-    preconditioned::SolveIterative(curves, l2vec, hsIter);
+    preconditioned::SolveIterative(curves, l2vec, hsIter, sep);
     long iter_end = Utils::currentTimeMilliseconds();
 
-    std::cout << "  Iterative solve: " << (iter_end - iter_start) << " ms" << std::endl;
+    hsIter(nVerts) = 0;
+    hsIter(nVerts + 1) = 0;
+    hsIter(nVerts + 2) = 0;
+
+    double iterErr = (denseRes - hsIter).norm() / denseRes.norm() * 100;
+    double iterDot = hsIter.dot(denseRes) / (hsIter.norm() * denseRes.norm());
+
+    std::cout << "Iterative time: " << (iter_end - iter_start) << " ms" << std::endl;
+    std::cout << "Iterative norm = " << hsIter.norm() << std::endl;
+
+    std::cout << "Iterative error = " << iterErr << " percent" << std::endl;
+    std::cout << "Iterative dot = " << iterDot << std::endl;
   }
 
   void LWSApp::writeCurves(PolyCurveNetwork *network, const std::string &positionFilename, const std::string &tangentFilename)

@@ -66,6 +66,7 @@ namespace LWS
             }
 
         private:
+            Eigen::VectorXd dualLengths;
             PolyCurveNetwork *curves;
             double alpha, beta, bct_theta;
             mutable SparseFactorization factorizedLaplacian;

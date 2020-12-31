@@ -7,7 +7,7 @@ namespace LWS
 {
     namespace preconditioned
     {
-        void SolveIterative(PolyCurveNetwork *curves, const Eigen::VectorXd &v, Eigen::VectorXd &dst);
+        void SolveIterative(PolyCurveNetwork *curves, const Eigen::VectorXd &v, Eigen::VectorXd &dst, double sep);
 
     }
 } // namespace LWS

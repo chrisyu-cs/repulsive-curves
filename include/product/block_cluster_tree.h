@@ -194,7 +194,7 @@ namespace LWS
         tree_root->recursivelyZeroMVFields();
         Eigen::VectorXd result(v.rows());
         result.setZero();
-        SetVIsLow(tree_root, v);
+        SetVIsLow(tree_root, v); // same procedure as low-order
         SetBIsFrac(tree_root, result, s);
         result = tree_root->fullMasses.asDiagonal() * result;
         return result;
@@ -436,6 +436,9 @@ namespace LWS
     template <typename V3, typename Dest>
     void BlockClusterTree::MultiplyByFracLaplacian3(V3 &v, Dest &b, double s) const
     {
+        Eigen::VectorXd constrVals;
+        constrVals.setZero(b.rows());
+
         // Slice the input vector to get every x-coordinate
         Eigen::Map<const Eigen::VectorXd, 0, Eigen::InnerStride<3>> v_x(v.data(), nVerts);
         // Slice the output vector to get x-coordinates
