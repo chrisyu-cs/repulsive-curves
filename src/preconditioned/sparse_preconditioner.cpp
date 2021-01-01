@@ -66,8 +66,6 @@ namespace LWS
 
             // Expand the matrix by 3x
             TripleTriplets(triplets, triplets3x);
-            // Add barycenter constraint rows
-            // ConstraintFunctions::AddBarycenterTriplets3X(curves, triplets3x, 3 * nVerts);
 
             size_t nRows = 3 * nVerts + 3;
             // Pre-factorize the cotan Laplacian
@@ -103,8 +101,8 @@ namespace LWS
             // Eigen::VectorXd weighted = dualLengths.diagonal() * v;
 
             dst = factorizedLaplacian.Solve(v);
-            // double s = get_s();
-            // bct->MultiplyByFracLaplacian3(dst, dst, 2 - s);
+            double s = get_s();
+            bct->MultiplyByFracLaplacian3(dst, dst, 2 - s);
 
             // Re-zero out Lagrange multipliers, since the first solve
             // will have left some junk in them
